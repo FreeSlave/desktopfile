@@ -1,0 +1,11 @@
+{
+    "name": "desktopfile",
+    "description": "Desktop Entry Specification implementation",
+    "license" : "BSL-1.0",
+    "authors": ["Roman Chistokhodov"],
+    "dependencies": {
+    },
+    "targetPath" : "bin",
+    "targetType" : "executable",
+    "targetName" : "desktopfile"
+}
