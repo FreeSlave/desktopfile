@@ -1,42 +1,57 @@
 module desktopfile;
 
 private {
+    import std.algorithm : findSplit, splitter, equal;
+    import std.array;
+    import std.conv;
+    import std.exception;
+    import std.path;
+    import std.range;
     import std.stdio;
     import std.string;
-    import std.algorithm : findSplit, splitter;
-    import std.exception;
     import std.typecons;
+}
+
+class DesktopFileException : Exception
+{
+    this(string msg, size_t lineNumber, string file = __FILE__, size_t line = __LINE__, Throwable next = null) pure nothrow @safe {
+        super(msg, file, line, next);
+        _lineNumber = lineNumber;
+    }
+    
+    ///Number of line in desktop file where the exception occured, starting from 1. Don't be confused with $(B line) property of $(B Throwable).
+    size_t lineNumber() const {
+        return _lineNumber;
+    }
+    
+private:
+    size_t _lineNumber;
+}
+
+auto makeLocaleNameChain(string lang, string country = null, string encoding = null, string modifier = null) pure @trusted
+{
+    return chain(lang, country.length ? "_" : string.init, country.toUpper(), 
+                 encoding.length ? "." : string.init, encoding.toUpper(), 
+                 modifier.length ? "@" : string.init, modifier);
 }
 
 string makeLocaleName(string lang, string country = null, string encoding = null, string modifier = null) pure @trusted
 {
-    string toReturn = lang.toLower();
-    if (country.length) {
-        toReturn ~= "_" ~ country.toUpper();
-    }
-    if (encoding.length) {
-        toReturn ~= "." ~ encoding.toUpper();
-    }
-    if (modifier.length) {
-        toReturn ~= "@" ~ modifier.toUpper();
-    }
-    return toReturn;
+    return to!string(makeLocaleNameChain(lang, country, encoding, modifier));
 }
 
 Tuple!(string, string, string, string) parseLocaleName(string locale) pure nothrow @nogc @trusted
 {
-    string lang, country, encoding, modifier;
-    
     auto modifiderSplit = findSplit(locale, "@");
-    modifier = modifiderSplit[2];
+    auto modifier = modifiderSplit[2];
     
     auto encodongSplit = findSplit(modifiderSplit[0], ".");
-    encoding = encodongSplit[2];
+    auto encoding = encodongSplit[2];
     
     auto countrySplit = findSplit(encodongSplit[0], "_");
-    country = countrySplit[2];
+    auto country = countrySplit[2];
     
-    lang = countrySplit[0];
+    auto lang = countrySplit[0];
     
     return tuple(lang, country, encoding, modifier);
 }
@@ -82,6 +97,46 @@ private bool isFalse(string str) pure nothrow @nogc @safe {
     return (str == "false" || str == "0");
 }
 
+private string lookupLocalizedKey(const(string[string]) entries, string key, string locale, lazy string defaultValue = null)
+{
+    auto t = parseLocaleName(locale);
+    auto lang = t[0];
+    auto country = t[1];
+    auto modifier = t[3];
+    
+    if (lang.length) {
+        const(string)* pick;
+        
+        if (country.length && modifier.length) {
+            pick = localizedKeyName(key, makeLocaleName(lang, country, null, modifier)) in entries;
+            if (pick) {
+                return *pick;
+            }
+        }
+        
+        if (country.length) {
+            pick = localizedKeyName(key, makeLocaleName(lang, country)) in entries;
+            if (pick) {
+                return *pick;
+            }
+        }
+        
+        if (modifier.length) {
+            pick = localizedKeyName(key, makeLocaleName(lang, null, null, modifier)) in entries;
+            if (pick) {
+                return *pick;
+            }
+        }
+        
+        pick = localizedKeyName(key, makeLocaleName(lang)) in entries;
+        if (pick) {
+            return *pick;
+        }
+    }
+    
+    return entries.get(key, defaultValue);
+}
+
 struct DesktopGroup
 {
 public:
@@ -97,8 +152,7 @@ public:
     }
     
     string localizedValue(string key, string locale, lazy string defaultValue = null) const {
-        string localizedKey = localizedKeyName(key, locale);
-        return _entries.get(localizedKey, defaultValue);
+        return lookupLocalizedKey(_entries, key, locale, defaultValue);
     }
     
     void setLocalizedValue(string key, string locale, string value) {
@@ -143,7 +197,6 @@ public:
         
         string currentGroup;
         foreach(sline; f.byLine()) {
-            
             string line = sline.idup;
             line = stripLeft(line);
             
@@ -199,6 +252,10 @@ public:
                 return Type.Directory;
             }
         }
+        if (_fileName.extension == ".directory") {
+            return Type.Directory;
+        }
+        
         return Type.Unknown;
     }
     
@@ -263,6 +320,34 @@ private:
     DesktopGroup* _desktopEntry;
     string _fileName;
     DesktopGroup[string] _groups;
+}
+
+unittest 
+{
+    assert(makeLocaleName("ru", "RU") == "ru_RU");
+    assert(makeLocaleName("ru", "RU", "UTF-8") == "ru_RU.UTF-8");
+    assert(makeLocaleName("ru", "RU", "UTF-8", "mod") == "ru_RU.UTF-8@mod");
+    assert(makeLocaleName("ru", null, null, "mod") == "ru@mod");
+    
+    assert(equal(makeLocaleNameChain("ru", "RU", "UTF-8", "mod"), "ru_RU.UTF-8@mod"));
+    
+    assert(parseLocaleName("ru_RU.UTF-8@mod") == tuple("ru", "RU", "UTF-8", "mod"));
+    assert(parseLocaleName("ru@mod") == tuple("ru", string.init, string.init, "mod"));
+    
+    assert(localizedKeyName("Name", "ru_RU") == "Name[ru_RU]");
+    
+    assert(separateFromLocale("Name[ru_RU]") == tuple("Name", "ru_RU"));
+    assert(separateFromLocale("Name") == tuple("Name", string.init));
+    
+    
+    string[string] entries = [ 
+        "Name" : "Programmer", 
+        "Name[ru_RU]" : "Разработчик", 
+        "Name[ru@jargon]" : "Кодер", 
+        "Name[ru]" : "Программирование" 
+    ];
+    
+    assert(lookupLocalizedKey(entries, "Name", "ru_RU@jargon") == "Разработчик");
 }
 
 void main(string[] args)
