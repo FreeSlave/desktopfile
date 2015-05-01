@@ -28,10 +28,10 @@ private:
     size_t _lineNumber;
 }
 
-auto makeLocaleNameChain(string lang, string country = null, string encoding = null, string modifier = null) pure @trusted
+auto makeLocaleNameChain(string lang, string country = null, string encoding = null, string modifier = null) pure nothrow @nogc @trusted
 {
-    return chain(lang, country.length ? "_" : string.init, country.toUpper(), 
-                 encoding.length ? "." : string.init, encoding.toUpper(), 
+    return chain(lang, country.length ? "_" : string.init, country, 
+                 encoding.length ? "." : string.init, encoding, 
                  modifier.length ? "@" : string.init, modifier);
 }
 
@@ -56,12 +56,12 @@ Tuple!(string, string, string, string) parseLocaleName(string locale) pure nothr
     return tuple(lang, country, encoding, modifier);
 }
 
-string localizedKey(string key, string locale) nothrow @safe
+string localizedKey(string key, string locale) pure nothrow @safe
 {
     return key ~ "[" ~ locale ~ "]";
 }
 
-string localizedKey(string key, string lang, string country, string modifier = null) @safe
+string localizedKey(string key, string lang, string country, string modifier = null) pure @safe
 {
     return key ~ "[" ~ makeLocaleName(lang, country, modifier) ~ "]";
 }
@@ -102,81 +102,151 @@ private bool isFalse(string str) pure nothrow @nogc @safe {
     return (str == "false" || str == "0");
 }
 
-private string lookupLocalizedValue(const(string[string]) entries, string key, string locale, lazy string defaultValue = null)
-{
-    //Any ideas how to get rid of this boilerplate and make less allocations?
-    auto t = parseLocaleName(locale);
-    auto lang = t[0];
-    auto country = t[1];
-    auto modifier = t[3];
-    
-    if (lang.length) {
-        typeof(string.init in entries) pick;
-        
-        if (country.length && modifier.length) {
-            pick = localizedKey(key, makeLocaleName(lang, country, null, modifier)) in entries;
-            if (pick) {
-                return *pick;
-            }
-        }
-        
-        if (country.length) {
-            pick = localizedKey(key, makeLocaleName(lang, country)) in entries;
-            if (pick) {
-                return *pick;
-            }
-        }
-        
-        if (modifier.length) {
-            pick = localizedKey(key, makeLocaleName(lang, null, null, modifier)) in entries;
-            if (pick) {
-                return *pick;
-            }
-        }
-        
-        pick = localizedKey(key, makeLocaleName(lang)) in entries;
-        if (pick) {
-            return *pick;
-        }
-    }
-    
-    return entries.get(key, defaultValue);
-}
-
 struct DesktopGroup
 {
+private:
+    static struct Line
+    {
+        enum Type
+        {
+            None, 
+            Comment, 
+            KeyValue
+        }
+        
+        this(string comment) {
+            _first = comment;
+            _type = Type.Comment;
+        }
+        
+        this(string key, string value) {
+            _first = key;
+            _second = value;
+            _type = Type.KeyValue;
+        }
+        
+        string comment() const {
+            return _first;
+        }
+        
+        string key() const {
+            return _first;
+        }
+        
+        string value() const {
+            return _second;
+        }
+        
+        Type type() const {
+            return _type;
+        }
+        
+        void makeNone() {
+            _type = Type.None;
+        }
+        
+    private:
+        Type _type = Type.None;
+        string _first;
+        string _second;
+    }
+    
 public:
     string opIndex(string key) const {
-        return _entries[key];
+        size_t i = _indices[key];
+        assert(i < _values.length);
+        assert(_values[i].type == Line.Type.KeyValue);
+        
+        return _values[i].value;
     }
     string opIndexAssign(string value, string key) {
-        return _entries[key] = value;
+        auto pick = key in _indices;
+        if (pick) {
+            assert(_values[*pick].type == Line.Type.KeyValue);
+            return (_values[*pick] = Line(key, value)).value;
+        } else {
+            _indices[key] = _values.length;
+            _values ~= Line(key, value);
+            return value;
+        }
     }
     
     string value(string key, lazy string defaultValue = null) const {
-        return _entries.get(key, defaultValue);
+        auto pick = key in _indices;
+        if (pick) {
+            assert(_values[*pick].type == Line.Type.KeyValue);
+            return _values[*pick].value;
+        } else {
+            return defaultValue();
+        }
     }
     
     string localizedValue(string key, string locale, lazy string defaultValue = null) const {
-        return lookupLocalizedValue(_entries, key, locale, defaultValue);
+        //Any ideas how to get rid of this boilerplate and make less allocations?
+        auto t = parseLocaleName(locale);
+        auto lang = t[0];
+        auto country = t[1];
+        auto modifier = t[3];
+        
+        if (lang.length) {
+            string pick;
+            
+            if (country.length && modifier.length) {
+                pick = value(localizedKey(key, makeLocaleName(lang, country, null, modifier)));
+                if (pick !is null) {
+                    return pick;
+                }
+            }
+            
+            if (country.length) {
+                pick = value(localizedKey(key, makeLocaleName(lang, country)));
+                if (pick !is null) {
+                    return pick;
+                }
+            }
+            
+            if (modifier.length) {
+                pick = value(localizedKey(key, makeLocaleName(lang, null, null, modifier)));
+                if (pick !is null) {
+                    return pick;
+                }
+            }
+            
+            pick = value(localizedKey(key, makeLocaleName(lang)));
+            if (pick !is null) {
+                return pick;
+            }
+        }
+        
+        return value(key, defaultValue);
     }
     
     void setLocalizedValue(string key, string locale, string value) {
         auto t = parseLocaleName(locale);
         string keyName = localizedKey(key, makeLocaleName(t[0], t[1], null, t[2]));
-        _entries[keyName] = value;
+        this[keyName] = value;
     }
     
     void removeEntry(string key) {
-        _entries.remove(key);
+        auto pick = key in _indices;
+        if (pick) {
+            assert(_values[*pick].type == Line.Type.KeyValue);
+            _indices.remove(key);
+            _values[*pick].makeNone();
+        }
     }
     
-    auto byKey() {
-        return _entries.byKey();
+    auto byKeyValue() const {
+        return _values.filter!(v => v.type == Line.Type.KeyValue).map!(v => tuple(v.key, v.value));
     }
     
 private:
-    string[string] _entries;
+    void addComment(string comment) {
+        _values ~= Line(comment);
+    }
+    
+    size_t[string] _indices;
+    Line[] _values;
 }
 
 class DesktopFile
@@ -197,16 +267,16 @@ public:
         preserveComments = 2 /// Preserve comments and empty strings
     }
     
-    static DesktopFile loadFromFile(string fileName) {
+    static DesktopFile loadFromFile(string fileName, ReadOptions options = ReadOptions.noOptions) {
         auto f = File(fileName, "r");
-        return new DesktopFile(f.byLine().map!(s => s.idup), fileName);
+        return new DesktopFile(f.byLine().map!(s => s.idup), options, fileName);
     }
     
-    static DesktopFile loadFromString(string contents, string fileName = null) {
-        return new DesktopFile(contents.splitter('\n'), fileName);
+    static DesktopFile loadFromString(string contents, ReadOptions options = ReadOptions.noOptions, string fileName = null) {
+        return new DesktopFile(contents.splitLines(), options, fileName);
     }
     
-    private this(Range)(Range byLine, string fileName)
+    private this(Range)(Range byLine, ReadOptions options, string fileName)
     {   
         size_t lineNumber = 0;
         string currentGroup;
@@ -214,7 +284,15 @@ public:
             lineNumber++;
             line = strip(line);
             
-            if (line.startsWith("#")) {
+            if (line.empty || line.startsWith("#")) {
+                if (options & ReadOptions.preserveComments) {
+                    if (currentGroup is null) {
+                        firstLines ~= line;
+                    } else {
+                        _groups[currentGroup].addComment(line);
+                    }
+                }
+                
                 continue;
             }
             
@@ -225,6 +303,8 @@ public:
                 
                 if (currentGroup is null) {
                     enforce(groupName == "Desktop Entry", new DesktopFileException("the first group must be Desktop Entry", lineNumber));
+                } else if (options & ReadOptions.desktopEntryOnly) {
+                    break;
                 }
                 
                 _groups[groupName] = DesktopGroup();
@@ -295,6 +375,14 @@ public:
         return localizedValue("Comment", locale);
     }
     
+    string exec() const {
+        return value("Exec");
+    }
+    
+    string tryExec() const {
+        return value("TryExec");
+    }
+    
     string icon() const {
         string iconPath = value("Icon");
         if (iconPath is null) {
@@ -339,6 +427,8 @@ private:
     DesktopGroup* _desktopEntry;
     string _fileName;
     DesktopGroup[string] _groups;
+    
+    string[] firstLines;
 }
 
 unittest 
@@ -360,17 +450,17 @@ unittest
     assert(separateFromLocale("Name") == tuple("Name", string.init));
     
     
-    string[string] entries = [ 
-        "Name" : "Programmer", 
-        "Name[ru_RU]" : "Разработчик", 
-        "Name[ru@jargon]" : "Кодер", 
-        "Name[ru]" : "Программист"
-    ];
+    DesktopGroup group;
+    group["Name"] = "Programmer";
+    group["Name[ru_RU]"] = "Разработчик";
+    group["Name[ru@jargon]"] = "Кодер";
+    group["Name[ru]"] = "Программист";
     
-    assert(lookupLocalizedValue(entries, "Name", "ru@jargon") == "Кодер");
-    assert(lookupLocalizedValue(entries, "Name", "ru_RU@jargon") == "Разработчик");
-    assert(lookupLocalizedValue(entries, "Name", "ru") == "Программист");
-    assert(lookupLocalizedValue(entries, "Name", "unexesting locale") == "Programmer");
+    assert(group["Name"] == "Programmer");
+    assert(group.localizedValue("Name", "ru@jargon") == "Кодер");
+    assert(group.localizedValue("Name", "ru_RU@jargon") == "Разработчик");
+    assert(group.localizedValue("Name", "ru") == "Программист");
+    assert(group.localizedValue("Name", "unexesting locale") == "Programmer");
 }
 
 void main(string[] args)
@@ -380,7 +470,7 @@ void main(string[] args)
         return;
     }
     auto df = DesktopFile.loadFromFile(args[1]);
-    foreach(key; df.byKey()) {
-        writeln(key);
+    foreach(t; df.byKeyValue()) {
+        writefln("%s : %s", t[0], t[1]);
     }
 }
