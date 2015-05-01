@@ -1,7 +1,7 @@
 module desktopfile;
 
 private {
-    import std.algorithm : findSplit, splitter, equal;
+    import std.algorithm;
     import std.array;
     import std.conv;
     import std.exception;
@@ -56,9 +56,14 @@ Tuple!(string, string, string, string) parseLocaleName(string locale) pure nothr
     return tuple(lang, country, encoding, modifier);
 }
 
-string localizedKeyName(string key, string locale) nothrow @safe
+string localizedKey(string key, string locale) nothrow @safe
 {
     return key ~ "[" ~ locale ~ "]";
+}
+
+string localizedKey(string key, string lang, string country, string modifier = null) @safe
+{
+    return key ~ "[" ~ makeLocaleName(lang, country, modifier) ~ "]";
 }
 
 /** Separates key name into non-localized key and locale name.
@@ -97,38 +102,39 @@ private bool isFalse(string str) pure nothrow @nogc @safe {
     return (str == "false" || str == "0");
 }
 
-private string lookupLocalizedKey(const(string[string]) entries, string key, string locale, lazy string defaultValue = null)
+private string lookupLocalizedValue(const(string[string]) entries, string key, string locale, lazy string defaultValue = null)
 {
+    //Any ideas how to get rid of this boilerplate and make less allocations?
     auto t = parseLocaleName(locale);
     auto lang = t[0];
     auto country = t[1];
     auto modifier = t[3];
     
     if (lang.length) {
-        const(string)* pick;
+        typeof(string.init in entries) pick;
         
         if (country.length && modifier.length) {
-            pick = localizedKeyName(key, makeLocaleName(lang, country, null, modifier)) in entries;
+            pick = localizedKey(key, makeLocaleName(lang, country, null, modifier)) in entries;
             if (pick) {
                 return *pick;
             }
         }
         
         if (country.length) {
-            pick = localizedKeyName(key, makeLocaleName(lang, country)) in entries;
+            pick = localizedKey(key, makeLocaleName(lang, country)) in entries;
             if (pick) {
                 return *pick;
             }
         }
         
         if (modifier.length) {
-            pick = localizedKeyName(key, makeLocaleName(lang, null, null, modifier)) in entries;
+            pick = localizedKey(key, makeLocaleName(lang, null, null, modifier)) in entries;
             if (pick) {
                 return *pick;
             }
         }
         
-        pick = localizedKeyName(key, makeLocaleName(lang)) in entries;
+        pick = localizedKey(key, makeLocaleName(lang)) in entries;
         if (pick) {
             return *pick;
         }
@@ -152,12 +158,13 @@ public:
     }
     
     string localizedValue(string key, string locale, lazy string defaultValue = null) const {
-        return lookupLocalizedKey(_entries, key, locale, defaultValue);
+        return lookupLocalizedValue(_entries, key, locale, defaultValue);
     }
     
     void setLocalizedValue(string key, string locale, string value) {
-        string localizedKey = localizedKeyName(key, locale);
-        _entries[localizedKey] = value;
+        auto t = parseLocaleName(locale);
+        string keyName = localizedKey(key, makeLocaleName(t[0], t[1], null, t[2]));
+        _entries[keyName] = value;
     }
     
     void removeEntry(string key) {
@@ -185,20 +192,27 @@ public:
     
     enum ReadOptions
     {
-        noOptions, 
-        desktopEntryOnly, /// Ignore other groups than Desktop Entry
-        preserveComments /// Preserve comments and empty strings
+        noOptions = 0, 
+        desktopEntryOnly = 1, /// Ignore other groups than Desktop Entry
+        preserveComments = 2 /// Preserve comments and empty strings
     }
     
-    this(string fileName)
-    {
+    static DesktopFile loadFromFile(string fileName) {
         auto f = File(fileName, "r");
-        
-        
+        return new DesktopFile(f.byLine().map!(s => s.idup), fileName);
+    }
+    
+    static DesktopFile loadFromString(string contents, string fileName = null) {
+        return new DesktopFile(contents.splitter('\n'), fileName);
+    }
+    
+    private this(Range)(Range byLine, string fileName)
+    {   
+        size_t lineNumber = 0;
         string currentGroup;
-        foreach(sline; f.byLine()) {
-            string line = sline.idup;
-            line = stripLeft(line);
+        foreach(line; byLine) {
+            lineNumber++;
+            line = strip(line);
             
             if (line.startsWith("#")) {
                 continue;
@@ -206,11 +220,11 @@ public:
             
             if (line.startsWith("[") && line.endsWith("]")) {
                 string groupName = line[1..$-1];
-                enforce(groupName.length, "empty group name");
-                enforce(groupName !in _groups, "group is defined more than once");
+                enforce(groupName.length, new DesktopFileException("empty group name", lineNumber));
+                enforce(groupName !in _groups, new DesktopFileException("group is defined more than once", lineNumber));
                 
                 if (currentGroup is null) {
-                    enforce(groupName == "Desktop Entry", "the first group must be Desktop Entry");
+                    enforce(groupName == "Desktop Entry", new DesktopFileException("the first group must be Desktop Entry", lineNumber));
                 }
                 
                 _groups[groupName] = DesktopGroup();
@@ -218,8 +232,8 @@ public:
             } else {
                 auto t = line.findSplit("=");
                 
-                enforce(t[1].length, "not key-value pair, nor group start nor comment");
-                enforce(currentGroup.length, "met key-value pair before any group");
+                enforce(t[1].length, new DesktopFileException("not key-value pair, nor group start nor comment", lineNumber));
+                enforce(currentGroup.length, new DesktopFileException("met key-value pair before any group", lineNumber));
                 assert(currentGroup in _groups, "logic error: currentGroup is not in _groups");
                 
                 _groups[currentGroup][t[0]] = t[2];
@@ -228,6 +242,7 @@ public:
         
         _desktopEntry = "Desktop Entry" in _groups;
         enforce(_desktopEntry, "Desktop Entry group is missing");
+        _fileName = fileName;
     }
     
     void save(string fileName) const {
@@ -242,7 +257,7 @@ public:
     }
     
     Type type() const {
-        string t = _desktopEntry.value("Type");
+        string t = value("Type");
         if (t.length) {
             if (t == "Application") {
                 return Type.Application;
@@ -260,56 +275,60 @@ public:
     }
     
     string name() const {
-        return _desktopEntry.value("Name");
+        return value("Name");
     }
     string localizedName(string locale) const {
-        return _desktopEntry.localizedValue("Name", locale);
+        return localizedValue("Name", locale);
     }
     
     string genericName() const {
-        return _desktopEntry.value("GenericName");
+        return value("GenericName");
     }
     string localizedGenericName(string locale) const {
-        return _desktopEntry.localizedValue("GenericName", locale);
+        return localizedValue("GenericName", locale);
     }
     
     string comment() const {
-        return _desktopEntry.value("Comment");
+        return value("Comment");
     }
     string localizedComment(string locale) const {
-        return _desktopEntry.localizedValue("Comment", locale);
+        return localizedValue("Comment", locale);
     }
     
     string icon() const {
-        string iconPath = _desktopEntry.value("Icon");
+        string iconPath = value("Icon");
         if (iconPath is null) {
-            iconPath = _desktopEntry.value("X-Window-Icon");
+            iconPath = value("X-Window-Icon");
         }
         return iconPath;
     }
     
     bool noDisplay() const {
-        return isTrue(_desktopEntry.value("NoDisplay"));
+        return isTrue(value("NoDisplay"));
     }
     
     bool hidden() const {
-        return isTrue(_desktopEntry.value("Hidden"));
+        return isTrue(value("Hidden"));
     }
     
     string workingDirectory() const {
-        return _desktopEntry.value("Path");
+        return value("Path");
     }
     
     bool terminal() const {
-        return isTrue(_desktopEntry.value("Terminal"));
+        return isTrue(value("Terminal"));
+    }
+    
+    private static auto splitValues(string values) {
+        return values.splitter(';').filter!(s => s.length);
     }
     
     auto categories() const {
-        return _desktopEntry.value("Categories").splitter(';');
+        return splitValues(value("Categories"));
     }
     
     auto mimeTypes() const {
-        return _desktopEntry.value("MimeTypes").splitter(';');
+        return splitValues(value("MimeTypes"));
     }
     
     inout(DesktopGroup)* desktopEntry() inout {
@@ -334,7 +353,8 @@ unittest
     assert(parseLocaleName("ru_RU.UTF-8@mod") == tuple("ru", "RU", "UTF-8", "mod"));
     assert(parseLocaleName("ru@mod") == tuple("ru", string.init, string.init, "mod"));
     
-    assert(localizedKeyName("Name", "ru_RU") == "Name[ru_RU]");
+    assert(localizedKey("Name", "ru_RU") == "Name[ru_RU]");
+    assert(localizedKey("Name", "ru", "RU") == "Name[ru_RU");
     
     assert(separateFromLocale("Name[ru_RU]") == tuple("Name", "ru_RU"));
     assert(separateFromLocale("Name") == tuple("Name", string.init));
@@ -344,10 +364,13 @@ unittest
         "Name" : "Programmer", 
         "Name[ru_RU]" : "Разработчик", 
         "Name[ru@jargon]" : "Кодер", 
-        "Name[ru]" : "Программирование" 
+        "Name[ru]" : "Программист"
     ];
     
-    assert(lookupLocalizedKey(entries, "Name", "ru_RU@jargon") == "Разработчик");
+    assert(lookupLocalizedValue(entries, "Name", "ru@jargon") == "Кодер");
+    assert(lookupLocalizedValue(entries, "Name", "ru_RU@jargon") == "Разработчик");
+    assert(lookupLocalizedValue(entries, "Name", "ru") == "Программист");
+    assert(lookupLocalizedValue(entries, "Name", "unexesting locale") == "Programmer");
 }
 
 void main(string[] args)
@@ -356,7 +379,7 @@ void main(string[] args)
         writefln("Usage: %s <desktop-file>", args[0]);
         return;
     }
-    auto df = new DesktopFile(args[1]);
+    auto df = DesktopFile.loadFromFile(args[1]);
     foreach(key; df.byKey()) {
         writeln(key);
     }
