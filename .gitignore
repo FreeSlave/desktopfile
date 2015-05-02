@@ -10,4 +10,5 @@ __dummy.html
 *.a
 bin/
 lib/
+docs/
 dub.selections.json

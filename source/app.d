@@ -1,3 +1,8 @@
+/**
+ * License: $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
+ * See_Also: $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/index.html, Desktop Entry Specification)
+ */
+
 module desktopfile;
 
 private {
@@ -14,6 +19,9 @@ private {
     import std.typecons;
 }
 
+/**
+ * Exception thrown when error occures during the .desktop file read.
+ */
 class DesktopFileException : Exception
 {
     this(string msg, size_t lineNumber, string file = __FILE__, size_t line = __LINE__, Throwable next = null) pure nothrow @safe {
@@ -30,16 +38,25 @@ private:
     size_t _lineNumber;
 }
 
+/** Retrieves current locale probing environment variables LC_TYPE, LC_ALL and LANG (in this order)
+ * Returns: locale in posix form or empty string if could not determine locale
+ */
 string currentLocale() @safe
 {
     return environment.get("LC_CTYPE", environment.get("LC_ALL", environment.get("LANG")));
 }
 
+/**
+ * Returns: locale name in form lang_COUNTRY.ENCODING@MODIFIER
+ */
 string makeLocaleName(string lang, string country = null, string encoding = null, string modifier = null) pure nothrow @trusted
 {
     return lang ~ (country.length ? "_"~country : "") ~ (encoding.length ? "."~encoding : "") ~ (modifier.length ? "@"~modifier : "");
 }
 
+/**
+ * Returns: parses locale name into the tuple of 4 values corresponding to language, country, encoding and modifier
+ */
 Tuple!(string, string, string, string) parseLocaleName(string locale) pure nothrow @nogc @trusted
 {
     auto modifiderSplit = findSplit(locale, "@");
@@ -56,6 +73,9 @@ Tuple!(string, string, string, string) parseLocaleName(string locale) pure nothr
     return tuple(lang, country, encoding, modifier);
 }
 
+/**
+ * Returns: localized key in form key[locale]. Automatically omits locale encoding if present.
+ */
 string localizedKey(string key, string locale) pure nothrow @safe
 {
     auto t = parseLocaleName(locale);
@@ -65,13 +85,18 @@ string localizedKey(string key, string locale) pure nothrow @safe
     return key ~ "[" ~ locale ~ "]";
 }
 
+/**
+ * Ditto, but constructs locale name from arguments.
+ */
 string localizedKey(string key, string lang, string country, string modifier = null) pure nothrow @safe
 {
     return key ~ "[" ~ makeLocaleName(lang, country, null, modifier) ~ "]";
 }
 
-/** Separates key name into non-localized key and locale name.
- *  If key is not localized returns original key and empty string.
+/** 
+ * Separates key name into non-localized key and locale name.
+ * If key is not localized returns original key and empty string.
+ * Returns: tuple of key and locale name;
  */
 Tuple!(string, string) separateFromLocale(string key) nothrow @nogc @trusted {
     if (key.endsWith("]")) {
@@ -83,12 +108,21 @@ Tuple!(string, string) separateFromLocale(string key) nothrow @nogc @trusted {
     return tuple(key, string.init);
 }
 
-private bool isValidKeyChar(char c) pure nothrow @nogc @safe
+/**
+ * Tells whether the character is valid for desktop entry key.
+ * Note: This does not include characters presented in locale names.
+ */
+bool isValidKeyChar(char c) pure nothrow @nogc @safe
 {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-';
 }
 
-private bool isValidKey(string key) pure nothrow @nogc @safe
+
+/**
+ * Tells whethe the string is valid dekstop entry key.
+ * Note: This does not include characters presented in locale names. Use $(B separateFromLocale) to get non-localized key to pass it to this function
+ */
+bool isValidKey(string key) pure nothrow @nogc @safe
 {
     for (size_t i = 0; i<key.length; ++i) {
         if (!key[i].isValidKeyChar()) {
@@ -98,12 +132,25 @@ private bool isValidKey(string key) pure nothrow @nogc @safe
     return true;
 }
 
-private bool isTrue(string value) pure nothrow @nogc @safe {
+/**
+ * Tells whether the dekstop entry value presents true
+ */
+bool isTrue(string value) pure nothrow @nogc @safe {
     return (value == "true" || value == "1");
 }
 
-private bool isFalse(string value) pure nothrow @nogc @safe {
+/**
+ * Tells whether the desktop entry value presents false
+ */
+bool isFalse(string value) pure nothrow @nogc @safe {
     return (value == "false" || value == "0");
+}
+
+/**
+ * Check if the desktop entry value can be interpreted as boolean value.
+ */
+bool isBoolean(string value) pure nothrow @nogc @safe {
+    return isTrue(value) || isFalse(value);
 }
 
 string escapeValue(string value) @trusted nothrow pure {
@@ -164,7 +211,11 @@ string unescapeExec(string str) @trusted nothrow pure
     return doUnescape(str, pairs);
 }
 
-class DesktopGroup
+/**
+ * This class represents the group in the desktop file. 
+ * You can create and use instances of this class only in the context of $(B DesktopFile) instance.
+ */
+final class DesktopGroup
 {
 private:
     static struct Line
@@ -213,13 +264,29 @@ private:
         string _second;
     }
     
+    this(string name) @safe @nogc nothrow {
+        _name = name;
+    }
+    
 public:
+    
+    /**
+     * Returns: the value associated with the key
+     * Note: it's an error to access nonexistent value
+     */
     string opIndex(string key) const @safe @nogc nothrow {
         auto i = key in _indices;
         assert(_values[*i].type == Line.Type.KeyValue);
         assert(_values[*i].key == key);
         return _values[*i].value;
     }
+    
+    /**
+     * Inserts new value or replaces the old one if value associated with key already exists.
+     * Returns: inserted/updated value
+     * Throws: $(B Exception) if key is not valid
+     * See_Also: isValidKey
+     */
     string opIndexAssign(string value, string key) @safe {
         enforce(separateFromLocale(key)[0].isValidKey(), "key contains invalid characters");
         auto pick = key in _indices;
@@ -231,15 +298,25 @@ public:
             return value;
         }
     }
+    /**
+     * Ditto, but also allows to specify the locale.
+     * See_Also: setLocalizedValue, localizedValue
+     */
     string opIndexAssign(string value, string key, string locale) @safe {
         string keyName = localizedKey(key, locale);
         return this[keyName] = value;
     }
     
+    /**
+     * Tells if group contains value associated with the key.
+     */
     bool contains(string key) const @safe @nogc nothrow {
         return value(key) !is null;
     }
     
+    /**
+     * Returns: the value associated with the key, or defaultValue if group does not contain item with this key.
+     */
     string value(string key, string defaultValue = null) const @safe @nogc nothrow {
         auto pick = key in _indices;
         if (pick) {
@@ -251,6 +328,10 @@ public:
         return defaultValue;
     }
     
+    /**
+     * Performs locale matching lookup as described in $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s04.html, Localized values for keys).
+     * Returns: the localized value associated with key and locale, or defaultValue if group does not contain item with this key.
+     */
     string localizedValue(string key, string locale, string defaultValue = null) const @safe nothrow {
         //Any ideas how to get rid of this boilerplate and make less allocations?
         auto t = parseLocaleName(locale);
@@ -291,6 +372,9 @@ public:
         return value(key, defaultValue);
     }
     
+    /**
+     * Ditto, but uses the current locale.
+     */
     string localizedValue(string key) const @safe nothrow {
         try {
             string locale = currentLocale();
@@ -300,10 +384,16 @@ public:
         }
     }
     
+    /**
+     * Same as localized version of opIndexAssign, but uses function syntax.
+     */
     void setLocalizedValue(string key, string locale, string value) @safe {
         this[key, locale] = value;
     }
     
+    /**
+     * Removes entry by key. To remove localized values use localizedKey.
+     */
     void removeEntry(string key) @safe nothrow {
         auto pick = key in _indices;
         if (pick) {
@@ -311,8 +401,18 @@ public:
         }
     }
     
+    /**
+     * Returns: range of tuples of key and value.
+     */
     auto byKeyValue() const @safe @nogc nothrow {
         return _values.filter!(v => v.type == Line.Type.KeyValue).map!(v => tuple(v.key, v.value));
+    }
+    
+    /**
+     * Returns: the name of group
+     */
+    string name() const @safe @nogc nothrow {
+        return _name;
     }
     
 private:
@@ -322,9 +422,14 @@ private:
     
     size_t[string] _indices;
     Line[] _values;
+    string _name;
 }
 
-class DesktopFile
+/**
+ * Represents .desktop file.
+ * 
+ */
+final class DesktopFile
 {
 public:
     enum Type
@@ -343,10 +448,10 @@ public:
     }
     
     /**
-     * Reads desktop file from file
+     * Reads desktop file from file.
      * Throws:
-     *  $(B ErrnoException) if file could not be opened
-     *  $(B DesktopFileException) if error occured while reading the file
+     *  $(B ErrnoException) if file could not be opened.
+     *  $(B DesktopFileException) if error occured while reading the file.
      */
     static DesktopFile loadFromFile(string fileName, ReadOptions options = ReadOptions.noOptions) @trusted {
         auto f = File(fileName, "r");
@@ -354,9 +459,9 @@ public:
     }
     
     /**
-     * Reads desktop file from string
+     * Reads desktop file from string.
      * Throws:
-     *  $(B DesktopFileException) if error occured while parsing the contents
+     *  $(B DesktopFileException) if error occured while parsing the contents.
      */
     static DesktopFile loadFromString(string contents, ReadOptions options = ReadOptions.noOptions, string fileName = null) @trusted {
         return new DesktopFile(contents.splitLines(), options, fileName);
@@ -424,39 +529,86 @@ public:
         return  _fileName;
     }
     
-    void save(string fileName) const {
-        throw new Exception("Savind to file is not implemented yet");
-    }
-    string save() const {
-        throw new Exception("Saving to string is not implemented yet");
+    /**
+     * Saves object to file using Desktop File format.
+     * Throws: ErrnoException if the file could not be opened or an error writing to the file occured.
+     */
+    void saveToFile(string fileName) const {
+        auto f = File(fileName, "w");
+        void dg(string line) {
+            f.writeln(line);
+        }
+        save(&dg);
     }
     
+    /**
+     * Saves object to string using Desktop File format.
+     */
+    string saveToString() const {
+        auto a = appender!(string[])();
+        void dg(string line) {
+            a.put(line);
+        }
+        save(&dg);
+        return a.data.join("\n");
+    }
+    
+    private alias SaveDelegate = void delegate(string);
+    
+    private void save(SaveDelegate sink) const {
+        foreach(line; firstLines) {
+            sink(line);
+        }
+        
+        foreach(group; byGroup()) {
+            sink("[" ~ group.name ~ "]");
+            foreach(line; group._values) {
+                if (line.type == DesktopGroup.Line.Type.Comment) {
+                    sink(line.comment);
+                } else if (line.type == DesktopGroup.Line.Type.KeyValue) {
+                    sink(line.key ~ "=" ~ line.value);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Returns: DesktopGroup instance associated with groupName or $(B null) if not found.
+     */
     inout(DesktopGroup) group(string groupName) @safe @nogc nothrow inout {
         auto pick = groupName in _groupIndices;
         if (pick) {
-            return _groups[*pick].group;
+            return _groups[*pick];
         }
         return null;
     }
     
-    void addGroup(string groupName, DesktopGroup desktopGroup) @safe nothrow {
-        assert(groupName.length && desktopGroup !is null);
+    /**
+     * Creates new group usin groupName.
+     * Returns: newly created instance of DesktopGroup.
+     * Throws: Exception if group with such name already exists or groupName is empty.
+     */
+    DesktopGroup addGroup(string groupName) @safe {
+        enforce(groupName.length, "group name is empty");
         
-        auto pick = group(groupName);
-        if (pick is null) {
-            _groupIndices[groupName] = _groups.length;
-            _groups ~= GroupPair(groupName, desktopGroup);
-        }
+        auto desktopGroup = new DesktopGroup(groupName);
+        enforce(group(groupName) is null, "group already exists");
+        _groupIndices[groupName] = _groups.length;
+        _groups ~= desktopGroup;
+        
+        return desktopGroup;
     }
     
-    void addGroup(string groupName) @safe nothrow {
-        addGroup(groupName, new DesktopGroup);
-    }
-    
+    /**
+     * Range of groups in order how they are defined in .desktop file. The first group is always $(B Desktop Entry).
+     */
     auto byGroup() const {
         return _groups[];
     }
     
+    /**
+     * Returns: Type of desktop entry
+     */
     Type type() const @safe @nogc nothrow {
         string t = value("Type");
         if (t.length) {
@@ -475,35 +627,62 @@ public:
         return Type.Unknown;
     }
     
+    /**
+     * Specific name of the application, for example "Mozilla".
+     * Returns: the value associated with "Name" key.
+     */
     string name() const @safe @nogc nothrow {
         return value("Name");
     }
-    string localizedName(string locale) const @safe nothrow {
-        return localizedValue("Name", locale);
+    ///ditto, but returns localized value using current locale.
+    string localizedName() const @safe nothrow {
+        return localizedValue("Name");
     }
     
+    /**
+     * Generic name of the application, for example "Web Browser".
+     * Returns: the value associated with "GenericName" key.
+     */
     string genericName() const @safe @nogc nothrow {
         return value("GenericName");
     }
-    string localizedGenericName(string locale) const @safe nothrow {
-        return localizedValue("GenericName", locale);
+    ///ditto, but returns localized value using current locale.
+    string localizedGenericName() const @safe nothrow {
+        return localizedValue("GenericName");
     }
     
+    /**
+     * Tooltip for the entry, for example "View sites on the Internet".
+     * Returns: the value associated with "Comment" key.
+     */
     string comment() const @safe @nogc nothrow {
         return value("Comment");
     }
-    string localizedComment(string locale) const @safe nothrow {
-        return localizedValue("Comment", locale);
+    ///ditto, but returns localized value using current locale.
+    string localizedComment() const @safe nothrow {
+        return localizedValue("Comment");
     }
     
-    string exec() const @safe @nogc nothrow {
+    /** 
+     * Returns: the value associated with "Exec" key.
+     * Note: don't use this to start the program. Consider using expandExecString or startApplication instead.
+     */
+    string execString() const @safe @nogc nothrow {
         return value("Exec");
     }
     
-    string tryExec() const @safe @nogc nothrow {
+    
+    /**
+     * Returns: the value associated with "TryExec" key.
+     */
+    string tryExecString() const @safe @nogc nothrow {
         return value("TryExec");
     }
     
+    /**
+     * Returns: the value associated with "Icon" key. If not found it also tries "X-Window-Icon".
+     * Note: this function returns Icon as it's defined in .desktop file. It does not provides any lookup of actual icon file on the system.
+     */
     string iconName() const @safe @nogc nothrow {
         string iconPath = value("Icon");
         if (iconPath is null) {
@@ -512,42 +691,78 @@ public:
         return iconPath;
     }
     
+    /**
+     * Returns: the value associated with "NoDisplay" key converted to bool using isTrue.
+     */
     bool noDisplay() const @safe @nogc nothrow {
         return isTrue(value("NoDisplay"));
     }
     
+    /**
+     * Returns: the value associated with "Hidden" key converted to bool using isTrue.
+     */
     bool hidden() const @safe @nogc nothrow {
         return isTrue(value("Hidden"));
     }
     
+    /**
+     * The working directory to run the program in.
+     * Returns: the value associated with "Path" key.
+     */
     string workingDirectory() const @safe @nogc nothrow {
         return value("Path");
     }
     
+    /**
+     * Whether the program runs in a terminal window.
+     * Returns: the value associated with "Hidden" key converted to bool using isTrue.
+     */
     bool terminal() const @safe @nogc nothrow {
         return isTrue(value("Terminal"));
     }
     
-    private static auto splitValues(string values) @trusted {
+    /**
+     * Some keys can have multiple values, separated by semicolon. This function helps to parse such kind of strings to the range.
+     * Returns: the range of multiple values.
+     */
+    static auto splitValues(string values) @trusted {
         static bool notEmpty(string s) @nogc nothrow { return s.length != 0; }
         
         return values.splitter(';').filter!notEmpty;
     }
     
+    /**
+     * Categories this program belongs to.
+     * Returns: the range of multiple values associated with "Categories" key.
+     */
     auto categories() const @safe {
         return splitValues(value("Categories"));
     }
     
-    auto mimeTypes() const @safe {
-        return splitValues(value("MimeTypes"));
+    /**
+     * A list of strings which may be used in addition to other metadata to describe this entry.
+     * Returns: the range of multiple values associated with "Keywords" key.
+     */
+    auto keywords() const @safe {
+        return splitValues(value("Keywords"));
     }
     
+    /**
+     * Returns: instance of "Desktop Entry" group.
+     */
     inout(DesktopGroup) desktopEntry() @safe @nogc nothrow inout {
         return _desktopEntry;
     }
-    alias _desktopEntry this;
     
     
+    /**
+     * This alias allows to call functions related to "Desktop Entry" group without need to call desktopEntry explicitly.
+     */
+    alias desktopEntry this;
+    
+    /**
+     * Expands Exec string into the array of command line arguments to use to start the program.
+     */
     string[] expandExecString(in string[] urls = null) const @safe 
     {
         if (type() != Type.Application) {
@@ -555,7 +770,7 @@ public:
         }
         
         string[] toReturn;
-        auto execStr = exec().unescapeExec(); //add unquoting
+        auto execStr = execString().unescapeExec(); //add unquoting
         
         foreach(token; execStr.split) {
             if (token == "%f") {
@@ -590,12 +805,18 @@ public:
         return toReturn;
     }
     
-    void startApplication(string[] urls = null) const @safe
+    /**
+     * Starts the program associated with this .desktop file.
+     * Note: 
+     *  If program should be run in terminal it tries to find system defined terminal emulator to run in.
+     *  First, it probes $(B TERM) environment variable. If not found, checks for /usr/bin/x-terminal-emulator on Linux and use it on success.
+     *  Defaulted to xterm, if could not determine other terminal emulator.
+     * Returns:
+     *  Pid of started process.
+     */
+    Pid startApplication(string[] urls = null) const @trusted
     {
         auto args = expandExecString(urls);
-        if (args.empty || type() != Type.Application) {
-            return;
-        }
         
         if (terminal()) {
             string term = environment.get("TERM");
@@ -616,26 +837,28 @@ public:
             args = [term, "-e"] ~ args;
         }
         
-        spawnProcess(args, null, Config.none, workingDirectory());
+        return spawnProcess(args, null, Config.none, workingDirectory());
+    }
+    
+    Pid startLink() const @trusted
+    {
+        string url = value("URL");
+        return spawnProcess(["xdg-open", url], null, Config.none);
     }
     
 private:
-    struct GroupPair {
-        string name;
-        DesktopGroup group;
-    }
-    
     DesktopGroup _desktopEntry;
     string _fileName;
     
     size_t[string] _groupIndices;
-    GroupPair[] _groups;
+    DesktopGroup[] _groups;
     
     string[] firstLines;
 }
 
 unittest 
 {
+    //Test locale-related functions
     assert(makeLocaleName("ru", "RU") == "ru_RU");
     assert(makeLocaleName("ru", "RU", "UTF-8") == "ru_RU.UTF-8");
     assert(makeLocaleName("ru", "RU", "UTF-8", "mod") == "ru_RU.UTF-8@mod");
@@ -651,41 +874,78 @@ unittest
     assert(separateFromLocale("Name[ru_RU]") == tuple("Name", "ru_RU"));
     assert(separateFromLocale("Name") == tuple("Name", string.init));
     
-    
-    auto group = new DesktopGroup;
+    //Test locale matching lookup
+    auto group = new DesktopGroup("Desktop Entry");
     group["Name"] = "Programmer";
     group["Name[ru_RU]"] = "Разработчик";
     group["Name[ru@jargon]"] = "Кодер";
     group["Name[ru]"] = "Программист";
-    
     assert(group["Name"] == "Programmer");
     assert(group.localizedValue("Name", "ru@jargon") == "Кодер");
     assert(group.localizedValue("Name", "ru_RU@jargon") == "Разработчик");
     assert(group.localizedValue("Name", "ru") == "Программист");
-    assert(group.localizedValue("Name", "unexesting locale") == "Programmer");
+    assert(group.localizedValue("Name", "nonexistent locale") == "Programmer");
     
+    //Test escaping and unescaping
     assert("\\next\nline".escapeValue() == `\\next\nline`);
-    
     assert(`\\next\nline`.unescapeValue() == "\\next\nline");
+    
+    //Test DesktopFile
+    string desktopFileContents = 
+`[Desktop Entry]
+# Comment
+Name=Double Commander
+GenericName=File manager
+Comment=Double Commander is a cross platform open source file manager with two panels side by side.
+Terminal=false
+Icon=doublecmd
+Exec=doublecmd
+Type=Application
+Categories=Application;Utility;FileManager;
+Keywords=folder;manager;explore;disk;filesystem;orthodox;copy;queue;queuing;operations;`;
+    
+    auto df = DesktopFile.loadFromString(desktopFileContents, DesktopFile.ReadOptions.preserveComments);
+    assert(df.name() == "Double Commander");
+    assert(df.genericName() == "File manager");
+    assert(!df.terminal());
+    assert(df.type() == DesktopFile.Type.Application);
+    assert(equal(df.categories(), ["Application", "Utility", "FileManager"]));
+    
+    assert(df.saveToString() == desktopFileContents);
 }
 
 void main(string[] args)
 {
     if (args.length < 3) {
-        writefln("Usage: %s <read|exec> <desktop-file>", args[0]);
+        writefln("Usage: %s <read|exec|link|write> <desktop-file> <optional arguments>", args[0]);
         return;
     }
     
-    auto df = DesktopFile.loadFromFile(args[2]);
-    if (args[1] == "read") {
+    string inFile = args[2];
+    auto df = DesktopFile.loadFromFile(inFile, DesktopFile.ReadOptions.preserveComments);
+    string command = args[1];
+    
+    if (command == "read") {
         foreach(group; df.byGroup()) {
             writefln("[%s]", group.name);
-            foreach(t; group.group.byKeyValue()) {
-                writefln("%s : %s", t[0], t[1]);
+            foreach(t; group.byKeyValue()) {
+                writefln("%s=%s", t[0], t[1]);
             }
         }
-    } else if (args[1] == "exec") {
-        writeln("Exec:", df.expandExecString());
-        df.startApplication();
+    } else if (command == "exec") {
+        string[] urls = args[3..$];
+        writeln("Exec:", df.expandExecString(urls));
+        df.startApplication(urls);
+    } else if (command == "link") {
+        df.startLink();
+    } else if (command == "write") {
+        if (args.length > 3) {
+            string outFile = args[3];
+            df.saveToFile(outFile);
+        } else {
+            writeln(df.saveToString());
+        }
+    } else {
+        writefln("unknown command '%s'", command);
     }
 }
