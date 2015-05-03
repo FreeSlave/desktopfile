@@ -1,4 +1,6 @@
 /**
+ * Reading, writing and executing .desktop file
+ * 
  * License: $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
  * See_Also: $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/index.html, Desktop Entry Specification)
  */
@@ -38,6 +40,9 @@ private:
     size_t _lineNumber;
 }
 
+private alias LocaleTuple = Tuple!(string, "lang", string, "country", string, "encoding", string, "modifier");
+private alias KeyValueTuple = Tuple!(string, "key", string, "value");
+
 /** Retrieves current locale probing environment variables LC_TYPE, LC_ALL and LANG (in this order)
  * Returns: locale in posix form or empty string if could not determine locale
  */
@@ -49,15 +54,16 @@ string currentLocale() @safe
 /**
  * Returns: locale name in form lang_COUNTRY.ENCODING@MODIFIER
  */
-string makeLocaleName(string lang, string country = null, string encoding = null, string modifier = null) pure nothrow @trusted
+string makeLocaleName(string lang, string country = null, string encoding = null, string modifier = null) pure nothrow @safe
 {
     return lang ~ (country.length ? "_"~country : "") ~ (encoding.length ? "."~encoding : "") ~ (modifier.length ? "@"~modifier : "");
 }
 
 /**
- * Returns: parses locale name into the tuple of 4 values corresponding to language, country, encoding and modifier
+ * Parses locale name into the tuple of 4 values corresponding to language, country, encoding and modifier
+ * Returns: Tuple!(string, "lang", string, "country", string, "encoding", string, "modifier")
  */
-Tuple!(string, string, string, string) parseLocaleName(string locale) pure nothrow @nogc @trusted
+auto parseLocaleName(string locale) pure nothrow @nogc @trusted
 {
     auto modifiderSplit = findSplit(locale, "@");
     auto modifier = modifiderSplit[2];
@@ -70,7 +76,7 @@ Tuple!(string, string, string, string) parseLocaleName(string locale) pure nothr
     
     auto lang = countrySplit[0];
     
-    return tuple(lang, country, encoding, modifier);
+    return LocaleTuple(lang, country, encoding, modifier);
 }
 
 /**
@@ -79,8 +85,8 @@ Tuple!(string, string, string, string) parseLocaleName(string locale) pure nothr
 string localizedKey(string key, string locale) pure nothrow @safe
 {
     auto t = parseLocaleName(locale);
-    if (!t[2].empty) {
-        locale = makeLocaleName(t[0], t[1], null, t[3]);
+    if (!t.encoding.empty) {
+        locale = makeLocaleName(t.lang, t.country, null, t.modifier);
     }
     return key ~ "[" ~ locale ~ "]";
 }
@@ -335,9 +341,9 @@ public:
     string localizedValue(string key, string locale, string defaultValue = null) const @safe nothrow {
         //Any ideas how to get rid of this boilerplate and make less allocations?
         auto t = parseLocaleName(locale);
-        auto lang = t[0];
-        auto country = t[1];
-        auto modifier = t[3];
+        auto lang = t.lang;
+        auto country = t.country;
+        auto modifier = t.modifier;
         
         if (lang.length) {
             string pick;
@@ -402,10 +408,10 @@ public:
     }
     
     /**
-     * Returns: range of tuples of key and value.
+     * Returns: range of Tuple!(string, "key", string, "value")
      */
     auto byKeyValue() const @safe @nogc nothrow {
-        return _values.filter!(v => v.type == Line.Type.KeyValue).map!(v => tuple(v.key, v.value));
+        return _values.filter!(v => v.type == Line.Type.KeyValue).map!(v => KeyValueTuple(v.key, v.value));
     }
     
     /**
@@ -607,7 +613,7 @@ public:
     }
     
     /**
-     * Returns: Type of desktop entry
+     * Returns: Type of desktop entry.
      */
     Type type() const @safe @nogc nothrow {
         string t = value("Type");
@@ -763,12 +769,8 @@ public:
     /**
      * Expands Exec string into the array of command line arguments to use to start the program.
      */
-    string[] expandExecString(in string[] urls = null) const @safe 
-    {
-        if (type() != Type.Application) {
-            return null;
-        }
-        
+    string[] expandExecString(in string[] urls = null) const @safe
+    {   
         string[] toReturn;
         auto execStr = execString().unescapeExec(); //add unquoting
         
@@ -806,17 +808,23 @@ public:
     }
     
     /**
-     * Starts the program associated with this .desktop file.
+     * Starts the program associated with this .desktop file using urls as command line params.
      * Note: 
-     *  If program should be run in terminal it tries to find system defined terminal emulator to run in.
-     *  First, it probes $(B TERM) environment variable. If not found, checks for /usr/bin/x-terminal-emulator on Linux and use it on success.
+     *  If the program should be run in terminal it tries to find system defined terminal emulator to run in.
+     *  First, it probes $(B TERM) environment variable. If not found, checks if /usr/bin/x-terminal-emulator exists on Linux and use it on success.
      *  Defaulted to xterm, if could not determine other terminal emulator.
+     * Note:
+     *  This function does check if the type of desktop file is Application. It relies only on "Exec" value.
      * Returns:
      *  Pid of started process.
+     * Throws:
+     *  ProcessException on failure to start the process.
+     *  Exception if expanded exec string is empty.
      */
     Pid startApplication(string[] urls = null) const @trusted
     {
         auto args = expandExecString(urls);
+        enforce(args.length, "No command line params to run the program. Is Exec missing?");
         
         if (terminal()) {
             string term = environment.get("TERM");
@@ -838,6 +846,12 @@ public:
         }
         
         return spawnProcess(args, null, Config.none, workingDirectory());
+    }
+    
+    ///ditto, but uses the only url.
+    Pid startApplication(in string url) const @trusted
+    {
+        return startApplication([url]);
     }
     
     Pid startLink() const @trusted
@@ -866,6 +880,7 @@ unittest
     
     assert(parseLocaleName("ru_RU.UTF-8@mod") == tuple("ru", "RU", "UTF-8", "mod"));
     assert(parseLocaleName("ru@mod") == tuple("ru", string.init, string.init, "mod"));
+    assert(parseLocaleName("ru_RU") == tuple("ru", "RU", string.init, string.init));
     
     assert(localizedKey("Name", "ru_RU") == "Name[ru_RU]");
     assert(localizedKey("Name", "ru_RU.UTF-8") == "Name[ru_RU]");
@@ -880,11 +895,14 @@ unittest
     group["Name[ru_RU]"] = "Разработчик";
     group["Name[ru@jargon]"] = "Кодер";
     group["Name[ru]"] = "Программист";
+    group["GenericName"] = "Program";
+    group["GenericName[ru]"] = "Программа";
     assert(group["Name"] == "Programmer");
     assert(group.localizedValue("Name", "ru@jargon") == "Кодер");
     assert(group.localizedValue("Name", "ru_RU@jargon") == "Разработчик");
     assert(group.localizedValue("Name", "ru") == "Программист");
     assert(group.localizedValue("Name", "nonexistent locale") == "Programmer");
+    assert(group.localizedValue("GenericName", "ru_RU") == "Программа");
     
     //Test escaping and unescaping
     assert("\\next\nline".escapeValue() == `\\next\nline`);
@@ -896,6 +914,7 @@ unittest
 # Comment
 Name=Double Commander
 GenericName=File manager
+GenericName[ru]=Файловый менеджер
 Comment=Double Commander is a cross platform open source file manager with two panels side by side.
 Terminal=false
 Icon=doublecmd
@@ -907,45 +926,10 @@ Keywords=folder;manager;explore;disk;filesystem;orthodox;copy;queue;queuing;oper
     auto df = DesktopFile.loadFromString(desktopFileContents, DesktopFile.ReadOptions.preserveComments);
     assert(df.name() == "Double Commander");
     assert(df.genericName() == "File manager");
+    assert(df.localizedValue("GenericName", "ru_RU") == "Файловый менеджер");
     assert(!df.terminal());
     assert(df.type() == DesktopFile.Type.Application);
     assert(equal(df.categories(), ["Application", "Utility", "FileManager"]));
     
     assert(df.saveToString() == desktopFileContents);
-}
-
-void main(string[] args)
-{
-    if (args.length < 3) {
-        writefln("Usage: %s <read|exec|link|write> <desktop-file> <optional arguments>", args[0]);
-        return;
-    }
-    
-    string inFile = args[2];
-    auto df = DesktopFile.loadFromFile(inFile, DesktopFile.ReadOptions.preserveComments);
-    string command = args[1];
-    
-    if (command == "read") {
-        foreach(group; df.byGroup()) {
-            writefln("[%s]", group.name);
-            foreach(t; group.byKeyValue()) {
-                writefln("%s=%s", t[0], t[1]);
-            }
-        }
-    } else if (command == "exec") {
-        string[] urls = args[3..$];
-        writeln("Exec:", df.expandExecString(urls));
-        df.startApplication(urls);
-    } else if (command == "link") {
-        df.startLink();
-    } else if (command == "write") {
-        if (args.length > 3) {
-            string outFile = args[3];
-            df.saveToFile(outFile);
-        } else {
-            writeln(df.saveToString());
-        }
-    } else {
-        writefln("unknown command '%s'", command);
-    }
 }

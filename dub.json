@@ -5,7 +5,21 @@
     "authors": ["Roman Chistokhodov"],
     "dependencies": {
     },
-    "targetPath" : "bin",
-    "targetType" : "executable",
-    "targetName" : "desktopfile"
+    "targetName" : "desktopfile",
+    "targetPath" : "lib", 
+    "targetType" : "library",
+    
+    "subPackages" : [
+        {
+            "name" : "desktoputil",
+            "targetPath" : "bin",
+            "targetType" : "executable",
+            "targetName" : "desktoputil", 
+            "sourcePaths" : ["examples/desktoputil"],
+            "importPaths" : ["source"],
+            "dependencies" : {
+                "desktopfile" : "*"
+            }
+        }
+    ]
 }
