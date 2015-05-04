@@ -20,6 +20,17 @@
             "dependencies" : {
                 "desktopfile" : "*"
             }
+        },
+        {
+            "name" : "desktoptest",
+            "targetPath" : "bin",
+            "targetType" : "executable",
+            "targetName" : "desktoptest",
+            "sourcePaths" : ["examples/desktoptest"],
+            "importPaths" : ["source"],
+            "dependencies" : {
+                "desktopfile" : "*"
+            }
         }
     ]
 }

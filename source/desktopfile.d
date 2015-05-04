@@ -18,6 +18,7 @@ private {
     import std.range;
     import std.stdio;
     import std.string;
+    import std.traits;
     import std.typecons;
 }
 
@@ -46,9 +47,21 @@ private alias KeyValueTuple = Tuple!(string, "key", string, "value");
 /** Retrieves current locale probing environment variables LC_TYPE, LC_ALL and LANG (in this order)
  * Returns: locale in posix form or empty string if could not determine locale
  */
-string currentLocale() @safe
+string currentLocale() @safe nothrow
 {
-    return environment.get("LC_CTYPE", environment.get("LC_ALL", environment.get("LANG")));
+    static string cache;
+    if (cache is null) {
+        try {
+            cache = environment.get("LC_CTYPE", environment.get("LC_ALL", environment.get("LANG")));
+        }
+        catch(Exception e) {
+            
+        }
+        if (cache is null) {
+            cache = "";
+        }
+    }
+    return cache;
 }
 
 /**
@@ -130,6 +143,9 @@ bool isValidKeyChar(char c) pure nothrow @nogc @safe
  */
 bool isValidKey(string key) pure nothrow @nogc @safe
 {
+    if (key.empty) {
+        return false;
+    }
     for (size_t i = 0; i<key.length; ++i) {
         if (!key[i].isValidKeyChar()) {
             return false;
@@ -218,6 +234,33 @@ string unescapeExec(string str) @trusted nothrow pure
 }
 
 /**
+ * Checks if the program exists and is executable. 
+ * If the programPath is not an absolute path, the file is looked up in the $PATH environment variable.
+ * This function is defined only on Posix.
+ */
+version(Posix)
+{
+    bool checkTryExec(string programPath) @safe {
+        bool isExecutable(string filePath) @trusted nothrow {
+            import core.sys.posix.unistd;
+            return access(toStringz(filePath), X_OK) == 0;
+        }
+        
+        if (programPath.isAbsolute()) {
+            return isExecutable(programPath);
+        }
+        
+        foreach(path; environment.get("PATH").splitter(':')) {
+            if (isExecutable(buildPath(path, programPath))) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+
+/**
  * This class represents the group in the desktop file. 
  * You can create and use instances of this class only in the context of $(B DesktopFile) instance.
  */
@@ -294,7 +337,7 @@ public:
      * See_Also: isValidKey
      */
     string opIndexAssign(string value, string key) @safe {
-        enforce(separateFromLocale(key)[0].isValidKey(), "key contains invalid characters");
+        enforce(separateFromLocale(key)[0].isValidKey(), "key is invalid");
         auto pick = key in _indices;
         if (pick) {
             return (_values[*pick] = Line(key, value)).value;
@@ -336,9 +379,14 @@ public:
     
     /**
      * Performs locale matching lookup as described in $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s04.html, Localized values for keys).
+     * If locale is null it calls currentLocale to get the locale.
      * Returns: the localized value associated with key and locale, or defaultValue if group does not contain item with this key.
      */
-    string localizedValue(string key, string locale, string defaultValue = null) const @safe nothrow {
+    string localizedValue(string key, string locale = null, string defaultValue = null) const @safe nothrow {
+        if (locale is null) {
+            locale = currentLocale();
+        }
+        
         //Any ideas how to get rid of this boilerplate and make less allocations?
         auto t = parseLocaleName(locale);
         auto lang = t.lang;
@@ -376,18 +424,6 @@ public:
         }
         
         return value(key, defaultValue);
-    }
-    
-    /**
-     * Ditto, but uses the current locale.
-     */
-    string localizedValue(string key) const @safe nothrow {
-        try {
-            string locale = currentLocale();
-            return localizedValue(key, locale);
-        } catch(Exception e) {
-            return value(key);
-        }
     }
     
     /**
@@ -510,6 +546,8 @@ public:
                     currentGroup = groupName;
                 } else {
                     auto t = line.findSplit("=");
+                    t[0] = t[0].stripRight();
+                    t[2] = t[2].stripLeft();
                     
                     enforce(t[1].length, "not key-value pair, nor group start nor comment");
                     enforce(currentGroup.length, "met key-value pair before any group");
@@ -526,6 +564,14 @@ public:
         catch (Exception e) {
             throw new DesktopFileException(e.msg, lineNumber, e.file, e.line, e.next);
         }
+    }
+    
+    /**
+     * Constructs DesktopFile with "Desktop Entry" group and Version set to 1.0
+     */
+    this() {
+        _desktopEntry = addGroup("Desktop Entry");
+        desktopEntry()["Version"] = "1.0";
     }
     
     /**
@@ -632,6 +678,23 @@ public:
         
         return Type.Unknown;
     }
+    /// Sets "Type" field to type
+    Type type(Type t) @safe {
+        final switch(t) {
+            case Type.Application:
+                this["Type"] = "Application";
+                break;
+            case Type.Link:
+                this["Type"] = "Link";
+                break;
+            case Type.Directory:
+                this["Type"] = "Directory";
+                break;
+            case Type.Unknown:
+                break;
+        }
+        return t;
+    }
     
     /**
      * Specific name of the application, for example "Mozilla".
@@ -640,8 +703,8 @@ public:
     string name() const @safe @nogc nothrow {
         return value("Name");
     }
-    ///ditto, but returns localized value using current locale.
-    string localizedName() const @safe nothrow {
+    ///ditto, but returns localized value.
+    string localizedName(string locale = null) const @safe nothrow {
         return localizedValue("Name");
     }
     
@@ -652,8 +715,8 @@ public:
     string genericName() const @safe @nogc nothrow {
         return value("GenericName");
     }
-    ///ditto, but returns localized value using current locale.
-    string localizedGenericName() const @safe nothrow {
+    ///ditto, but returns localized value.
+    string localizedGenericName(string locale = null) const @safe nothrow {
         return localizedValue("GenericName");
     }
     
@@ -664,8 +727,8 @@ public:
     string comment() const @safe @nogc nothrow {
         return value("Comment");
     }
-    ///ditto, but returns localized value using current locale.
-    string localizedComment() const @safe nothrow {
+    ///ditto, but returns localized value.
+    string localizedComment(string locale = null) const @safe nothrow {
         return localizedValue("Comment");
     }
     
@@ -726,15 +789,31 @@ public:
     bool terminal() const @safe @nogc nothrow {
         return isTrue(value("Terminal"));
     }
+    /// Sets "Terminal" field to true or false.
+    bool terminal(bool t) @safe {
+        this["Terminal"] = t ? "true" : "false";
+        return t;
+    }
     
     /**
      * Some keys can have multiple values, separated by semicolon. This function helps to parse such kind of strings to the range.
      * Returns: the range of multiple values.
      */
     static auto splitValues(string values) @trusted {
-        static bool notEmpty(string s) @nogc nothrow { return s.length != 0; }
-        
-        return values.splitter(';').filter!notEmpty;
+        return values.splitter(';').filter!(s => s.length != 0);
+    }
+    
+    /**
+     * Join range of multiple values into a string using semicolon as separator. Adds trailing semicolon.
+     * If range is empty, empty string is returned.
+     */
+    static @trusted string joinValues(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
+        auto result = values.filter!( s => s.length != 0 ).joiner(";");
+        if (result.empty) {
+            return null;
+        } else {
+            return text(result) ~ ";";
+        }
     }
     
     /**
@@ -746,6 +825,13 @@ public:
     }
     
     /**
+     * Sets the list of values for the "Categories" list.
+     */
+    @safe void categories(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
+        this["Categories"] = joinValues(values);
+    }
+    
+    /**
      * A list of strings which may be used in addition to other metadata to describe this entry.
      * Returns: the range of multiple values associated with "Keywords" key.
      */
@@ -754,7 +840,46 @@ public:
     }
     
     /**
+     * Sets the list of values for the "Keywords" list.
+     */
+    @safe void keywords(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
+        this["Keywords"] = joinValues(values);
+    }
+    
+    /**
+     * The MIME type(s) supported by this application.
+     * Returns: the range of multiple values associated with "MimeType" key.
+     */
+    auto mimeTypes() const @safe {
+        return splitValues(value("MimeType"));
+    }
+    
+    /**
+     * Sets the list of values for the "MimeType" list.
+     */
+    @safe void mimeTypes(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
+        this["MimeType"] = joinValues(values);
+    }
+    
+    /**
+     * A list of strings identifying the desktop environments that should display a given desktop entry.
+     * Returns: the range of multiple values associated with "OnlyShowIn" key.
+     */
+    auto onlyShowIn() const @safe {
+        return splitValues(value("OnlyShowIn"));
+    }
+    
+    /**
+     * A list of strings identifying the desktop environments that should not display a given desktop entry.
+     * Returns: the range of multiple values associated with "NotShowIn" key.
+     */
+    auto notShowIn() const @safe {
+        return splitValues(value("NotShowIn"));
+    }
+    
+    /**
      * Returns: instance of "Desktop Entry" group.
+     * Note: usually you don't need to call this function since you can rely on alias this.
      */
     inout(DesktopGroup) desktopEntry() @safe @nogc nothrow inout {
         return _desktopEntry;
@@ -908,6 +1033,13 @@ unittest
     assert("\\next\nline".escapeValue() == `\\next\nline`);
     assert(`\\next\nline`.unescapeValue() == "\\next\nline");
     
+    //Test split/join values
+    
+    assert(equal(DesktopFile.splitValues("Application;Utility;FileManager;"), ["Application", "Utility", "FileManager"]));
+    assert(DesktopFile.splitValues(";").empty);
+    assert(equal(DesktopFile.joinValues(["Application", "Utility", "FileManager"]), "Application;Utility;FileManager;"));
+    assert(DesktopFile.joinValues([""]).empty);
+    
     //Test DesktopFile
     string desktopFileContents = 
 `[Desktop Entry]
@@ -932,4 +1064,18 @@ Keywords=folder;manager;explore;disk;filesystem;orthodox;copy;queue;queuing;oper
     assert(equal(df.categories(), ["Application", "Utility", "FileManager"]));
     
     assert(df.saveToString() == desktopFileContents);
+    
+    df = new DesktopFile();
+    assert(df.desktopEntry());
+    assert(df.value("Version") == "1.0");
+    assert(df.categories().empty);
+    assert(df.type() == DesktopFile.Type.Unknown);
+    
+    df.terminal = true;
+    df.type = DesktopFile.Type.Application;
+    df.categories = ["Development", "Compilers"];
+    
+    assert(df.terminal() == true);
+    assert(df.type() == DesktopFile.Type.Application);
+    assert(equal(df.categories(), ["Development", "Compilers"]));
 }
