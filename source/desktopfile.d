@@ -1,8 +1,11 @@
 /**
  * Reading, writing and executing .desktop file
- * 
- * License: $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
- * See_Also: $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/index.html, Desktop Entry Specification)
+ * Authors: 
+ *  $(LINK2 https://github.com/MyLittleRobo, Roman Chistokhodov).
+ * License: 
+ *  $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
+ * See_Also: 
+ *  $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/index.html, Desktop Entry Specification).
  */
 
 module desktopfile;
@@ -65,6 +68,7 @@ string currentLocale() @safe nothrow
 }
 
 /**
+ * Makes locale name based on language, country, encoding and modifier.
  * Returns: locale name in form lang_COUNTRY.ENCODING@MODIFIER
  */
 string makeLocaleName(string lang, string country = null, string encoding = null, string modifier = null) pure nothrow @safe
@@ -93,6 +97,7 @@ auto parseLocaleName(string locale) pure nothrow @nogc @trusted
 }
 
 /**
+ * Constructs localized key name from key and locale.
  * Returns: localized key in form key[locale]. Automatically omits locale encoding if present.
  */
 string localizedKey(string key, string locale) pure nothrow @safe
@@ -233,19 +238,18 @@ string unescapeExec(string str) @trusted nothrow pure
     return doUnescape(str, pairs);
 }
 
-/**
- * Checks if the program exists and is executable. 
- * If the programPath is not an absolute path, the file is looked up in the $PATH environment variable.
- * This function is defined only on Posix.
- */
 version(Posix)
 {
+    private bool isExecutable(string filePath) @trusted nothrow {
+        import core.sys.posix.unistd;
+        return access(toStringz(filePath), X_OK) == 0;
+    }
+    /**
+    * Checks if the program exists and is executable. 
+    * If the programPath is not an absolute path, the file is looked up in the $PATH environment variable.
+    * This function is defined only on Posix.
+    */
     bool checkTryExec(string programPath) @safe {
-        bool isExecutable(string filePath) @trusted nothrow {
-            import core.sys.posix.unistd;
-            return access(toStringz(filePath), X_OK) == 0;
-        }
-        
         if (programPath.isAbsolute()) {
             return isExecutable(programPath);
         }
@@ -474,6 +478,7 @@ private:
 final class DesktopFile
 {
 public:
+    ///Desktop entry type
     enum Type
     {
         Unknown, ///Desktop entry is unknown type
@@ -482,11 +487,12 @@ public:
         Directory ///Desktop entry describes directory settings
     }
     
+    ///Flags to manage desktop file reading
     enum ReadOptions
     {
-        noOptions = 0, /// Read all groups and skip comments and empty lines
-        desktopEntryOnly = 1, /// Ignore other groups than Desktop Entry
-        preserveComments = 2 /// Preserve comments and empty lines
+        noOptions = 0, /// Read all groups and skip comments and empty lines.
+        desktopEntryOnly = 1, /// Ignore other groups than Desktop Entry.
+        preserveComments = 2 /// Preserve comments and empty lines. Use this when you want to preserve them across writing.
     }
     
     /**
@@ -652,6 +658,16 @@ public:
     }
     
     /**
+     * Removes group by name.
+     */
+    void removeGroup(string groupName) @safe nothrow {
+        auto pick = groupName in _groupIndices;
+        if (pick) {
+            _groups[*pick] = null;
+        }
+    }
+    
+    /**
      * Range of groups in order how they are defined in .desktop file. The first group is always $(B Desktop Entry).
      */
     auto byGroup() const {
@@ -796,8 +812,8 @@ public:
     }
     
     /**
-     * Some keys can have multiple values, separated by semicolon. This function helps to parse such kind of strings to the range.
-     * Returns: the range of multiple values.
+     * Some keys can have multiple values, separated by semicolon. This function helps to parse such kind of strings into the range.
+     * Returns: the range of multiple nonempty values.
      */
     static auto splitValues(string values) @trusted {
         return values.splitter(';').filter!(s => s.length != 0);
@@ -805,7 +821,7 @@ public:
     
     /**
      * Join range of multiple values into a string using semicolon as separator. Adds trailing semicolon.
-     * If range is empty, empty string is returned.
+     * If range is empty, then the empty string is returned.
      */
     static @trusted string joinValues(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
         auto result = values.filter!( s => s.length != 0 ).joiner(";");
@@ -937,16 +953,16 @@ public:
      * Note: 
      *  If the program should be run in terminal it tries to find system defined terminal emulator to run in.
      *  First, it probes $(B TERM) environment variable. If not found, checks if /usr/bin/x-terminal-emulator exists on Linux and use it on success.
-     *  Defaulted to xterm, if could not determine other terminal emulator.
+     *  $(I xterm) is used by default, if could not determine other terminal emulator.
      * Note:
-     *  This function does check if the type of desktop file is Application. It relies only on "Exec" value.
+     *  This function does not check if the type of desktop file is Application. It relies only on "Exec" value.
      * Returns:
      *  Pid of started process.
      * Throws:
      *  ProcessException on failure to start the process.
      *  Exception if expanded exec string is empty.
      */
-    Pid startApplication(string[] urls = null) const @trusted
+    Pid startApplication(in string[] urls = null) const @trusted
     {
         auto args = expandExecString(urls);
         enforce(args.length, "No command line params to run the program. Is Exec missing?");
@@ -955,22 +971,29 @@ public:
             string term = environment.get("TERM");
             
             version(linux) {
-                if (term is null) {
+                if (term.empty) {
                     string debianTerm = "/usr/bin/x-terminal-emulator";
-                    if (debianTerm.exists) {
+                    if (debianTerm.isExecutable()) {
                         term = debianTerm;
                     }
                 }
             }
             
-            if (term is null) {
+            if (term.empty) {
                 term = "xterm";
             }
             
             args = [term, "-e"] ~ args;
         }
         
-        return spawnProcess(args, null, Config.none, workingDirectory());
+        File newStdin;
+        version(Posix) {
+            newStdin = File("/dev/null", "rb");
+        } else {
+            newStdin = std.stdio.stdin;
+        }
+        
+        return spawnProcess(args, newStdin, std.stdio.stdout, std.stdio.stderr, null, Config.none, workingDirectory());
     }
     
     ///ditto, but uses the only url.
@@ -1064,6 +1087,12 @@ Keywords=folder;manager;explore;disk;filesystem;orthodox;copy;queue;queuing;oper
     assert(equal(df.categories(), ["Application", "Utility", "FileManager"]));
     
     assert(df.saveToString() == desktopFileContents);
+    
+    assert(df.contains("Icon"));
+    df.removeEntry("Icon");
+    assert(!df.contains("Icon"));
+    df["Icon"] = "files";
+    assert(df.contains("Icon"));
     
     df = new DesktopFile();
     assert(df.desktopEntry());

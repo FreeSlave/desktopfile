@@ -29,7 +29,8 @@
             "sourcePaths" : ["examples/desktoptest"],
             "importPaths" : ["source"],
             "dependencies" : {
-                "desktopfile" : "*"
+                "desktopfile" : "*",
+                "standardpaths" : "~>0.0.4"
             }
         }
     ]
