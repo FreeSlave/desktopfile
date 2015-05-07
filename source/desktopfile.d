@@ -28,11 +28,10 @@ private {
 }
 
 /**
- * Exception thrown when error occures during the .desktop file read.
+ * Alias for backward compatibility
+ * Exception thrown on the .desktop file read error.
  */
 alias IniLikeException DesktopFileException;
-
-
 
 version(Posix)
 {
@@ -60,15 +59,8 @@ version(Posix)
 }
 
 
-
-
-/**
- * This class represents the group (section) in the desktop file. 
- * You can create and use instances of this class only in the context of $(B DesktopFile) instance.
- */
+/// Alias for backward compatibility
 alias IniLikeGroup DesktopGroup;
-
-
 
 
 /**

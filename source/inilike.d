@@ -104,7 +104,7 @@ Tuple!(string, string) separateFromLocale(string key) nothrow @nogc @trusted {
 }
 
 /**
- * Tells whether the character is valid for desktop entry key.
+ * Tells whether the character is valid for entry key.
  * Note: This does not include characters presented in locale names.
  */
 bool isValidKeyChar(char c) pure nothrow @nogc @safe
@@ -138,14 +138,14 @@ bool isTrue(string value) pure nothrow @nogc @safe {
 }
 
 /**
- * Tells whether the desktop entry value presents false
+ * Tells whether the entry value presents false
  */
 bool isFalse(string value) pure nothrow @nogc @safe {
     return (value == "false" || value == "0");
 }
 
 /**
- * Check if the desktop entry value can be interpreted as boolean value.
+ * Check if the entry value can be interpreted as boolean value.
  */
 bool isBoolean(string value) pure nothrow @nogc @safe {
     return isTrue(value) || isFalse(value);
@@ -281,6 +281,10 @@ private:
     Type _type = Type.None;
 }
 
+/**
+ * This class represents the group (section) in the .init like file. 
+ * You can create and use instances of this class only in the context of $(B IniLikeFile) or its derivatives.
+ */
 final class IniLikeGroup
 {
 private:
@@ -452,7 +456,7 @@ class IniLikeException : Exception
         _lineNumber = lineNumber;
     }
     
-    ///Number of line in desktop file where the exception occured, starting from 1. Don't be confused with $(B line) property of $(B Throwable).
+    ///Number of line in the file where the exception occured, starting from 1. Don't be confused with $(B line) property of $(B Throwable).
     size_t lineNumber() const nothrow @safe @nogc {
         return _lineNumber;
     }
@@ -505,22 +509,22 @@ public:
     }
     
     /**
-     * Reads desktop file from file.
+     * Reads from file.
      * Throws:
      *  $(B ErrnoException) if file could not be opened.
      *  $(B IniLikeException) if error occured while reading the file.
      */
-    static IniLikeFile loadFromFile(string fileName, ReadOptions options = ReadOptions.noOptions) @trusted {
-        return new IniLikeFile(iniLikeFileReader(fileName), options, fileName);
+    static typeof(this) loadFromFile(string fileName, ReadOptions options = ReadOptions.noOptions) @trusted {
+        return new typeof(this)(iniLikeFileReader(fileName), options, fileName);
     }
     
     /**
-     * Reads desktop file from string.
+     * Reads from string.
      * Throws:
      *  $(B IniLikeException) if error occured while parsing the contents.
      */
-    static IniLikeFile loadFromString(string contents, ReadOptions options = ReadOptions.noOptions, string fileName = null) @trusted {
-        return new IniLikeFile(iniLikeStringReader(contents), options, fileName);
+    static typeof(this) loadFromString(string contents, ReadOptions options = ReadOptions.noOptions, string fileName = null) @trusted {
+        return new typeof(this)(iniLikeStringReader(contents), options, fileName);
     }
     
     this() {
