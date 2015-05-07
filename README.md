@@ -1,6 +1,14 @@
 # Desktopfile
 
-D library for working with .desktop files. See [Desktop Entry Specification](http://standards.freedesktop.org/desktop-entry-spec/latest/).
+D library for working with *.desktop* files. Desktop entries in Freedesktop world are akin to shortcuts from Windows world (.lnk files).
+The most of desktop environments on Linux and BSD flavors follows [Desktop Entry Specification](http://standards.freedesktop.org/desktop-entry-spec/latest/) today.
+The goal of **desktopfile** library is to provide implementation of this specification in D programming language.
+Please feel free to propose enchancements or report any related bugs to *Issues* page.
+
+## Platform support
+
+The library is crossplatform for the most part, though there's little sense to use it on systems that don't follow freedesktop specifications.
+**desktopfile** is developed and tested on FreeBSD and Debian GNU/Linux.
 
 ## Generating documentation
 
@@ -17,8 +25,6 @@ Ddox:
     dub test
     
 ## Examples
-
-See examples/ directory.
 
 ### Desktop util
 

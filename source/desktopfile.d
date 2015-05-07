@@ -10,6 +10,8 @@
 
 module desktopfile;
 
+import inilike;
+
 private {
     import std.algorithm;
     import std.array;
@@ -28,215 +30,9 @@ private {
 /**
  * Exception thrown when error occures during the .desktop file read.
  */
-class DesktopFileException : Exception
-{
-    this(string msg, size_t lineNumber, string file = __FILE__, size_t line = __LINE__, Throwable next = null) pure nothrow @safe {
-        super(msg, file, line, next);
-        _lineNumber = lineNumber;
-    }
-    
-    ///Number of line in desktop file where the exception occured, starting from 1. Don't be confused with $(B line) property of $(B Throwable).
-    size_t lineNumber() const {
-        return _lineNumber;
-    }
-    
-private:
-    size_t _lineNumber;
-}
-
-private alias LocaleTuple = Tuple!(string, "lang", string, "country", string, "encoding", string, "modifier");
-private alias KeyValueTuple = Tuple!(string, "key", string, "value");
-
-/** Retrieves current locale probing environment variables LC_TYPE, LC_ALL and LANG (in this order)
- * Returns: locale in posix form or empty string if could not determine locale
- */
-string currentLocale() @safe nothrow
-{
-    static string cache;
-    if (cache is null) {
-        try {
-            cache = environment.get("LC_CTYPE", environment.get("LC_ALL", environment.get("LANG")));
-        }
-        catch(Exception e) {
-            
-        }
-        if (cache is null) {
-            cache = "";
-        }
-    }
-    return cache;
-}
-
-/**
- * Makes locale name based on language, country, encoding and modifier.
- * Returns: locale name in form lang_COUNTRY.ENCODING@MODIFIER
- */
-string makeLocaleName(string lang, string country = null, string encoding = null, string modifier = null) pure nothrow @safe
-{
-    return lang ~ (country.length ? "_"~country : "") ~ (encoding.length ? "."~encoding : "") ~ (modifier.length ? "@"~modifier : "");
-}
-
-/**
- * Parses locale name into the tuple of 4 values corresponding to language, country, encoding and modifier
- * Returns: Tuple!(string, "lang", string, "country", string, "encoding", string, "modifier")
- */
-auto parseLocaleName(string locale) pure nothrow @nogc @trusted
-{
-    auto modifiderSplit = findSplit(locale, "@");
-    auto modifier = modifiderSplit[2];
-    
-    auto encodongSplit = findSplit(modifiderSplit[0], ".");
-    auto encoding = encodongSplit[2];
-    
-    auto countrySplit = findSplit(encodongSplit[0], "_");
-    auto country = countrySplit[2];
-    
-    auto lang = countrySplit[0];
-    
-    return LocaleTuple(lang, country, encoding, modifier);
-}
-
-/**
- * Constructs localized key name from key and locale.
- * Returns: localized key in form key[locale]. Automatically omits locale encoding if present.
- */
-string localizedKey(string key, string locale) pure nothrow @safe
-{
-    auto t = parseLocaleName(locale);
-    if (!t.encoding.empty) {
-        locale = makeLocaleName(t.lang, t.country, null, t.modifier);
-    }
-    return key ~ "[" ~ locale ~ "]";
-}
-
-/**
- * Ditto, but constructs locale name from arguments.
- */
-string localizedKey(string key, string lang, string country, string modifier = null) pure nothrow @safe
-{
-    return key ~ "[" ~ makeLocaleName(lang, country, null, modifier) ~ "]";
-}
-
-/** 
- * Separates key name into non-localized key and locale name.
- * If key is not localized returns original key and empty string.
- * Returns: tuple of key and locale name;
- */
-Tuple!(string, string) separateFromLocale(string key) nothrow @nogc @trusted {
-    if (key.endsWith("]")) {
-        auto t = key.findSplit("[");
-        if (t[1].length) {
-            return tuple(t[0], t[2][0..$-1]);
-        }
-    }
-    return tuple(key, string.init);
-}
-
-/**
- * Tells whether the character is valid for desktop entry key.
- * Note: This does not include characters presented in locale names.
- */
-bool isValidKeyChar(char c) pure nothrow @nogc @safe
-{
-    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-';
-}
+alias IniLikeException DesktopFileException;
 
 
-/**
- * Tells whethe the string is valid dekstop entry key.
- * Note: This does not include characters presented in locale names. Use $(B separateFromLocale) to get non-localized key to pass it to this function
- */
-bool isValidKey(string key) pure nothrow @nogc @safe
-{
-    if (key.empty) {
-        return false;
-    }
-    for (size_t i = 0; i<key.length; ++i) {
-        if (!key[i].isValidKeyChar()) {
-            return false;
-        }
-    }
-    return true;
-}
-
-/**
- * Tells whether the dekstop entry value presents true
- */
-bool isTrue(string value) pure nothrow @nogc @safe {
-    return (value == "true" || value == "1");
-}
-
-/**
- * Tells whether the desktop entry value presents false
- */
-bool isFalse(string value) pure nothrow @nogc @safe {
-    return (value == "false" || value == "0");
-}
-
-/**
- * Check if the desktop entry value can be interpreted as boolean value.
- */
-bool isBoolean(string value) pure nothrow @nogc @safe {
-    return isTrue(value) || isFalse(value);
-}
-
-string escapeValue(string value) @trusted nothrow pure {
-    return value.replace("\\", `\\`).replace("\n", `\n`).replace("\r", `\r`).replace("\t", `\t`);
-}
-
-string doUnescape(string value, in Tuple!(char, char)[] pairs) @trusted nothrow pure {
-    auto toReturn = appender!string();
-    
-    for (size_t i = 0; i < value.length; i++) {
-        if (value[i] == '\\') {
-            if (i < value.length - 1) {
-                char c = value[i+1];
-                auto t = pairs.find!"a[0] == b[0]"(tuple(c,c));
-                if (!t.empty) {
-                    toReturn.put(t.front[1]);
-                    i++;
-                    continue;
-                }
-            }
-        }
-        toReturn.put(value[i]);
-    }
-    return toReturn.data;
-}
-
-string unescapeValue(string value) @trusted nothrow pure
-{
-    static immutable Tuple!(char, char)[] pairs = [
-       tuple('s', ' '),
-       tuple('n', '\n'),
-       tuple('r', '\r'),
-       tuple('t', '\t'),
-       tuple('\\', '\\')
-    ];
-    return doUnescape(value, pairs);
-}
-
-string unescapeExec(string str) @trusted nothrow pure
-{
-    static immutable Tuple!(char, char)[] pairs = [
-       tuple('"', '"'),
-       tuple('\'', '\''),
-       tuple('\\', '\\'),
-       tuple('>', '>'),
-       tuple('<', '<'),
-       tuple('~', '~'),
-       tuple('|', '|'),
-       tuple('&', '&'),
-       tuple(';', ';'),
-       tuple('$', '$'),
-       tuple('*', '*'),
-       tuple('?', '?'),
-       tuple('#', '#'),
-       tuple('(', '('),
-       tuple(')', ')'),
-    ];
-    return doUnescape(str, pairs);
-}
 
 version(Posix)
 {
@@ -264,218 +60,22 @@ version(Posix)
 }
 
 
+
+
 /**
- * This class represents the group in the desktop file. 
+ * This class represents the group (section) in the desktop file. 
  * You can create and use instances of this class only in the context of $(B DesktopFile) instance.
  */
-final class DesktopGroup
-{
-private:
-    static struct Line
-    {
-        enum Type
-        {
-            None, 
-            Comment, 
-            KeyValue
-        }
-        
-        this(string comment) @safe {
-            _first = comment;
-            _type = Type.Comment;
-        }
-        
-        this(string key, string value) @safe {
-            _first = key;
-            _second = value;
-            _type = Type.KeyValue;
-        }
-        
-        string comment() @safe @nogc nothrow const {
-            return _first;
-        }
-        
-        string key() @safe @nogc nothrow const {
-            return _first;
-        }
-        
-        string value() @safe @nogc nothrow const {
-            return _second;
-        }
-        
-        Type type() @safe @nogc nothrow const {
-            return _type;
-        }
-        
-        void makeNone() @safe @nogc nothrow {
-            _type = Type.None;
-        }
-        
-    private:
-        Type _type = Type.None;
-        string _first;
-        string _second;
-    }
-    
-    this(string name) @safe @nogc nothrow {
-        _name = name;
-    }
-    
-public:
-    
-    /**
-     * Returns: the value associated with the key
-     * Note: it's an error to access nonexistent value
-     */
-    string opIndex(string key) const @safe @nogc nothrow {
-        auto i = key in _indices;
-        assert(_values[*i].type == Line.Type.KeyValue);
-        assert(_values[*i].key == key);
-        return _values[*i].value;
-    }
-    
-    /**
-     * Inserts new value or replaces the old one if value associated with key already exists.
-     * Returns: inserted/updated value
-     * Throws: $(B Exception) if key is not valid
-     * See_Also: isValidKey
-     */
-    string opIndexAssign(string value, string key) @safe {
-        enforce(separateFromLocale(key)[0].isValidKey(), "key is invalid");
-        auto pick = key in _indices;
-        if (pick) {
-            return (_values[*pick] = Line(key, value)).value;
-        } else {
-            _indices[key] = _values.length;
-            _values ~= Line(key, value);
-            return value;
-        }
-    }
-    /**
-     * Ditto, but also allows to specify the locale.
-     * See_Also: setLocalizedValue, localizedValue
-     */
-    string opIndexAssign(string value, string key, string locale) @safe {
-        string keyName = localizedKey(key, locale);
-        return this[keyName] = value;
-    }
-    
-    /**
-     * Tells if group contains value associated with the key.
-     */
-    bool contains(string key) const @safe @nogc nothrow {
-        return value(key) !is null;
-    }
-    
-    /**
-     * Returns: the value associated with the key, or defaultValue if group does not contain item with this key.
-     */
-    string value(string key, string defaultValue = null) const @safe @nogc nothrow {
-        auto pick = key in _indices;
-        if (pick) {
-            if(_values[*pick].type == Line.Type.KeyValue) {
-                assert(_values[*pick].key == key);
-                return _values[*pick].value;
-            }
-        }
-        return defaultValue;
-    }
-    
-    /**
-     * Performs locale matching lookup as described in $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s04.html, Localized values for keys).
-     * If locale is null it calls currentLocale to get the locale.
-     * Returns: the localized value associated with key and locale, or defaultValue if group does not contain item with this key.
-     */
-    string localizedValue(string key, string locale = null, string defaultValue = null) const @safe nothrow {
-        if (locale is null) {
-            locale = currentLocale();
-        }
-        
-        //Any ideas how to get rid of this boilerplate and make less allocations?
-        auto t = parseLocaleName(locale);
-        auto lang = t.lang;
-        auto country = t.country;
-        auto modifier = t.modifier;
-        
-        if (lang.length) {
-            string pick;
-            
-            if (country.length && modifier.length) {
-                pick = value(localizedKey(key, locale));
-                if (pick !is null) {
-                    return pick;
-                }
-            }
-            
-            if (country.length) {
-                pick = value(localizedKey(key, lang, country));
-                if (pick !is null) {
-                    return pick;
-                }
-            }
-            
-            if (modifier.length) {
-                pick = value(localizedKey(key, lang, null, modifier));
-                if (pick !is null) {
-                    return pick;
-                }
-            }
-            
-            pick = value(localizedKey(key, lang, null));
-            if (pick !is null) {
-                return pick;
-            }
-        }
-        
-        return value(key, defaultValue);
-    }
-    
-    /**
-     * Same as localized version of opIndexAssign, but uses function syntax.
-     */
-    void setLocalizedValue(string key, string locale, string value) @safe {
-        this[key, locale] = value;
-    }
-    
-    /**
-     * Removes entry by key. To remove localized values use localizedKey.
-     */
-    void removeEntry(string key) @safe nothrow {
-        auto pick = key in _indices;
-        if (pick) {
-            _values[*pick].makeNone();
-        }
-    }
-    
-    /**
-     * Returns: range of Tuple!(string, "key", string, "value")
-     */
-    auto byKeyValue() const @safe @nogc nothrow {
-        return _values.filter!(v => v.type == Line.Type.KeyValue).map!(v => KeyValueTuple(v.key, v.value));
-    }
-    
-    /**
-     * Returns: the name of group
-     */
-    string name() const @safe @nogc nothrow {
-        return _name;
-    }
-    
-private:
-    void addComment(string comment) {
-        _values ~= Line(comment);
-    }
-    
-    size_t[string] _indices;
-    Line[] _values;
-    string _name;
-}
+alias IniLikeGroup DesktopGroup;
+
+
+
 
 /**
  * Represents .desktop file.
  * 
  */
-final class DesktopFile
+final class DesktopFile : IniLikeFile
 {
 public:
     ///Desktop entry type
@@ -487,13 +87,7 @@ public:
         Directory ///Desktop entry describes directory settings
     }
     
-    ///Flags to manage desktop file reading
-    enum ReadOptions
-    {
-        noOptions = 0, /// Read all groups and skip comments and empty lines.
-        desktopEntryOnly = 1, /// Ignore other groups than Desktop Entry.
-        preserveComments = 2 /// Preserve comments and empty lines. Use this when you want to preserve them across writing.
-    }
+    alias IniLikeFile.ReadOptions ReadOptions;
     
     /**
      * Reads desktop file from file.
@@ -502,8 +96,7 @@ public:
      *  $(B DesktopFileException) if error occured while reading the file.
      */
     static DesktopFile loadFromFile(string fileName, ReadOptions options = ReadOptions.noOptions) @trusted {
-        auto f = File(fileName, "r");
-        return new DesktopFile(f.byLine().map!(s => s.idup), options, fileName);
+        return new DesktopFile(iniLikeFileReader(fileName), options, fileName);
     }
     
     /**
@@ -512,166 +105,35 @@ public:
      *  $(B DesktopFileException) if error occured while parsing the contents.
      */
     static DesktopFile loadFromString(string contents, ReadOptions options = ReadOptions.noOptions, string fileName = null) @trusted {
-        return new DesktopFile(contents.splitLines(), options, fileName);
+        return new DesktopFile(iniLikeStringReader(contents), options, fileName);
     }
     
-    private this(Range)(Range byLine, ReadOptions options, string fileName) @trusted
+    this(Range)(Range byLine, ReadOptions options = ReadOptions.noOptions, string fileName = null) @trusted
     {   
-        size_t lineNumber = 0;
-        string currentGroup;
+        super(byLine, options, fileName);
+        auto groups = byGroup();
+        enforce(!groups.empty, "no groups");
+        enforce(groups.front.name == "Desktop Entry", "the first group must be Desktop Entry");
         
-        try {
-            foreach(line; byLine) {
-                lineNumber++;
-                line = strip(line);
-                
-                if (line.empty || line.startsWith("#")) {
-                    if (options & ReadOptions.preserveComments) {
-                        if (currentGroup is null) {
-                            firstLines ~= line;
-                        } else {
-                            group(currentGroup).addComment(line);
-                        }
-                    }
-                    
-                    continue;
-                }
-                
-                if (line.startsWith("[") && line.endsWith("]")) {
-                    string groupName = line[1..$-1];
-                    enforce(groupName.length, "empty group name");
-                    enforce(group(groupName) is null, "group is defined more than once");
-                    
-                    if (currentGroup is null) {
-                        enforce(groupName == "Desktop Entry", "the first group must be Desktop Entry");
-                    } else if (options & ReadOptions.desktopEntryOnly) {
-                        break;
-                    }
-                    
-                    addGroup(groupName);
-                    currentGroup = groupName;
-                } else {
-                    auto t = line.findSplit("=");
-                    t[0] = t[0].stripRight();
-                    t[2] = t[2].stripLeft();
-                    
-                    enforce(t[1].length, "not key-value pair, nor group start nor comment");
-                    enforce(currentGroup.length, "met key-value pair before any group");
-                    assert(group(currentGroup) !is null, "logic error: currentGroup is not in _groups");
-                    
-                    group(currentGroup)[t[0]] = t[2];
-                }
-            }
-            
-            _desktopEntry = group("Desktop Entry");
-            enforce(_desktopEntry !is null, "Desktop Entry group is missing");
-            _fileName = fileName;
-        }
-        catch (Exception e) {
-            throw new DesktopFileException(e.msg, lineNumber, e.file, e.line, e.next);
-        }
+         _desktopEntry = groups.front;
     }
     
     /**
      * Constructs DesktopFile with "Desktop Entry" group and Version set to 1.0
      */
     this() {
+        super();
         _desktopEntry = addGroup("Desktop Entry");
-        desktopEntry()["Version"] = "1.0";
-    }
-    
-    /**
-     * Returns: file name as was specified on the object creating
-     */
-    string fileName() @safe @nogc nothrow const {
-        return  _fileName;
-    }
-    
-    /**
-     * Saves object to file using Desktop File format.
-     * Throws: ErrnoException if the file could not be opened or an error writing to the file occured.
-     */
-    void saveToFile(string fileName) const {
-        auto f = File(fileName, "w");
-        void dg(string line) {
-            f.writeln(line);
-        }
-        save(&dg);
-    }
-    
-    /**
-     * Saves object to string using Desktop File format.
-     */
-    string saveToString() const {
-        auto a = appender!(string[])();
-        void dg(string line) {
-            a.put(line);
-        }
-        save(&dg);
-        return a.data.join("\n");
-    }
-    
-    private alias SaveDelegate = void delegate(string);
-    
-    private void save(SaveDelegate sink) const {
-        foreach(line; firstLines) {
-            sink(line);
-        }
-        
-        foreach(group; byGroup()) {
-            sink("[" ~ group.name ~ "]");
-            foreach(line; group._values) {
-                if (line.type == DesktopGroup.Line.Type.Comment) {
-                    sink(line.comment);
-                } else if (line.type == DesktopGroup.Line.Type.KeyValue) {
-                    sink(line.key ~ "=" ~ line.value);
-                }
-            }
-        }
-    }
-    
-    /**
-     * Returns: DesktopGroup instance associated with groupName or $(B null) if not found.
-     */
-    inout(DesktopGroup) group(string groupName) @safe @nogc nothrow inout {
-        auto pick = groupName in _groupIndices;
-        if (pick) {
-            return _groups[*pick];
-        }
-        return null;
-    }
-    
-    /**
-     * Creates new group usin groupName.
-     * Returns: newly created instance of DesktopGroup.
-     * Throws: Exception if group with such name already exists or groupName is empty.
-     */
-    DesktopGroup addGroup(string groupName) @safe {
-        enforce(groupName.length, "group name is empty");
-        
-        auto desktopGroup = new DesktopGroup(groupName);
-        enforce(group(groupName) is null, "group already exists");
-        _groupIndices[groupName] = _groups.length;
-        _groups ~= desktopGroup;
-        
-        return desktopGroup;
+        this["Version"] = "1.0";
     }
     
     /**
      * Removes group by name.
      */
-    void removeGroup(string groupName) @safe nothrow {
-        auto pick = groupName in _groupIndices;
-        if (pick) {
-            _groups[*pick] = null;
+    override void removeGroup(string groupName) @safe nothrow {
+        if (groupName != "Desktop Entry") {
+            super.removeGroup(groupName);
         }
-    }
-    
-    /**
-     * Range of groups in order how they are defined in .desktop file. The first group is always $(B Desktop Entry).
-     */
-    auto byGroup() const {
-        return _groups[];
     }
     
     /**
@@ -1020,42 +482,6 @@ private:
 
 unittest 
 {
-    //Test locale-related functions
-    assert(makeLocaleName("ru", "RU") == "ru_RU");
-    assert(makeLocaleName("ru", "RU", "UTF-8") == "ru_RU.UTF-8");
-    assert(makeLocaleName("ru", "RU", "UTF-8", "mod") == "ru_RU.UTF-8@mod");
-    assert(makeLocaleName("ru", null, null, "mod") == "ru@mod");
-    
-    assert(parseLocaleName("ru_RU.UTF-8@mod") == tuple("ru", "RU", "UTF-8", "mod"));
-    assert(parseLocaleName("ru@mod") == tuple("ru", string.init, string.init, "mod"));
-    assert(parseLocaleName("ru_RU") == tuple("ru", "RU", string.init, string.init));
-    
-    assert(localizedKey("Name", "ru_RU") == "Name[ru_RU]");
-    assert(localizedKey("Name", "ru_RU.UTF-8") == "Name[ru_RU]");
-    assert(localizedKey("Name", "ru", "RU") == "Name[ru_RU]");
-    
-    assert(separateFromLocale("Name[ru_RU]") == tuple("Name", "ru_RU"));
-    assert(separateFromLocale("Name") == tuple("Name", string.init));
-    
-    //Test locale matching lookup
-    auto group = new DesktopGroup("Desktop Entry");
-    group["Name"] = "Programmer";
-    group["Name[ru_RU]"] = "Разработчик";
-    group["Name[ru@jargon]"] = "Кодер";
-    group["Name[ru]"] = "Программист";
-    group["GenericName"] = "Program";
-    group["GenericName[ru]"] = "Программа";
-    assert(group["Name"] == "Programmer");
-    assert(group.localizedValue("Name", "ru@jargon") == "Кодер");
-    assert(group.localizedValue("Name", "ru_RU@jargon") == "Разработчик");
-    assert(group.localizedValue("Name", "ru") == "Программист");
-    assert(group.localizedValue("Name", "nonexistent locale") == "Programmer");
-    assert(group.localizedValue("GenericName", "ru_RU") == "Программа");
-    
-    //Test escaping and unescaping
-    assert("\\next\nline".escapeValue() == `\\next\nline`);
-    assert(`\\next\nline`.unescapeValue() == "\\next\nline");
-    
     //Test split/join values
     
     assert(equal(DesktopFile.splitValues("Application;Utility;FileManager;"), ["Application", "Utility", "FileManager"]));
