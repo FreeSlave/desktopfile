@@ -33,7 +33,7 @@ This will start vlc with the first parameter set to ~/Music:
 
     dub run desktopfile:desktoputil -- exec /usr/share/applications/vlc.desktop ~/Music
     
-Starting the command line application should start it in terminal emulator:
+Should start command line application in terminal emulator:
 
     dub run desktopfile:desktoputil -- exec /usr/share/applications/python2.7.desktop
     
@@ -43,7 +43,7 @@ Parse and write .desktop file to new location:
 
 ### Desktop test
 
-Parses all .desktop files in system's applications paths (usually /usr/local/share/applicatons and /usr/share/applications).
+Parses all .desktop files in system's applications paths (usually /usr/local/share/applicatons and /usr/share/applications) and on the user's Desktop.
 Writes errors (if any) to stderr.
 Use this example to check if the desktopfile library can parse all .desktop files on your system.
 

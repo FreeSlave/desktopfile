@@ -1,3 +1,13 @@
+/**
+ * Reading and writing ini-like files, used in Unix systems in some fields.
+ * Authors: 
+ *  $(LINK2 https://github.com/MyLittleRobo, Roman Chistokhodov).
+ * License: 
+ *  $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
+ * See_Also: 
+ *  $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/index.html, Desktop Entry Specification).
+ */
+
 module inilike;
 
 private {
@@ -19,7 +29,8 @@ private alias LocaleTuple = Tuple!(string, "lang", string, "country", string, "e
 private alias KeyValueTuple = Tuple!(string, "key", string, "value");
 
 /** Retrieves current locale probing environment variables LC_TYPE, LC_ALL and LANG (in this order)
- * Returns: locale in posix form or empty string if could not determine locale
+ * Returns: locale in posix form or empty string if could not determine locale.
+ * Note: currently this function caches its result.
  */
 string currentLocale() @safe nothrow
 {
@@ -93,7 +104,7 @@ string localizedKey(string key, string lang, string country, string modifier = n
  * If key is not localized returns original key and empty string.
  * Returns: tuple of key and locale name;
  */
-Tuple!(string, string) separateFromLocale(string key) nothrow @nogc @trusted {
+Tuple!(string, string) separateFromLocale(string key) pure nothrow @nogc @trusted {
     if (key.endsWith("]")) {
         auto t = key.findSplit("[");
         if (t[1].length) {
@@ -104,34 +115,13 @@ Tuple!(string, string) separateFromLocale(string key) nothrow @nogc @trusted {
 }
 
 /**
- * Tells whether the character is valid for entry key.
- * Note: This does not include characters presented in locale names.
- */
-bool isValidKeyChar(char c) pure nothrow @nogc @safe
-{
-    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-';
-}
-
-
-/**
- * Tells whethe the string is valid dekstop entry key.
- * Note: This does not include characters presented in locale names. Use $(B separateFromLocale) to get non-localized key to pass it to this function
- */
-bool isValidKey(string key) pure nothrow @nogc @safe
-{
-    if (key.empty) {
-        return false;
-    }
-    for (size_t i = 0; i<key.length; ++i) {
-        if (!key[i].isValidKeyChar()) {
-            return false;
-        }
-    }
-    return true;
-}
-
-/**
- * Tells whether the dekstop entry value presents true
+ * Tells whether the entry value presents true
+ * Example:
+-----------
+assert(isTrue("true"));
+assert(isTrue("1"));
+assert(!isTrue("not boolean"));
+-----------
  */
 bool isTrue(string value) pure nothrow @nogc @safe {
     return (value == "true" || value == "1");
@@ -139,6 +129,12 @@ bool isTrue(string value) pure nothrow @nogc @safe {
 
 /**
  * Tells whether the entry value presents false
+ * Example:
+----------
+assert(isFalse("false"));
+assert(isFalse("0"));
+assert(!isFalse("not boolean"));
+----------
  */
 bool isFalse(string value) pure nothrow @nogc @safe {
     return (value == "false" || value == "0");
@@ -146,6 +142,14 @@ bool isFalse(string value) pure nothrow @nogc @safe {
 
 /**
  * Check if the entry value can be interpreted as boolean value.
+ * Example:
+---------
+assert(isBoolean("true"));
+assert(isBoolean("1"));
+assert(isBoolean("false"));
+assert(isBoolean("0"));
+assert(!isBoolean("not boolean"));
+---------
  */
 bool isBoolean(string value) pure nothrow @nogc @safe {
     return isTrue(value) || isFalse(value);
@@ -229,6 +233,10 @@ string unescapeExec(string str) @trusted nothrow pure
     return doUnescape(str, pairs);
 }
 
+/**
+ * Represents the line from ini-like file.
+ * Usually you should not use this struct directly, since it's tightly connected with internal $(B IniLikeFile) implementation.
+ */
 struct IniLikeLine
 {
     enum Type
@@ -239,15 +247,15 @@ struct IniLikeLine
         GroupStart = 4
     }
     
-    static IniLikeLine fromComment(string comment) @safe {
+    static IniLikeLine fromComment(string comment) @safe nothrow {
         return IniLikeLine(comment, null, Type.Comment);
     }
     
-    static IniLikeLine fromGroupName(string groupName) @safe {
+    static IniLikeLine fromGroupName(string groupName) @safe nothrow {
         return IniLikeLine(groupName, null, Type.GroupStart);
     }
     
-    static IniLikeLine fromKeyValue(string key, string value) @safe {
+    static IniLikeLine fromKeyValue(string key, string value) @safe nothrow {
         return IniLikeLine(key, value, Type.KeyValue);
     }
     
@@ -284,12 +292,15 @@ private:
 /**
  * This class represents the group (section) in the .init like file. 
  * You can create and use instances of this class only in the context of $(B IniLikeFile) or its derivatives.
+ * Note: keys are case-sensitive.
  */
 final class IniLikeGroup
 {
 private:
-    this(string name) @safe @nogc nothrow {
+    this(string name, const IniLikeFile parent) @safe @nogc nothrow {
+        assert(parent, "logic error: no parent for IniLikeGroup");
         _name = name;
+        _parent = parent;
     }
     
 public:
@@ -309,10 +320,9 @@ public:
      * Inserts new value or replaces the old one if value associated with key already exists.
      * Returns: inserted/updated value
      * Throws: $(B Exception) if key is not valid
-     * See_Also: isValidKey
      */
     string opIndexAssign(string value, string key) @safe {
-        enforce(separateFromLocale(key)[0].isValidKey(), "key is invalid");
+        enforce(_parent.isValidKey(separateFromLocale(key)[0]), "key is invalid");
         auto pick = key in _indices;
         if (pick) {
             return (_values[*pick] = IniLikeLine.fromKeyValue(key, value)).value;
@@ -370,28 +380,24 @@ public:
         
         if (lang.length) {
             string pick;
-            
             if (country.length && modifier.length) {
                 pick = value(localizedKey(key, locale));
                 if (pick !is null) {
                     return pick;
                 }
             }
-            
             if (country.length) {
                 pick = value(localizedKey(key, lang, country));
                 if (pick !is null) {
                     return pick;
                 }
             }
-            
             if (modifier.length) {
                 pick = value(localizedKey(key, lang, null, modifier));
                 if (pick !is null) {
                     return pick;
                 }
             }
-            
             pick = value(localizedKey(key, lang, null));
             if (pick !is null) {
                 return pick;
@@ -432,11 +438,15 @@ public:
         return _name;
     }
     
-    auto byLine() const {
-        return _values;
+    /**
+     * Returns: the range of $(B IniLikeLine)s included in this group.
+     * Note: this does not include Group line itself.
+     */
+    auto byIniLine() const {
+        return _values.filter!(v => v.type != IniLikeLine.Type.None);
     }
     
-    void addComment(string comment) {
+    void addComment(string comment) @trusted nothrow {
         _values ~= IniLikeLine.fromComment(comment);
     }
     
@@ -444,6 +454,7 @@ private:
     size_t[string] _indices;
     IniLikeLine[] _values;
     string _name;
+    const IniLikeFile _parent;
 }
 
 /**
@@ -465,17 +476,10 @@ private:
     size_t _lineNumber;
 }
 
-auto iniLikeFileReader(string fileName)
-{
-    return iniLikeRangeReader(File(fileName, "r").byLine().map!(s => s.idup));
-}
-
-auto iniLikeStringReader(string contents)
-{
-    return iniLikeRangeReader(contents.splitLines());
-}
-
-auto iniLikeRangeReader(Range)(Range byLine)
+/**
+ * Reads range of strings into the range on IniLikeLines.
+ */
+@trusted auto iniLikeRangeReader(Range)(Range byLine) if(is(ElementType!Range == string))
 {
     return byLine.map!(function(string line) {
         line = strip(line);
@@ -497,6 +501,27 @@ auto iniLikeRangeReader(Range)(Range byLine)
     });
 }
 
+/**
+ * ditto, convenient function for reading from the file.
+ * Throws: $(B ErrnoException) if file could not be opened.
+ */
+@trusted auto iniLikeFileReader(string fileName)
+{
+    return iniLikeRangeReader(File(fileName, "r").byLine().map!(s => s.idup));
+}
+
+/**
+ * ditto, convenient function for reading from string.
+ */
+@trusted auto iniLikeStringReader(string contents)
+{
+    return iniLikeRangeReader(contents.splitLines());
+}
+
+/**
+ * Ini-like file.
+ * 
+ */
 class IniLikeFile
 {
 public:
@@ -509,29 +534,29 @@ public:
     }
     
     /**
+     * Constructs empty IniLikeFile, i.e. without any values
+     */
+    @safe this() @nogc nothrow {
+        
+    }
+    
+    /**
      * Reads from file.
      * Throws:
      *  $(B ErrnoException) if file could not be opened.
      *  $(B IniLikeException) if error occured while reading the file.
      */
-    static typeof(this) loadFromFile(string fileName, ReadOptions options = ReadOptions.noOptions) @trusted {
-        return new typeof(this)(iniLikeFileReader(fileName), options, fileName);
+    @safe this(string fileName, ReadOptions options = ReadOptions.noOptions) {
+        
+        this(iniLikeFileReader(fileName), options, fileName);
     }
     
     /**
-     * Reads from string.
+     * Reads from range of $(B IniLikeLine)s.
      * Throws:
-     *  $(B IniLikeException) if error occured while parsing the contents.
+     *  $(B IniLikeException) if error occured while parsing.
      */
-    static typeof(this) loadFromString(string contents, ReadOptions options = ReadOptions.noOptions, string fileName = null) @trusted {
-        return new typeof(this)(iniLikeStringReader(contents), options, fileName);
-    }
-    
-    this() {
-        
-    }
-    
-    this(Range)(Range byLine, ReadOptions options = ReadOptions.noOptions, string fileName = null) @trusted
+    @trusted this(Range)(Range byLine, ReadOptions options = ReadOptions.noOptions, string fileName = null) if(is(ElementType!Range == IniLikeLine))
     {
         size_t lineNumber = 0;
         IniLikeGroup currentGroup;
@@ -604,7 +629,7 @@ public:
     IniLikeGroup addGroup(string groupName) @safe {
         enforce(groupName.length, "group name is empty");
         
-        auto iniLikeGroup = new IniLikeGroup(groupName);
+        auto iniLikeGroup = new IniLikeGroup(groupName, this);
         enforce(group(groupName) is null, "group already exists");
         _groupIndices[groupName] = _groups.length;
         _groups ~= iniLikeGroup;
@@ -625,7 +650,11 @@ public:
     /**
      * Range of groups in order how they were defined in file.
      */
-    auto byGroup() inout {
+    auto byGroup() {
+        return _groups[].map!(g => g); //to prevent elements be accessible as lvalues
+    }
+    ///ditto
+    auto byGroup() const {
         return _groups[];
     }
     
@@ -653,16 +682,16 @@ public:
         return a.data.join("\n");
     }
     
-    private alias SaveDelegate = void delegate(string);
+    alias SaveDelegate = void delegate(string);
     
-    private void save(SaveDelegate sink) const {
+    void save(SaveDelegate sink) const {
         foreach(line; firstComments()) {
             sink(line);
         }
         
         foreach(group; byGroup()) {
             sink("[" ~ group.name ~ "]");
-            foreach(line; group._values) {
+            foreach(line; group.byIniLine()) {
                 if (line.type == IniLikeLine.Type.Comment) {
                     sink(line.comment);
                 } else if (line.type == IniLikeLine.Type.KeyValue) {
@@ -677,6 +706,14 @@ public:
      */
     string fileName() @safe @nogc nothrow const {
         return  _fileName;
+    }
+    
+    /**
+    * Tells whether the string is valid key. For IniLikeFile the valid key is any non-empty string.
+    * Reimplement this function in the derived class to throw exception from IniLikeGroup when key is invalid.
+    */
+    bool isValidKey(string key) pure nothrow @nogc @safe const {
+        return key.length != 0;
     }
     
 protected:
@@ -715,7 +752,9 @@ unittest
     assert(separateFromLocale("Name") == tuple("Name", string.init));
     
     //Test locale matching lookup
-    auto group = new IniLikeGroup("Entry");
+    auto lilf = new IniLikeFile;
+    lilf.addGroup("Entry");
+    auto group = lilf.group("Entry");
     assert(group.name == "Entry"); 
     group["Name"] = "Programmer";
     group["Name[ru_RU]"] = "Разработчик";
@@ -733,4 +772,59 @@ unittest
     //Test escaping and unescaping
     assert("\\next\nline".escapeValue() == `\\next\nline`);
     assert(`\\next\nline`.unescapeValue() == "\\next\nline");
+    
+    //Test key types functions
+    assert(isTrue("true"));
+    assert(isTrue("1"));
+    assert(!isTrue("not boolean"));
+    
+    assert(isFalse("false"));
+    assert(isFalse("0"));
+    assert(!isFalse("not boolean"));
+    
+    assert(isBoolean("true"));
+    assert(isBoolean("1"));
+    assert(isBoolean("false"));
+    assert(isBoolean("0"));
+    assert(!isBoolean("not boolean"));
+    
+    //Test IniLikeFile
+    string contents = 
+`# The first comment
+[First Entry]
+# Comment
+GenericName=File manager
+GenericName[ru]=Файловый менеджер
+# Another comment
+[Another Group]
+Name=Commander
+# The last comment`;
+
+    auto ilf = new IniLikeFile(iniLikeStringReader(contents), IniLikeFile.ReadOptions.preserveComments);
+    assert(ilf.group("First Entry"));
+    assert(ilf.group("Another Group"));
+    
+    assert(ilf.group("First Entry")["GenericName"] == "File manager");
+    assert(ilf.group("First Entry").localizedValue("GenericName", "ru") == "Файловый менеджер");
+    
+    assert(ilf.group("Another Group")["Name"] == "Commander");
+    
+    assert(ilf.saveToString() == contents);
+    assert(equal(ilf.byGroup().map!(g => g.name), ["First Entry", "Another Group"]));
+    
+    ilf.removeGroup("Another Group");
+    assert(!ilf.group("Another Group"));
+    
+    ilf.addGroup("Another Group");
+    assert(ilf.group("Another Group"));
+    assert(ilf.group("Another Group").byIniLine().empty);
+    
+    auto firstEntry = ilf.group("First Entry");
+    firstEntry.removeEntry("GenericName");
+    assert(!firstEntry.contains("GenericName"));
+    firstEntry["GenericName"] = "File Manager";
+    assert(firstEntry["GenericName"] == "File Manager");
+    
+    const IniLikeFile cilf = ilf;
+    static assert(is(typeof(cilf.byGroup())));
 }

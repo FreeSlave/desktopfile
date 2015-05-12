@@ -87,20 +87,16 @@ public:
      *  $(B ErrnoException) if file could not be opened.
      *  $(B DesktopFileException) if error occured while reading the file.
      */
-    static DesktopFile loadFromFile(string fileName, ReadOptions options = ReadOptions.noOptions) @trusted {
-        return new DesktopFile(iniLikeFileReader(fileName), options, fileName);
+    @safe this(string fileName, ReadOptions options = ReadOptions.noOptions) {
+        this(iniLikeFileReader(fileName), options, fileName);
     }
     
     /**
-     * Reads desktop file from string.
+     * Reads desktop file from range of $(B IniLikeLine)s.
      * Throws:
-     *  $(B DesktopFileException) if error occured while parsing the contents.
+     *  $(B DesktopFileException) if error occured while parsing.
      */
-    static DesktopFile loadFromString(string contents, ReadOptions options = ReadOptions.noOptions, string fileName = null) @trusted {
-        return new DesktopFile(iniLikeStringReader(contents), options, fileName);
-    }
-    
-    this(Range)(Range byLine, ReadOptions options = ReadOptions.noOptions, string fileName = null) @trusted
+    @trusted this(Range)(Range byLine, ReadOptions options = ReadOptions.noOptions, string fileName = null) if(is(ElementType!Range == IniLikeLine))
     {   
         super(byLine, options, fileName);
         auto groups = byGroup();
@@ -113,19 +109,44 @@ public:
     /**
      * Constructs DesktopFile with "Desktop Entry" group and Version set to 1.0
      */
-    this() {
+    this() @safe {
         super();
         _desktopEntry = addGroup("Desktop Entry");
         this["Version"] = "1.0";
     }
     
     /**
-     * Removes group by name.
+     * Removes group by name. You can't remove "Desktop Entry" group with this function.
      */
     override void removeGroup(string groupName) @safe nothrow {
         if (groupName != "Desktop Entry") {
             super.removeGroup(groupName);
         }
+    }
+    
+    /**
+    * Tells whether the string is valid dekstop entry key.
+    * Note: This does not include characters presented in locale names. Use $(B separateFromLocale) to get non-localized key to pass it to this function
+    */
+    override bool isValidKey(string key) pure nothrow @nogc @safe const 
+    {
+        /**
+        * Tells whether the character is valid for entry key.
+        * Note: This does not include characters presented in locale names.
+        */
+        static bool isValidKeyChar(char c) pure nothrow @nogc @safe {
+            return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-';
+        }
+        
+        if (key.empty) {
+            return false;
+        }
+        for (size_t i = 0; i<key.length; ++i) {
+            if (!isValidKeyChar(key[i])) {
+                return false;
+            }
+        }
+        return true;
     }
     
     /**
@@ -496,7 +517,7 @@ Type=Application
 Categories=Application;Utility;FileManager;
 Keywords=folder;manager;explore;disk;filesystem;orthodox;copy;queue;queuing;operations;`;
     
-    auto df = DesktopFile.loadFromString(desktopFileContents, DesktopFile.ReadOptions.preserveComments);
+    auto df = new DesktopFile(iniLikeStringReader(desktopFileContents), DesktopFile.ReadOptions.preserveComments);
     assert(df.name() == "Double Commander");
     assert(df.genericName() == "File manager");
     assert(df.localizedValue("GenericName", "ru_RU") == "Файловый менеджер");
