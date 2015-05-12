@@ -9,7 +9,7 @@ void main(string[] args)
     }
     
     string inFile = args[2];
-    auto df = DesktopFile.loadFromFile(inFile, DesktopFile.ReadOptions.preserveComments);
+    auto df = new DesktopFile(inFile, DesktopFile.ReadOptions.preserveComments);
     string command = args[1];
     
     if (command == "read") {

@@ -19,7 +19,7 @@ void main(string[] args)
         foreach(entry; dir.dirEntries(SpanMode.depth).filter!(a => a.isFile() && a.extension == ".desktop")) {
             debug writeln(entry);
             try {
-                DesktopFile.loadFromFile(entry);
+                new DesktopFile(entry);
             }
             catch(DesktopFileException e) {
                 stderr.writefln("Error reading %s: at %s: %s", entry, e.lineNumber, e.msg);
