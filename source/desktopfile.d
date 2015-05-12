@@ -163,7 +163,7 @@ public:
                 return Type.Directory;
             }
         }
-        if (_fileName.extension == ".directory") {
+        if (fileName().extension == ".directory") {
             return Type.Directory;
         }
         
@@ -485,12 +485,6 @@ public:
     
 private:
     DesktopGroup _desktopEntry;
-    string _fileName;
-    
-    size_t[string] _groupIndices;
-    DesktopGroup[] _groups;
-    
-    string[] firstLines;
 }
 
 unittest 
