@@ -25,6 +25,8 @@ private {
     import std.string;
     import std.traits;
     import std.typecons;
+    
+    static if( __VERSION__ < 2066 ) enum nogc = 1;
 }
 
 /**
@@ -35,7 +37,7 @@ alias IniLikeException DesktopFileException;
 
 version(Posix)
 {
-    private bool isExecutable(string filePath) @trusted nothrow {
+    private bool isExecutable(string filePath) @trusted {
         import core.sys.posix.unistd;
         return access(toStringz(filePath), X_OK) == 0;
     }
@@ -44,7 +46,7 @@ version(Posix)
     * If the programPath is not an absolute path, the file is looked up in the $PATH environment variable.
     * This function is defined only on Posix.
     */
-    bool checkTryExec(string programPath) @safe {
+    bool checkTryExec(string programPath) @trusted {
         if (programPath.isAbsolute()) {
             return isExecutable(programPath);
         }
@@ -109,7 +111,7 @@ public:
     /**
      * Constructs DesktopFile with "Desktop Entry" group and Version set to 1.0
      */
-    this() @safe {
+    @safe this() {
         super();
         _desktopEntry = addGroup("Desktop Entry");
         this["Version"] = "1.0";
@@ -118,7 +120,7 @@ public:
     /**
      * Removes group by name. You can't remove "Desktop Entry" group with this function.
      */
-    override void removeGroup(string groupName) @safe nothrow {
+    @safe override void removeGroup(string groupName) nothrow {
         if (groupName != "Desktop Entry") {
             super.removeGroup(groupName);
         }
@@ -128,13 +130,13 @@ public:
     * Tells whether the string is valid dekstop entry key.
     * Note: This does not include characters presented in locale names. Use $(B separateFromLocale) to get non-localized key to pass it to this function
     */
-    override bool isValidKey(string key) pure nothrow @nogc @safe const 
+    @nogc @safe override bool isValidKey(string key) pure nothrow const 
     {
         /**
         * Tells whether the character is valid for entry key.
         * Note: This does not include characters presented in locale names.
         */
-        static bool isValidKeyChar(char c) pure nothrow @nogc @safe {
+        @nogc @safe static bool isValidKeyChar(char c) pure nothrow {
             return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-';
         }
         
@@ -152,7 +154,7 @@ public:
     /**
      * Returns: Type of desktop entry.
      */
-    Type type() const @safe @nogc nothrow {
+    @nogc @safe Type type() const nothrow {
         string t = value("Type");
         if (t.length) {
             if (t == "Application") {
@@ -170,7 +172,7 @@ public:
         return Type.Unknown;
     }
     /// Sets "Type" field to type
-    Type type(Type t) @safe {
+    @safe Type type(Type t) {
         final switch(t) {
             case Type.Application:
                 this["Type"] = "Application";
@@ -191,43 +193,43 @@ public:
      * Specific name of the application, for example "Mozilla".
      * Returns: the value associated with "Name" key.
      */
-    string name() const @safe @nogc nothrow {
+    @nogc @safe string name() const nothrow {
         return value("Name");
     }
     ///ditto, but returns localized value.
-    string localizedName(string locale = null) const @safe nothrow {
-        return localizedValue("Name");
+    @safe string localizedName(string locale = null) const nothrow {
+        return localizedValue("Name", locale);
     }
     
     /**
      * Generic name of the application, for example "Web Browser".
      * Returns: the value associated with "GenericName" key.
      */
-    string genericName() const @safe @nogc nothrow {
+    @nogc @safe string genericName() const nothrow {
         return value("GenericName");
     }
     ///ditto, but returns localized value.
-    string localizedGenericName(string locale = null) const @safe nothrow {
-        return localizedValue("GenericName");
+    @safe string localizedGenericName(string locale = null) const nothrow {
+        return localizedValue("GenericName", locale);
     }
     
     /**
      * Tooltip for the entry, for example "View sites on the Internet".
      * Returns: the value associated with "Comment" key.
      */
-    string comment() const @safe @nogc nothrow {
+    @nogc @safe string comment() const nothrow {
         return value("Comment");
     }
     ///ditto, but returns localized value.
-    string localizedComment(string locale = null) const @safe nothrow {
-        return localizedValue("Comment");
+    @safe string localizedComment(string locale = null) const nothrow {
+        return localizedValue("Comment", locale);
     }
     
     /** 
      * Returns: the value associated with "Exec" key.
      * Note: don't use this to start the program. Consider using expandExecString or startApplication instead.
      */
-    string execString() const @safe @nogc nothrow {
+    @nogc @safe string execString() const nothrow {
         return value("Exec");
     }
     
@@ -235,7 +237,7 @@ public:
     /**
      * Returns: the value associated with "TryExec" key.
      */
-    string tryExecString() const @safe @nogc nothrow {
+    @nogc @safe string tryExecString() const nothrow {
         return value("TryExec");
     }
     
@@ -243,7 +245,7 @@ public:
      * Returns: the value associated with "Icon" key. If not found it also tries "X-Window-Icon".
      * Note: this function returns Icon as it's defined in .desktop file. It does not provides any lookup of actual icon file on the system.
      */
-    string iconName() const @safe @nogc nothrow {
+    @nogc @safe string iconName() const nothrow {
         string iconPath = value("Icon");
         if (iconPath is null) {
             iconPath = value("X-Window-Icon");
@@ -254,14 +256,14 @@ public:
     /**
      * Returns: the value associated with "NoDisplay" key converted to bool using isTrue.
      */
-    bool noDisplay() const @safe @nogc nothrow {
+    @nogc @safe bool noDisplay() const nothrow {
         return isTrue(value("NoDisplay"));
     }
     
     /**
      * Returns: the value associated with "Hidden" key converted to bool using isTrue.
      */
-    bool hidden() const @safe @nogc nothrow {
+    @nogc @safe bool hidden() const nothrow {
         return isTrue(value("Hidden"));
     }
     
@@ -269,7 +271,7 @@ public:
      * The working directory to run the program in.
      * Returns: the value associated with "Path" key.
      */
-    string workingDirectory() const @safe @nogc nothrow {
+    @nogc @safe string workingDirectory() const nothrow {
         return value("Path");
     }
     
@@ -277,11 +279,11 @@ public:
      * Whether the program runs in a terminal window.
      * Returns: the value associated with "Hidden" key converted to bool using isTrue.
      */
-    bool terminal() const @safe @nogc nothrow {
+    @nogc @safe bool terminal() const nothrow {
         return isTrue(value("Terminal"));
     }
     /// Sets "Terminal" field to true or false.
-    bool terminal(bool t) @safe {
+    @safe bool terminal(bool t) {
         this["Terminal"] = t ? "true" : "false";
         return t;
     }
@@ -290,7 +292,7 @@ public:
      * Some keys can have multiple values, separated by semicolon. This function helps to parse such kind of strings into the range.
      * Returns: the range of multiple nonempty values.
      */
-    static auto splitValues(string values) @trusted {
+    @trusted static auto splitValues(string values) {
         return values.splitter(';').filter!(s => s.length != 0);
     }
     
@@ -311,7 +313,7 @@ public:
      * Categories this program belongs to.
      * Returns: the range of multiple values associated with "Categories" key.
      */
-    auto categories() const @safe {
+    @safe auto categories() const {
         return splitValues(value("Categories"));
     }
     
@@ -326,7 +328,7 @@ public:
      * A list of strings which may be used in addition to other metadata to describe this entry.
      * Returns: the range of multiple values associated with "Keywords" key.
      */
-    auto keywords() const @safe {
+    @safe auto keywords() const {
         return splitValues(value("Keywords"));
     }
     
@@ -341,7 +343,7 @@ public:
      * The MIME type(s) supported by this application.
      * Returns: the range of multiple values associated with "MimeType" key.
      */
-    auto mimeTypes() const @safe {
+    @safe auto mimeTypes() const {
         return splitValues(value("MimeType"));
     }
     
@@ -356,7 +358,7 @@ public:
      * A list of strings identifying the desktop environments that should display a given desktop entry.
      * Returns: the range of multiple values associated with "OnlyShowIn" key.
      */
-    auto onlyShowIn() const @safe {
+    @safe auto onlyShowIn() const {
         return splitValues(value("OnlyShowIn"));
     }
     
@@ -364,7 +366,7 @@ public:
      * A list of strings identifying the desktop environments that should not display a given desktop entry.
      * Returns: the range of multiple values associated with "NotShowIn" key.
      */
-    auto notShowIn() const @safe {
+    @safe auto notShowIn() const {
         return splitValues(value("NotShowIn"));
     }
     
@@ -372,7 +374,7 @@ public:
      * Returns: instance of "Desktop Entry" group.
      * Note: usually you don't need to call this function since you can rely on alias this.
      */
-    inout(DesktopGroup) desktopEntry() @safe @nogc nothrow inout {
+    @nogc @safe inout(DesktopGroup) desktopEntry() nothrow inout {
         return _desktopEntry;
     }
     
@@ -385,7 +387,7 @@ public:
     /**
      * Expands Exec string into the array of command line arguments to use to start the program.
      */
-    string[] expandExecString(in string[] urls = null) const @safe
+    @safe string[] expandExecString(in string[] urls = null) const
     {   
         string[] toReturn;
         auto execStr = execString().unescapeExec(); //add unquoting
@@ -424,7 +426,7 @@ public:
     }
     
     /**
-     * Starts the program associated with this .desktop file using urls as command line params.
+     * Starts the application associated with this .desktop file using urls as command line params.
      * Note: 
      *  If the program should be run in terminal it tries to find system defined terminal emulator to run in.
      *  First, it probes $(B TERM) environment variable. If not found, checks if /usr/bin/x-terminal-emulator exists on Linux and use it on success.
@@ -437,7 +439,7 @@ public:
      *  ProcessException on failure to start the process.
      *  Exception if expanded exec string is empty.
      */
-    Pid startApplication(in string[] urls = null) const @trusted
+    @trusted Pid startApplication(in string[] urls = null) const
     {
         auto args = expandExecString(urls);
         enforce(args.length, "No command line params to run the program. Is Exec missing?");
@@ -468,16 +470,20 @@ public:
             newStdin = std.stdio.stdin;
         }
         
-        return spawnProcess(args, newStdin, std.stdio.stdout, std.stdio.stderr, null, Config.none, workingDirectory());
+        static if( __VERSION__ < 2066 ) {
+            return spawnProcess(args, newStdin, std.stdio.stdout, std.stdio.stderr, null, Config.none);
+        } else {
+            return spawnProcess(args, newStdin, std.stdio.stdout, std.stdio.stderr, null, Config.none, workingDirectory());
+        }
     }
     
     ///ditto, but uses the only url.
-    Pid startApplication(in string url) const @trusted
+    @trusted Pid startApplication(in string url) const
     {
         return startApplication([url]);
     }
     
-    Pid startLink() const @trusted
+    @trusted Pid startLink() const
     {
         string url = value("URL");
         return spawnProcess(["xdg-open", url], null, Config.none);
@@ -514,7 +520,7 @@ Keywords=folder;manager;explore;disk;filesystem;orthodox;copy;queue;queuing;oper
     auto df = new DesktopFile(iniLikeStringReader(desktopFileContents), DesktopFile.ReadOptions.preserveComments);
     assert(df.name() == "Double Commander");
     assert(df.genericName() == "File manager");
-    assert(df.localizedValue("GenericName", "ru_RU") == "Файловый менеджер");
+    assert(df.localizedGenericName("ru_RU") == "Файловый менеджер");
     assert(!df.terminal());
     assert(df.type() == DesktopFile.Type.Application);
     assert(equal(df.categories(), ["Application", "Utility", "FileManager"]));

@@ -23,6 +23,8 @@ private {
     import std.string;
     import std.traits;
     import std.typecons;
+    
+    static if( __VERSION__ < 2066 ) enum nogc = 1;
 }
 
 private alias LocaleTuple = Tuple!(string, "lang", string, "country", string, "encoding", string, "modifier");
@@ -32,7 +34,7 @@ private alias KeyValueTuple = Tuple!(string, "key", string, "value");
  * Returns: locale in posix form or empty string if could not determine locale.
  * Note: currently this function caches its result.
  */
-string currentLocale() @safe nothrow
+@safe string currentLocale() nothrow
 {
     static string cache;
     if (cache is null) {
@@ -53,7 +55,7 @@ string currentLocale() @safe nothrow
  * Makes locale name based on language, country, encoding and modifier.
  * Returns: locale name in form lang_COUNTRY.ENCODING@MODIFIER
  */
-string makeLocaleName(string lang, string country = null, string encoding = null, string modifier = null) pure nothrow @safe
+@safe string makeLocaleName(string lang, string country = null, string encoding = null, string modifier = null) pure nothrow
 {
     return lang ~ (country.length ? "_"~country : "") ~ (encoding.length ? "."~encoding : "") ~ (modifier.length ? "@"~modifier : "");
 }
@@ -62,7 +64,7 @@ string makeLocaleName(string lang, string country = null, string encoding = null
  * Parses locale name into the tuple of 4 values corresponding to language, country, encoding and modifier
  * Returns: Tuple!(string, "lang", string, "country", string, "encoding", string, "modifier")
  */
-auto parseLocaleName(string locale) pure nothrow @nogc @trusted
+@nogc @trusted auto parseLocaleName(string locale) pure nothrow
 {
     auto modifiderSplit = findSplit(locale, "@");
     auto modifier = modifiderSplit[2];
@@ -82,7 +84,7 @@ auto parseLocaleName(string locale) pure nothrow @nogc @trusted
  * Constructs localized key name from key and locale.
  * Returns: localized key in form key[locale]. Automatically omits locale encoding if present.
  */
-string localizedKey(string key, string locale) pure nothrow @safe
+@safe string localizedKey(string key, string locale) pure nothrow
 {
     auto t = parseLocaleName(locale);
     if (!t.encoding.empty) {
@@ -94,7 +96,7 @@ string localizedKey(string key, string locale) pure nothrow @safe
 /**
  * Ditto, but constructs locale name from arguments.
  */
-string localizedKey(string key, string lang, string country, string modifier = null) pure nothrow @safe
+@safe string localizedKey(string key, string lang, string country, string modifier = null) pure nothrow
 {
     return key ~ "[" ~ makeLocaleName(lang, country, null, modifier) ~ "]";
 }
@@ -104,7 +106,7 @@ string localizedKey(string key, string lang, string country, string modifier = n
  * If key is not localized returns original key and empty string.
  * Returns: tuple of key and locale name;
  */
-Tuple!(string, string) separateFromLocale(string key) pure nothrow @nogc @trusted {
+@nogc @trusted Tuple!(string, string) separateFromLocale(string key) pure nothrow {
     if (key.endsWith("]")) {
         auto t = key.findSplit("[");
         if (t[1].length) {
@@ -123,7 +125,7 @@ assert(isTrue("1"));
 assert(!isTrue("not boolean"));
 -----------
  */
-bool isTrue(string value) pure nothrow @nogc @safe {
+@nogc @safe bool isTrue(string value) pure nothrow {
     return (value == "true" || value == "1");
 }
 
@@ -136,7 +138,7 @@ assert(isFalse("0"));
 assert(!isFalse("not boolean"));
 ----------
  */
-bool isFalse(string value) pure nothrow @nogc @safe {
+@nogc @safe bool isFalse(string value) pure nothrow {
     return (value == "false" || value == "0");
 }
 
@@ -151,7 +153,7 @@ assert(isBoolean("0"));
 assert(!isBoolean("not boolean"));
 ---------
  */
-bool isBoolean(string value) pure nothrow @nogc @safe {
+@nogc @safe bool isBoolean(string value) pure nothrow {
     return isTrue(value) || isFalse(value);
 }
 /**
@@ -166,11 +168,11 @@ bool isBoolean(string value) pure nothrow @nogc @safe {
 assert("\\next\nline".escapeValue() == `\\next\nline`); // notice how the string on the right is raw.
 ----
  */
-string escapeValue(string value) @trusted nothrow pure {
+@trusted string escapeValue(string value) nothrow pure {
     return value.replace("\\", `\\`).replace("\n", `\n`).replace("\r", `\r`).replace("\t", `\t`);
 }
 
-string doUnescape(string value, in Tuple!(char, char)[] pairs) @trusted nothrow pure {
+@trusted string doUnescape(string value, in Tuple!(char, char)[] pairs) nothrow pure {
     auto toReturn = appender!string();
     
     for (size_t i = 0; i < value.length; i++) {
@@ -199,7 +201,7 @@ string doUnescape(string value, in Tuple!(char, char)[] pairs) @trusted nothrow 
 assert(`\\next\nline`.unescapeValue() == "\\next\nline"); // notice how the string on the left is raw.
 ----
  */
-string unescapeValue(string value) @trusted nothrow pure
+@trusted string unescapeValue(string value) nothrow pure
 {
     static immutable Tuple!(char, char)[] pairs = [
        tuple('s', ' '),
@@ -211,7 +213,7 @@ string unescapeValue(string value) @trusted nothrow pure
     return doUnescape(value, pairs);
 }
 
-string unescapeExec(string str) @trusted nothrow pure
+@trusted string unescapeExec(string str) nothrow pure
 {
     static immutable Tuple!(char, char)[] pairs = [
        tuple('"', '"'),
@@ -247,39 +249,39 @@ struct IniLikeLine
         GroupStart = 4
     }
     
-    static IniLikeLine fromComment(string comment) @safe nothrow {
+    @safe static IniLikeLine fromComment(string comment) nothrow {
         return IniLikeLine(comment, null, Type.Comment);
     }
     
-    static IniLikeLine fromGroupName(string groupName) @safe nothrow {
+    @safe static IniLikeLine fromGroupName(string groupName) nothrow {
         return IniLikeLine(groupName, null, Type.GroupStart);
     }
     
-    static IniLikeLine fromKeyValue(string key, string value) @safe nothrow {
+    @safe static IniLikeLine fromKeyValue(string key, string value) nothrow {
         return IniLikeLine(key, value, Type.KeyValue);
     }
     
-    string comment() const @safe @nogc nothrow {
+    @nogc @safe string comment() const nothrow {
         return _type == Type.Comment ? _first : null;
     }
     
-    string key() const @safe @nogc nothrow {
+    @nogc @safe string key() const nothrow {
         return _type == Type.KeyValue ? _first : null;
     }
     
-    string value() const @safe @nogc nothrow {
+    @nogc @safe string value() const nothrow {
         return _type == Type.KeyValue ? _second : null;
     }
     
-    string groupName() const @safe @nogc nothrow {
+    @nogc @safe string groupName() const nothrow {
         return _type == Type.GroupStart ? _first : null;
     }
     
-    Type type() const @safe @nogc nothrow {
+    @nogc @safe Type type() const nothrow {
         return _type;
     }
     
-    void makeNone() @safe @nogc nothrow {
+    @nogc @safe void makeNone() nothrow {
         _type = Type.None;
     }
     
@@ -297,7 +299,7 @@ private:
 final class IniLikeGroup
 {
 private:
-    this(string name, const IniLikeFile parent) @safe @nogc nothrow {
+    @nogc @safe this(string name, const IniLikeFile parent) nothrow {
         assert(parent, "logic error: no parent for IniLikeGroup");
         _name = name;
         _parent = parent;
@@ -309,7 +311,7 @@ public:
      * Returns: the value associated with the key
      * Note: it's an error to access nonexistent value
      */
-    string opIndex(string key) const @safe @nogc nothrow {
+    @nogc @safe string opIndex(string key) const nothrow {
         auto i = key in _indices;
         assert(_values[*i].type == IniLikeLine.Type.KeyValue);
         assert(_values[*i].key == key);
@@ -321,7 +323,7 @@ public:
      * Returns: inserted/updated value
      * Throws: $(B Exception) if key is not valid
      */
-    string opIndexAssign(string value, string key) @safe {
+    @safe string opIndexAssign(string value, string key) {
         enforce(_parent.isValidKey(separateFromLocale(key)[0]), "key is invalid");
         auto pick = key in _indices;
         if (pick) {
@@ -336,7 +338,7 @@ public:
      * Ditto, but also allows to specify the locale.
      * See_Also: setLocalizedValue, localizedValue
      */
-    string opIndexAssign(string value, string key, string locale) @safe {
+    @safe string opIndexAssign(string value, string key, string locale) {
         string keyName = localizedKey(key, locale);
         return this[keyName] = value;
     }
@@ -344,14 +346,14 @@ public:
     /**
      * Tells if group contains value associated with the key.
      */
-    bool contains(string key) const @safe @nogc nothrow {
+    @nogc @safe bool contains(string key) const nothrow {
         return value(key) !is null;
     }
     
     /**
      * Returns: the value associated with the key, or defaultValue if group does not contain item with this key.
      */
-    string value(string key, string defaultValue = null) const @safe @nogc nothrow {
+    @nogc @safe string value(string key, string defaultValue = null) const nothrow {
         auto pick = key in _indices;
         if (pick) {
             if(_values[*pick].type == IniLikeLine.Type.KeyValue) {
@@ -367,7 +369,7 @@ public:
      * If locale is null it calls currentLocale to get the locale.
      * Returns: the localized value associated with key and locale, or defaultValue if group does not contain item with this key.
      */
-    string localizedValue(string key, string locale = null, string defaultValue = null) const @safe nothrow {
+    @safe string localizedValue(string key, string locale = null, string defaultValue = null) const nothrow {
         if (locale is null) {
             locale = currentLocale();
         }
@@ -410,14 +412,14 @@ public:
     /**
      * Same as localized version of opIndexAssign, but uses function syntax.
      */
-    void setLocalizedValue(string key, string locale, string value) @safe {
+    @safe void setLocalizedValue(string key, string locale, string value) {
         this[key, locale] = value;
     }
     
     /**
      * Removes entry by key. To remove localized values use localizedKey.
      */
-    void removeEntry(string key) @safe nothrow {
+    @safe void removeEntry(string key) nothrow {
         auto pick = key in _indices;
         if (pick) {
             _values[*pick].makeNone();
@@ -427,14 +429,14 @@ public:
     /**
      * Returns: range of Tuple!(string, "key", string, "value")
      */
-    auto byKeyValue() const @safe @nogc nothrow {
+    @nogc @safe auto byKeyValue() const nothrow {
         return _values.filter!(v => v.type == IniLikeLine.Type.KeyValue).map!(v => KeyValueTuple(v.key, v.value));
     }
     
     /**
      * Returns: the name of group
      */
-    string name() const @safe @nogc nothrow {
+    @nogc @safe string name() const nothrow {
         return _name;
     }
     
@@ -442,11 +444,11 @@ public:
      * Returns: the range of $(B IniLikeLine)s included in this group.
      * Note: this does not include Group line itself.
      */
-    auto byIniLine() const {
+    @system auto byIniLine() const {
         return _values.filter!(v => v.type != IniLikeLine.Type.None);
     }
     
-    void addComment(string comment) @trusted nothrow {
+    @trusted void addComment(string comment) nothrow {
         _values ~= IniLikeLine.fromComment(comment);
     }
     
@@ -468,7 +470,7 @@ class IniLikeException : Exception
     }
     
     ///Number of line in the file where the exception occured, starting from 1. Don't be confused with $(B line) property of $(B Throwable).
-    size_t lineNumber() const nothrow @safe @nogc {
+    @nogc @safe size_t lineNumber() const nothrow {
         return _lineNumber;
     }
     
@@ -536,7 +538,7 @@ public:
     /**
      * Constructs empty IniLikeFile, i.e. without any values
      */
-    @safe this() @nogc nothrow {
+    @nogc @safe this() nothrow {
         
     }
     
@@ -547,7 +549,6 @@ public:
      *  $(B IniLikeException) if error occured while reading the file.
      */
     @safe this(string fileName, ReadOptions options = ReadOptions.noOptions) {
-        
         this(iniLikeFileReader(fileName), options, fileName);
     }
     
@@ -613,7 +614,7 @@ public:
     /**
      * Returns: IniLikeGroup instance associated with groupName or $(B null) if not found.
      */
-    inout(IniLikeGroup) group(string groupName) @safe @nogc nothrow inout {
+    @nogc @safe inout(IniLikeGroup) group(string groupName) nothrow inout {
         auto pick = groupName in _groupIndices;
         if (pick) {
             return _groups[*pick];
@@ -626,7 +627,7 @@ public:
      * Returns: newly created instance of IniLikeGroup.
      * Throws: Exception if group with such name already exists or groupName is empty.
      */
-    IniLikeGroup addGroup(string groupName) @safe {
+    @safe IniLikeGroup addGroup(string groupName) {
         enforce(groupName.length, "group name is empty");
         
         auto iniLikeGroup = new IniLikeGroup(groupName, this);
@@ -640,7 +641,7 @@ public:
     /**
      * Removes group by name.
      */
-    void removeGroup(string groupName) @safe nothrow {
+    @safe void removeGroup(string groupName) nothrow {
         auto pick = groupName in _groupIndices;
         if (pick) {
             _groups[*pick] = null;
@@ -650,11 +651,11 @@ public:
     /**
      * Range of groups in order how they were defined in file.
      */
-    auto byGroup() {
+    @safe auto byGroup() {
         return _groups[].map!(g => g); //to prevent elements be accessible as lvalues
     }
     ///ditto
-    auto byGroup() const {
+    @nogc @safe auto byGroup() const {
         return _groups[];
     }
     
@@ -662,7 +663,7 @@ public:
      * Saves object to file using .ini like format.
      * Throws: ErrnoException if the file could not be opened or an error writing to the file occured.
      */
-    void saveToFile(string fileName) const {
+    @trusted void saveToFile(string fileName) const {
         auto f = File(fileName, "w");
         void dg(string line) {
             f.writeln(line);
@@ -673,7 +674,7 @@ public:
     /**
      * Saves object to string using .ini like format.
      */
-    string saveToString() const {
+    @safe string saveToString() const {
         auto a = appender!(string[])();
         void dg(string line) {
             a.put(line);
@@ -684,7 +685,7 @@ public:
     
     alias SaveDelegate = void delegate(string);
     
-    void save(SaveDelegate sink) const {
+    @trusted void save(SaveDelegate sink) const {
         foreach(line; firstComments()) {
             sink(line);
         }
@@ -704,7 +705,7 @@ public:
     /**
      * Returns: file name as was specified on the object creation.
      */
-    string fileName() @safe @nogc nothrow const {
+    @nogc @safe string fileName() nothrow const {
         return  _fileName;
     }
     
@@ -712,16 +713,16 @@ public:
     * Tells whether the string is valid key. For IniLikeFile the valid key is any non-empty string.
     * Reimplement this function in the derived class to throw exception from IniLikeGroup when key is invalid.
     */
-    bool isValidKey(string key) pure nothrow @nogc @safe const {
+    @nogc @safe bool isValidKey(string key) pure nothrow const {
         return key.length != 0;
     }
     
 protected:
-    auto firstComments() const nothrow @safe @nogc {
+    @nogc @trusted auto firstComments() const nothrow {
         return _firstComments;
     }
     
-    void addFirstComment(string line) nothrow @safe {
+    @trusted void addFirstComment(string line) nothrow {
         _firstComments ~= line;
     }
     

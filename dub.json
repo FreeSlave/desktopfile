@@ -30,7 +30,7 @@
             "importPaths" : ["source"],
             "dependencies" : {
                 "desktopfile" : "*",
-                "standardpaths" : "~>0.0.4"
+                "standardpaths" : "~>0.1.2"
             }
         }
     ]
