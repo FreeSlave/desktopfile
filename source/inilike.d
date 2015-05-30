@@ -83,6 +83,11 @@ private alias KeyValueTuple = Tuple!(string, "key", string, "value");
 /**
  * Constructs localized key name from key and locale.
  * Returns: localized key in form key[locale]. Automatically omits locale encoding if present.
+ * Example:
+----------
+assert(localizedKey("Name", "ru_RU") == "Name[ru_RU]");
+----------
+ * 
  */
 @safe string localizedKey(string key, string locale) pure nothrow
 {
@@ -94,7 +99,11 @@ private alias KeyValueTuple = Tuple!(string, "key", string, "value");
 }
 
 /**
- * Ditto, but constructs locale name from arguments.
+ * ditto, but constructs locale name from arguments.
+ * Example:
+----------
+assert(localizedKey("Name", "ru", "RU") == "Name[ru_RU]");
+----------
  */
 @safe string localizedKey(string key, string lang, string country, string modifier = null) pure nothrow
 {
@@ -249,15 +258,15 @@ struct IniLikeLine
         GroupStart = 4
     }
     
-    @safe static IniLikeLine fromComment(string comment) nothrow {
+    @nogc @safe static IniLikeLine fromComment(string comment) nothrow {
         return IniLikeLine(comment, null, Type.Comment);
     }
     
-    @safe static IniLikeLine fromGroupName(string groupName) nothrow {
+    @nogc @safe static IniLikeLine fromGroupName(string groupName) nothrow {
         return IniLikeLine(groupName, null, Type.GroupStart);
     }
     
-    @safe static IniLikeLine fromKeyValue(string key, string value) nothrow {
+    @nogc @safe static IniLikeLine fromKeyValue(string key, string value) nothrow {
         return IniLikeLine(key, value, Type.KeyValue);
     }
     
@@ -479,7 +488,7 @@ private:
 }
 
 /**
- * Reads range of strings into the range on IniLikeLines.
+ * Reads range of strings into the range of IniLikeLines.
  */
 @trusted auto iniLikeRangeReader(Range)(Range byLine) if(is(ElementType!Range == string))
 {
@@ -580,10 +589,7 @@ public:
                     }
                     break;
                     case IniLikeLine.Type.GroupStart:
-                    {
-                        enforce(line.groupName.length, "empty group name");
-                        enforce(group(line.groupName) is null, "group is defined more than once");
-                        
+                    {   
                         currentGroup = addGroup(line.groupName);
                         
                         if (options & ReadOptions.firstGroupOnly) {
@@ -628,10 +634,10 @@ public:
      * Throws: Exception if group with such name already exists or groupName is empty.
      */
     @safe IniLikeGroup addGroup(string groupName) {
-        enforce(groupName.length, "group name is empty");
+        enforce(groupName.length, "empty group name");
+        enforce(group(groupName) is null, "group already exists");
         
         auto iniLikeGroup = new IniLikeGroup(groupName, this);
-        enforce(group(groupName) is null, "group already exists");
         _groupIndices[groupName] = _groups.length;
         _groups ~= iniLikeGroup;
         
@@ -651,7 +657,7 @@ public:
     /**
      * Range of groups in order how they were defined in file.
      */
-    @safe auto byGroup() {
+    @nogc @safe auto byGroup() {
         return _groups[].map!(g => g); //to prevent elements be accessible as lvalues
     }
     ///ditto

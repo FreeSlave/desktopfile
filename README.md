@@ -1,6 +1,9 @@
 # Desktopfile
 
 D library for working with *.desktop* files. Desktop entries in Freedesktop world are akin to shortcuts from Windows world (.lnk files).
+
+[![Build Status](https://travis-ci.org/MyLittleRobo/desktopfile.svg?branch=master)](https://travis-ci.org/MyLittleRobo/desktopfile)
+
 The most of desktop environments on Linux and BSD flavors follows [Desktop Entry Specification](http://standards.freedesktop.org/desktop-entry-spec/latest/) today.
 The goal of **desktopfile** library is to provide implementation of this specification in D programming language.
 Please feel free to propose enchancements or report any related bugs to *Issues* page.

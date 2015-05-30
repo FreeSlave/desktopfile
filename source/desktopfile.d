@@ -113,8 +113,18 @@ public:
      */
     @safe this() {
         super();
-        _desktopEntry = addGroup("Desktop Entry");
+        _desktopEntry = super.addGroup("Desktop Entry");
         this["Version"] = "1.0";
+    }
+    
+    @safe override IniLikeGroup addGroup(string groupName) {
+        if (!_desktopEntry) {
+            enforce(groupName == "Desktop Entry", "The first group must be Desktop Entry");
+            _desktopEntry = super.addGroup(groupName);
+            return _desktopEntry;
+        } else {
+            return super.addGroup(groupName);
+        }
     }
     
     /**
@@ -165,7 +175,7 @@ public:
                 return Type.Directory;
             }
         }
-        if (fileName().extension == ".directory") {
+        if (fileName().baseName() == ".directory" || fileName().extension == ".directory") {
             return Type.Directory;
         }
         

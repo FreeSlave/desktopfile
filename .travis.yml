@@ -2,7 +2,7 @@ language: d
 matrix:
     allow_failures:
         - d: gdc-4.8.2
-        - d: ldc-0.15.1
+        - d: ldc-0.14.0
         - d: dmd-2.065.0
     include:
         - d: dmd-2.067.1
@@ -10,6 +10,7 @@ matrix:
         - d: ldc-0.15.1
         - d: dmd-2.065.0
         - d: gdc-4.8.2
+        - d: ldc-0.14.0
         
 script:
     - dub test --compiler=${DC}
