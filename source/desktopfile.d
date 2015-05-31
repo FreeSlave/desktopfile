@@ -65,6 +65,28 @@ version(Posix)
 alias IniLikeGroup DesktopGroup;
 
 
+@trusted string unescapeExec(string str) nothrow pure
+{
+    static immutable Tuple!(char, char)[] pairs = [
+       tuple('"', '"'),
+       tuple('\'', '\''),
+       tuple('\\', '\\'),
+       tuple('>', '>'),
+       tuple('<', '<'),
+       tuple('~', '~'),
+       tuple('|', '|'),
+       tuple('&', '&'),
+       tuple(';', ';'),
+       tuple('$', '$'),
+       tuple('*', '*'),
+       tuple('?', '?'),
+       tuple('#', '#'),
+       tuple('(', '('),
+       tuple(')', ')'),
+    ];
+    return doUnescape(str, pairs);
+}
+
 /**
  * Represents .desktop file.
  * 
@@ -102,8 +124,7 @@ public:
     {   
         super(byLine, options, fileName);
         auto groups = byGroup();
-        enforce(!groups.empty, "no groups");
-        enforce(groups.front.name == "Desktop Entry", "the first group must be Desktop Entry");
+        enforce(!groups.empty, new DesktopFileException("no groups", 0));
         
          _desktopEntry = groups.front;
     }
@@ -310,7 +331,7 @@ public:
      * Join range of multiple values into a string using semicolon as separator. Adds trailing semicolon.
      * If range is empty, then the empty string is returned.
      */
-    static @trusted string joinValues(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
+    @trusted static string joinValues(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
         auto result = values.filter!( s => s.length != 0 ).joiner(";");
         if (result.empty) {
             return null;

@@ -52,5 +52,6 @@ Use this example to check if the desktopfile library can parse all .desktop file
 
     dub run desktopfile:desktoptest --build=release
 
+To print all directories examined by desktoptest to stdout, build it in non-release mode:
 
-
+    dub run desktopfile:desktoptest
