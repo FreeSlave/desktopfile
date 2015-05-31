@@ -124,7 +124,7 @@ public:
     {   
         super(byLine, options, fileName);
         _desktopEntry = group("Desktop Entry");
-        enforce(!_desktopEntry, new DesktopFileException("no groups", 0));
+        enforce(_desktopEntry, new DesktopFileException("no groups", 0));
     }
     
     /**
