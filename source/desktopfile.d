@@ -123,10 +123,8 @@ public:
     @trusted this(Range)(Range byLine, ReadOptions options = ReadOptions.noOptions, string fileName = null) if(is(ElementType!Range == IniLikeLine))
     {   
         super(byLine, options, fileName);
-        auto groups = byGroup();
-        enforce(!groups.empty, new DesktopFileException("no groups", 0));
-        
-         _desktopEntry = groups.front;
+        _desktopEntry = group("Desktop Entry");
+        enforce(!_desktopEntry, new DesktopFileException("no groups", 0));
     }
     
     /**
@@ -577,4 +575,9 @@ Keywords=folder;manager;explore;disk;filesystem;orthodox;copy;queue;queuing;oper
     assert(df.terminal() == true);
     assert(df.type() == DesktopFile.Type.Application);
     assert(equal(df.categories(), ["Development", "Compilers"]));
+    
+    string contents = 
+`[Not desktop entry]
+Key=Value`;
+    assertThrown(new DesktopFile(iniLikeStringReader(contents)));
 }
