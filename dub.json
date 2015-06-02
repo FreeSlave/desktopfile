@@ -4,7 +4,7 @@
     "license" : "BSL-1.0",
     "authors": ["Roman Chistokhodov"],
     "dependencies": {
-        "inilike": "~>0.1.0"
+        "inilike": "~>0.1.1"
     },
     "targetName" : "desktopfile",
     "targetPath" : "lib", 
