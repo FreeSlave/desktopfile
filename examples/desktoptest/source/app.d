@@ -21,7 +21,7 @@ void main(string[] args)
             try {
                 new DesktopFile(entry);
             }
-            catch(DesktopFileException e) {
+            catch(IniLikeException e) {
                 stderr.writefln("Error reading %s: at %s: %s", entry, e.lineNumber, e.msg);
             }
         }

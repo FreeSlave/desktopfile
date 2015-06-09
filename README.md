@@ -31,7 +31,7 @@ Ddox:
 
 ### Desktop util
 
-Utility that can parse and execute .desktop files.
+Utility that can parse, execute and rewrites .desktop files.
 This will start vlc with the first parameter set to ~/Music:
 
     dub run desktopfile:desktoputil -- exec /usr/share/applications/vlc.desktop ~/Music
@@ -39,6 +39,14 @@ This will start vlc with the first parameter set to ~/Music:
 Should start command line application in terminal emulator:
 
     dub run desktopfile:desktoputil -- exec /usr/share/applications/python2.7.desktop
+    
+Open link with preferred application:
+
+    dub run desktopfile:desktoputil -- link /usr/share/desktop-base/debian-homepage.desktop
+
+Starts .desktop file defined executable or opens link:
+
+    dub run desktopfile:desktoputil -- start /path/to/file.desktop
     
 Parse and write .desktop file to new location:
 

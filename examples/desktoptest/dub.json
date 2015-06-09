@@ -1,0 +1,13 @@
+{
+    "name": "desktoptest",
+    "description": "A minimal D application.",
+    "copyright": "Copyright © 2015, freeslave",
+    "authors": ["freeslave"],
+    "dependencies": {
+        "desktopfile" : "*",
+        "standardpaths" : "~>0.1.2"
+    },
+    "targetPath" : "bin",
+    "targetType" : "executable",
+    "targetName" : "desktoptest", 
+}

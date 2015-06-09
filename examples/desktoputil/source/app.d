@@ -4,7 +4,7 @@ import desktopfile;
 void main(string[] args)
 {
     if (args.length < 3) {
-        writefln("Usage: %s <read|exec|link|write> <desktop-file> <optional arguments>", args[0]);
+        writefln("Usage: %s <read|exec|link|start|write> <desktop-file> <optional arguments>", args[0]);
         return;
     }
     
@@ -24,7 +24,10 @@ void main(string[] args)
         writeln("Exec:", df.expandExecString(urls));
         df.startApplication(urls);
     } else if (command == "link") {
+        writeln("Link:", df.url());
         df.startLink();
+    } else if (command == "start") {
+        df.start();
     } else if (command == "write") {
         if (args.length > 3) {
             string outFile = args[3];

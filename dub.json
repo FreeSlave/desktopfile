@@ -10,29 +10,5 @@
     "targetPath" : "lib", 
     "targetType" : "library",
     
-    "subPackages" : [
-        {
-            "name" : "desktoputil",
-            "targetPath" : "bin",
-            "targetType" : "executable",
-            "targetName" : "desktoputil", 
-            "sourcePaths" : ["examples/desktoputil"],
-            "importPaths" : ["source"],
-            "dependencies" : {
-                "desktopfile" : "*"
-            }
-        },
-        {
-            "name" : "desktoptest",
-            "targetPath" : "bin",
-            "targetType" : "executable",
-            "targetName" : "desktoptest",
-            "sourcePaths" : ["examples/desktoptest"],
-            "importPaths" : ["source"],
-            "dependencies" : {
-                "desktopfile" : "*",
-                "standardpaths" : "~>0.1.2"
-            }
-        }
-    ]
+    "subPackages" : ["./examples/desktoptest", "./examples/desktoputil"]
 }
