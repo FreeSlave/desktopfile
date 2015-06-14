@@ -136,7 +136,7 @@ public:
      * Throws:
      *  $(B IniLikeException) if error occured while parsing.
      */
-    @trusted this(Range)(Range byLine, ReadOptions options = ReadOptions.noOptions, string fileName = null) if(is(ElementType!Range == IniLikeLine))
+    @trusted this(Range)(Range byLine, ReadOptions options = ReadOptions.noOptions, string fileName = null) if(is(ElementType!Range : IniLikeLine))
     {   
         super(byLine, options, fileName);
         _desktopEntry = group("Desktop Entry");
@@ -245,6 +245,24 @@ public:
     ///ditto, but returns localized value.
     @safe string localizedName(string locale = null) const nothrow {
         return localizedValue("Name", locale);
+    }
+    
+    /** 
+     * Desktop file ID
+     * Returns: desktop file id as described in $(LINK 2 http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html, Desktop File ID) or empty string if file does not have an ID.
+     */
+    @trusted string id() const nothrow {
+        try {
+            string absolute = fileName.absolutePath;
+            enum applications = "/applications/";
+            auto index = absolute.indexOf(applications);
+            if (index != -1) {
+                return absolute[index + applications.length..$].replace("/", "-");
+            }
+        } catch(Exception e) {
+            
+        }
+        return null;
     }
     
     /**
@@ -554,10 +572,13 @@ public:
      *  Pid of started process.
      * Throws:
      *  ProcessException on failure to start the process.
+     *  Exception if desktop file does not define URL.
      * See_Also: start
      */
     @trusted Pid startLink() const {
-        return spawnProcess(["xdg-open", url()], null, Config.none);
+        string myurl = url();
+        enforce(myurl.length, "No URL to open");
+        return spawnProcess(["xdg-open", myurl], null, Config.none);
     }
     
     /**

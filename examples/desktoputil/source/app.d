@@ -8,27 +8,41 @@ void main(string[] args)
         return;
     }
     
-    string inFile = args[2];
-    auto df = new DesktopFile(inFile, DesktopFile.ReadOptions.preserveComments);
     string command = args[1];
+    string inFile = args[2];
+    
     
     if (command == "read") {
-        foreach(group; df.byGroup()) {
-            writefln("[%s]", group.name);
-            foreach(t; group.byKeyValue()) {
-                writefln("%s=%s", t.key, t.value);
-            }
+        auto df = new DesktopFile(inFile, DesktopFile.ReadOptions.preserveComments | DesktopFile.ReadOptions.firstGroupOnly);
+        
+        writeln("Name: ", df.name());
+        writeln("GenericName: ", df.genericName());
+        writeln("Comment: ", df.comment());
+        writeln("Type: ", df.value("Type"));
+        writeln("Icon: ", df.iconName());
+        writeln("Desktop ID: ", df.id());
+        
+        if (df.type() == DesktopFile.Type.Application) {
+            writeln("Exec: ", df.execString());
+            writeln("In terminal: ", df.terminal());
+        }
+        if (df.type() == DesktopFile.Type.Link) {
+            writeln("URL: ", df.url());
         }
     } else if (command == "exec") {
+        auto df = new DesktopFile(inFile, DesktopFile.ReadOptions.firstGroupOnly);
         string[] urls = args[3..$];
         writeln("Exec:", df.expandExecString(urls));
         df.startApplication(urls);
     } else if (command == "link") {
+        auto df = new DesktopFile(inFile, DesktopFile.ReadOptions.firstGroupOnly);
         writeln("Link:", df.url());
         df.startLink();
     } else if (command == "start") {
+        auto df = new DesktopFile(inFile, DesktopFile.ReadOptions.firstGroupOnly);
         df.start();
     } else if (command == "write") {
+        auto df = new DesktopFile(inFile, DesktopFile.ReadOptions.preserveComments);
         if (args.length > 3) {
             string outFile = args[3];
             df.saveToFile(outFile);

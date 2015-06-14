@@ -52,6 +52,10 @@ Parse and write .desktop file to new location:
 
     dub run desktopfile:desktoputil -- write /usr/share/applications/vlc.desktop ~/Desktop/vlc.desktop
 
+Read basic information about desktop file:
+
+    dub run desktopfile:desktoputil -- read /usr/share/applications/kde4/kate.desktop
+ 
 ### Desktop test
 
 Parses all .desktop files in system's applications paths (usually /usr/local/share/applicatons and /usr/share/applications) and on the user's Desktop.
