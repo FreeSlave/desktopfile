@@ -4,8 +4,7 @@
     "copyright": "Copyright © 2015, freeslave",
     "authors": ["freeslave"],
     "dependencies": {
-        "desktopfile" : "*",
-        "standardpaths" : "~>0.1.2"
+        "desktopfile" : "*"
     },
     "targetPath" : "bin",
     "targetType" : "executable",

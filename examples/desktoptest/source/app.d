@@ -10,7 +10,7 @@ import desktopfile;
 
 string[] desktopDirs()
 {
-    return standardPaths(StandardPath.Applications) ~ writablePath(StandardPath.Desktop);
+    return applicationsPaths() ~ writablePath(StandardPath.Desktop);
 }
 
 void main(string[] args)
@@ -23,6 +23,9 @@ void main(string[] args)
             }
             catch(IniLikeException e) {
                 stderr.writefln("Error reading %s: at %s: %s", entry, e.lineNumber, e.msg);
+            }
+            catch(Exception e) {
+                stderr.writefln("Error reading %s: %s", entry, e.msg);
             }
         }
     }

@@ -2,6 +2,8 @@
  * Reading, writing and executing .desktop file
  * Authors: 
  *  $(LINK2 https://github.com/MyLittleRobo, Roman Chistokhodov).
+ * Copyright:
+ *  Roman Chistokhodov, 2015
  * License: 
  *  $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
  * See_Also: 
@@ -9,6 +11,8 @@
  */
 
 module desktopfile;
+
+import standardpaths;
 
 public import inilike;
 
@@ -29,28 +33,34 @@ private {
     static if( __VERSION__ < 2066 ) enum nogc = 1;
 }
 
-version(Posix)
+/**
+ * Applications paths based on data paths. 
+ * This function is available on all platforms, but requires dataPaths argument (e.g. C:\ProgramData\KDE\share on Windows)
+ * Returns: Array of paths, based on dataPaths with "applications" directory appended.
+ */
+@trusted string[] applicationsPaths(in string[] dataPaths) nothrow {
+    return dataPaths.map!(p => buildPath(p, "applications")).array;
+}
+
+version(OSX) {}
+else version(Posix)
 {
-    private bool isExecutable(string filePath) nothrow @trusted {
-        import core.sys.posix.unistd;
-        return access(toStringz(filePath), X_OK) == 0;
-    }
     /**
-    * Checks if the program exists and is executable. 
-    * If the programPath is not an absolute path, the file is looked up in the $PATH environment variable.
-    * This function is defined only on Posix.
-    */
-    bool checkTryExec(string programPath) @trusted {
-        if (programPath.isAbsolute()) {
-            return isExecutable(programPath);
-        }
-        
-        foreach(path; environment.get("PATH").splitter(':')) {
-            if (isExecutable(buildPath(path, programPath))) {
-                return true;
-            }
-        }
-        return false;
+     * ditto, but returns paths based on known data paths. It's practically the same as standardPaths(StandardPath.applications).
+     * This function is defined only on freedesktop systems to avoid confusion with other systems that have data paths not compatible with Desktop Entry Spec.
+     */
+    @trusted string[] applicationsPaths() nothrow {
+        return standardPaths(StandardPath.applications);
+    }
+    
+    /**
+     * Path where .desktop files can be stored without requiring of root privileges.
+     * It's practically the same as writablePath(StandardPath.applications).
+     * This function is defined only on freedesktop systems to avoid confusion with other systems that have data paths not compatible with Desktop Entry Spec.
+     * Note: it does not check if returned path exists and appears to be directory.
+     */
+    @trusted string writableApplicationPath() nothrow {
+        return writablePath(StandardPath.applications);
     }
 }
 
@@ -79,27 +89,27 @@ version(Posix)
 
 /**
  * Get terminal emulator.
- * First, it probes $(B TERM) environment variable. If not found, checks if /usr/bin/x-terminal-emulator exists on Linux and use it on success.
- * $(I xterm) is used by default, if could not determine other terminal emulator.
+ * It probes various alternatives in this order: x-terminal-emulator (Linux-only), xdg-terminal (Linux-only), TERM (environment variable).
+ * If all guesses failed, it uses xterm as fallback.
  * Returns: Terminal emulator command name.
  */
 string determineTerminalEmulator() nothrow @trusted 
 {
     string term;
-    collectException(environment.get("TERM"), term);
     version(linux) {
         if (term.empty) {
-            string debianTerm = "/usr/bin/x-terminal-emulator";
-            if (debianTerm.isExecutable()) {
-                term = debianTerm;
-            }
+            term = findExecutable("x-terminal-emulator");
+        }
+        if (term.empty) {
+            term = findExecutable("xdg-terminal");
         }
     }
-    
+    if (term.empty) {
+        collectException(environment.get("TERM"), term);
+    }
     if (term.empty) {
         term = "xterm";
     }
-    
     return term;
 }
 
@@ -506,7 +516,7 @@ public:
                     toReturn ~= iconStr;
                 }
             } else if (token == "%c") {
-                toReturn ~= localizedValue("Name");
+                toReturn ~= localizedValue("Name", currentLocale());
             } else if (token == "%k") {
                 toReturn ~= fileName();
             } else if (token == "%d" || token == "%D" || token == "%n" || token == "%N" || token == "%m" || token == "%v") {

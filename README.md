@@ -32,9 +32,9 @@ Ddox:
 ### Desktop util
 
 Utility that can parse, execute and rewrites .desktop files.
-This will start vlc with the first parameter set to ~/Music:
+This will start vlc with the first parameter set to $HOME/Music:
 
-    dub run desktopfile:desktoputil -- exec /usr/share/applications/vlc.desktop ~/Music
+    dub run desktopfile:desktoputil -- exec /usr/share/applications/vlc.desktop $HOME/Music
     
 Should start command line application in terminal emulator:
 
@@ -50,7 +50,7 @@ Starts .desktop file defined executable or opens link:
     
 Parse and write .desktop file to new location:
 
-    dub run desktopfile:desktoputil -- write /usr/share/applications/vlc.desktop ~/Desktop/vlc.desktop
+    dub run desktopfile:desktoputil -- write /usr/share/applications/vlc.desktop $HOME/Desktop/vlc.desktop
 
 Read basic information about desktop file:
 
