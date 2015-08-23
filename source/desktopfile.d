@@ -387,6 +387,17 @@ public:
         return null;
     }
     
+    ///
+    unittest 
+    {
+        string contents = 
+`[Desktop Entry]
+Name=Program
+Type=Application`;
+        auto df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions, "/usr/share/applications/de/example.desktop");
+        assert(df.id() == "de-example.desktop");
+    }
+    
     /**
      * Generic name of the application, for example "Web Browser".
      * Returns: The value associated with "GenericName" key.
@@ -697,10 +708,7 @@ public:
             } else if (token == "%c") {
                 toReturn ~= localizedName(locale);
             } else if (token == "%k") {
-                auto fileStr = fileName();
-                if (fileStr.length) {
-                    toReturn ~= fileStr;
-                }
+                toReturn ~= fileName();
             } else if (token == "%d" || token == "%D" || token == "%n" || token == "%N" || token == "%m" || token == "%v") {
                 continue;
             } else {
@@ -718,11 +726,11 @@ public:
 `[Desktop Entry]
 Name=Program
 Name[ru]=Программа
-Exec=program %i -w %c -f %k %U %D
+Exec=program %i -w %c -f %k %U %D %u %f %F
 Icon=folder`;
         auto df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions, "/example.desktop");
         assert(df.expandExecString(["one", "two"], "ru") == 
-        ["program", "--icon", "folder", "-w", "Программа", "-f", "/example.desktop", "one", "two"]);
+        ["program", "--icon", "folder", "-w", "Программа", "-f", "/example.desktop", "one", "two", "one", "one", "one", "two"]);
     }
     
     /**

@@ -36,13 +36,17 @@ This will start vlc with the first parameter set to $HOME/Music:
 
     dub run desktopfile:desktoputil -- exec /usr/share/applications/vlc.desktop $HOME/Music
     
-Should start command line application in terminal emulator (will be detected automatically):
+This should start command line application in terminal emulator (will be detected automatically):
 
     dub run desktopfile:desktoputil -- exec /usr/share/applications/python2.7.desktop
     
 Run in specific terminal emulator:
 
     dub run desktopfile:desktoputil -- exec /usr/share/applications/python2.7.desktop --term=xterm
+
+Additional application actions are supported too:
+
+    dub run desktopfile:desktoputil -- exec /usr/share/applications/steam.desktop --action=Settings
     
 Open link with preferred application:
 
