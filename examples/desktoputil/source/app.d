@@ -1,5 +1,6 @@
 import std.stdio;
 import desktopfile;
+import std.getopt;
 
 void main(string[] args)
 {
@@ -10,17 +11,20 @@ void main(string[] args)
     
     string command = args[1];
     string inFile = args[2];
-    
+    string locale = currentLocale();
     
     if (command == "read") {
         auto df = new DesktopFile(inFile, DesktopFile.ReadOptions.preserveComments | DesktopFile.ReadOptions.firstGroupOnly);
         
-        writeln("Name: ", df.name());
-        writeln("GenericName: ", df.genericName());
-        writeln("Comment: ", df.comment());
+        writefln("Name: %s. Localized: %s", df.name(), df.localizedName(locale));
+        writefln("GenericName: %s. Localized: %s", df.genericName(), df.localizedGenericName(locale));
+        writefln("Comment: %s. Localized: %s", df.comment(), df.localizedComment(locale));
         writeln("Type: ", df.value("Type"));
         writeln("Icon: ", df.iconName());
         writeln("Desktop ID: ", df.id());
+        writefln("Actions: %(%s %)", df.actions());
+        writefln("Categories: %(%s %)", df.categories());
+        writefln("MimeTypes: %(%s %)", df.mimeTypes());
         
         if (df.type() == DesktopFile.Type.Application) {
             writeln("Exec: ", df.execString());
@@ -30,10 +34,29 @@ void main(string[] args)
             writeln("URL: ", df.url());
         }
     } else if (command == "exec") {
-        auto df = new DesktopFile(inFile, DesktopFile.ReadOptions.firstGroupOnly);
-        string[] urls = args[3..$];
-        writeln("Exec:", df.expandExecString(urls));
-        df.startApplication(urls);
+        auto df = new DesktopFile(inFile);
+        string action;
+        string term;
+        getopt(args, "action", "Action to run", &action, 
+               "term", "Preferred terminal emulator to run console applications", &term);
+        if (action.length) {
+            auto desktopAction = df.action(action);
+            if (desktopAction.group() is null) {
+                stderr.writefln("No such action %s", action);
+            } else {
+                desktopAction.start();
+            }
+        } else {
+            string[] urls = args[3..$];
+            writeln("Exec:", df.expandExecString(urls));
+            if (term.length) {
+                df.startApplication(urls, locale, term);
+            } else {
+                df.startApplication(urls, locale);
+            }
+        }
+        
+        
     } else if (command == "link") {
         auto df = new DesktopFile(inFile, DesktopFile.ReadOptions.firstGroupOnly);
         writeln("Link:", df.url());
@@ -50,6 +73,6 @@ void main(string[] args)
             writeln(df.saveToString());
         }
     } else {
-        writefln("unknown command '%s'", command);
+        stderr.writefln("unknown command '%s'", command);
     }
 }

@@ -36,9 +36,13 @@ This will start vlc with the first parameter set to $HOME/Music:
 
     dub run desktopfile:desktoputil -- exec /usr/share/applications/vlc.desktop $HOME/Music
     
-Should start command line application in terminal emulator:
+Should start command line application in terminal emulator (will be detected automatically):
 
     dub run desktopfile:desktoputil -- exec /usr/share/applications/python2.7.desktop
+    
+Run in specific terminal emulator:
+
+    dub run desktopfile:desktoputil -- exec /usr/share/applications/python2.7.desktop --term=xterm
     
 Open link with preferred application:
 
@@ -48,7 +52,7 @@ Starts .desktop file defined executable or opens link:
 
     dub run desktopfile:desktoputil -- start /path/to/file.desktop
     
-Parse and write .desktop file to new location:
+Parse and write .desktop file to new location (to testing purposes):
 
     dub run desktopfile:desktoputil -- write /usr/share/applications/vlc.desktop $HOME/Desktop/vlc.desktop
 

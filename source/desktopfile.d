@@ -59,7 +59,7 @@ else version(Posix)
      * This function is defined only on freedesktop systems to avoid confusion with other systems that have data paths not compatible with Desktop Entry Spec.
      * Note: it does not check if returned path exists and appears to be directory.
      */
-    @trusted string writableApplicationPath() nothrow {
+    @trusted string writableApplicationsPath() nothrow {
         return writablePath(StandardPath.applications);
     }
 }
@@ -111,6 +111,114 @@ string determineTerminalEmulator() nothrow @trusted
         term = "xterm";
     }
     return term;
+}
+
+private @trusted File getNullStdin()
+{
+    version(Posix) {
+        return File("/dev/null", "rb");
+    } else {
+        return std.stdio.stdin;
+    }
+}
+
+private @trusted File getNullStdout()
+{
+    version(Posix) {
+        return File("/dev/null", "wb");
+    } else {
+        return std.stdio.stdout;
+    }
+}
+
+private @trusted File getNullStderr()
+{
+    version(Posix) {
+        return File("/dev/null", "wb");
+    } else {
+        return std.stdio.stderr;
+    }
+}
+
+private @trusted Pid execProcess(string[] args, string workingDirectory = null)
+{
+    static if( __VERSION__ < 2066 ) {
+        return spawnProcess(args, getNullStdin(), getNullStdout(), getNullStderr(), null, Config.none);
+    } else {
+        return spawnProcess(args, getNullStdin(), getNullStdout(), getNullStderr(), null, Config.none, workingDirectory);
+    }
+}
+
+/**
+ * Adapter of IniLikeGroup for easy access to desktop action.
+ */
+struct DesktopAction
+{
+    @nogc @safe this(const(IniLikeGroup) group) nothrow {
+        _group = group;
+    }
+    
+    /**
+     * Label that will be shown to the user.
+     * Returns: The value associated with "Name" key.
+     * Note: Don't confuse this with name of section. To access name of section use group().name.
+     */
+    @nogc @safe string name() const nothrow {
+        return value("Name");
+    }
+    
+    /**
+     * Label that will be shown to the user in given locale.
+     * Returns: The value associated with "Name" key and given locale.
+     */
+    @safe string localizedName(string locale) const nothrow {
+        return localizedValue("Name", locale);
+    }
+    
+    /**
+     * Icon name of action.
+     * Returns: The value associated with "Icon" key.
+     */
+    @nogc @safe string iconName() const nothrow {
+        return value("Icon");
+    }
+    
+    /**
+     * Returns: The value associated with "Exec" key and given locale.
+     */
+    @nogc @safe string execString() const nothrow {
+        return value("Exec");
+    }
+    
+    /**
+     * Start this action.
+     * Returns:
+     *  Pid of started process.
+     * Throws:
+     *  ProcessException on failure to start the process.
+     *  Exception if expanded exec string is empty.
+     * See_Also: execString
+     */
+    @safe Pid start() const {
+        auto args = execString().unescapeExec().split().array;
+        enforce(args.length, "No command line params to run the program. Is Exec missing?");
+        return execProcess(args);
+    }
+    
+    /**
+     * Underlying IniLikeGroup instance. 
+     * Returns: IniLikeGroup this object was constrcucted from.
+     */
+    @nogc @safe const(IniLikeGroup) group() const nothrow {
+        return _group;
+    }
+    
+    /**
+     * This alias allows to call functions of underlying IniLikeGroup instance.
+     */
+    alias group this;
+private:
+    const(IniLikeGroup) _group;
 }
 
 /**
@@ -248,18 +356,22 @@ public:
     /**
      * Specific name of the application, for example "Mozilla".
      * Returns: The value associated with "Name" key.
+     * See_Also: localizedName
      */
     @nogc @safe string name() const nothrow {
         return value("Name");
     }
-    ///ditto, but returns localized value.
-    @safe string localizedName(string locale = null) const nothrow {
+    /**
+     * Returns: Localized name.
+     * See_Also: name
+     */
+    @safe string localizedName(string locale) const nothrow {
         return localizedValue("Name", locale);
     }
     
     /** 
      * Desktop file ID
-     * Returns: desktop file id as described in $(LINK 2 http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html, Desktop File ID) or empty string if file does not have an ID.
+     * Returns: desktop file id as described in $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html, Desktop File ID) or empty string if file does not have an ID.
      */
     @trusted string id() const nothrow {
         try {
@@ -278,30 +390,38 @@ public:
     /**
      * Generic name of the application, for example "Web Browser".
      * Returns: The value associated with "GenericName" key.
+     * See_Also: localizedGenericName
      */
     @nogc @safe string genericName() const nothrow {
         return value("GenericName");
     }
-    ///ditto, but returns localized value.
-    @safe string localizedGenericName(string locale = null) const nothrow {
+    /**
+     * Returns: Localized generic name
+     * See_Also: genericName
+     */
+    @safe string localizedGenericName(string locale) const nothrow {
         return localizedValue("GenericName", locale);
     }
     
     /**
      * Tooltip for the entry, for example "View sites on the Internet".
      * Returns: The value associated with "Comment" key.
+     * See_Also: localizedComment
      */
     @nogc @safe string comment() const nothrow {
         return value("Comment");
     }
-    ///ditto, but returns localized value.
-    @safe string localizedComment(string locale = null) const nothrow {
+    /**
+     * Returns: Localized comment
+     * See_Also: comment
+     */
+    @safe string localizedComment(string locale) const nothrow {
         return localizedValue("Comment", locale);
     }
     
     /** 
      * Returns: the value associated with "Exec" key.
-     * Note: Don't use this to start the program. Consider using expandExecString or startApplication instead.
+     * Note: To get arguments from exec string use expandExecString.
      * See_Also: expandExecString, startApplication
      */
     @nogc @safe string execString() const nothrow {
@@ -400,6 +520,14 @@ public:
         return values.splitter(';').filter!(s => s.length != 0);
     }
     
+    ///
+    unittest 
+    {
+        assert(equal(DesktopFile.splitValues("Application;Utility;FileManager;"), ["Application", "Utility", "FileManager"]));
+        assert(DesktopFile.splitValues("").empty);
+        assert(DesktopFile.splitValues(";").empty);
+    }
+    
     /**
      * Join range of multiple values into a string using semicolon as separator. Adds trailing semicolon.
      * If range is empty, then the empty string is returned.
@@ -411,6 +539,13 @@ public:
         } else {
             return text(result) ~ ";";
         }
+    }
+    
+    ///
+    unittest
+    {
+        assert(equal(DesktopFile.joinValues(["Application", "Utility", "FileManager"]), "Application;Utility;FileManager;"));
+        assert(DesktopFile.joinValues([""]).empty);
     }
     
     /**
@@ -459,6 +594,50 @@ public:
     }
     
     /**
+     * Actions supported by application.
+     * Returns: Range of multiple values associated with "Actions" key.
+     * Note: This only depends on "Actions" value, not on actually presented sections in desktop file.
+     * See_Also: byAction, action
+     */
+    @safe auto actions() const {
+        return splitValues(value("Actions"));
+    }
+    
+    /**
+     * Sets the list of values for "Actions" list.
+     */
+    @safe void actions(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
+        this["Actions"] = joinValues(values);
+    }
+    
+    /**
+     * Get $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s10.html, additional application action) by name.
+     * Returns: DesktopAction with given action name or DesktopAction with null group if not found or found section does not have a name.
+     * See_Also: actions, byAction
+     */
+    @safe const(DesktopAction) action(string actionName) const {
+        if (actions().canFind(actionName)) {
+            auto desktopAction = DesktopAction(group("Desktop Action "~actionName));
+            if (desktopAction.group() !is null && desktopAction.name().length != 0) {
+                return desktopAction;
+            }
+        }
+        
+        return DesktopAction(null);
+    }
+    
+    /**
+     * Iterating over existing actions.
+     * Returns: Range of DesktopAction.
+     * See_Also: actions, action
+     */
+    @safe auto byAction() const {
+        return actions().map!(actionName => DesktopAction(group("Desktop Action "~actionName))).filter!(delegate(desktopAction) {
+            return desktopAction.group !is null && desktopAction.name.length != 0;
+        });
+    }
+    
+    /**
      * A list of strings identifying the desktop environments that should display a given desktop entry.
      * Returns: The range of multiple values associated with "OnlyShowIn" key.
      */
@@ -482,16 +661,16 @@ public:
         return _desktopEntry;
     }
     
-    
     /**
      * This alias allows to call functions related to "Desktop Entry" group without need to call desktopEntry explicitly.
      */
     alias desktopEntry this;
     
     /**
-     * Expands Exec string into the array of command line arguments to use to start the program.
+     * Expand "Exec" value into the array of command line arguments to use to start the program.
+     * See_Also: execString, startApplication
      */
-    @safe string[] expandExecString(in string[] urls = null) const
+    @safe string[] expandExecString(in string[] urls = null, string locale = null) const
     {   
         string[] toReturn;
         auto execStr = execString().unescapeExec(); //add unquoting
@@ -510,15 +689,18 @@ public:
             } else if (token == "%U") {
                 toReturn ~= urls;
             } else if (token == "%i") {
-                string iconStr = iconName();
+                auto iconStr = iconName();
                 if (iconStr.length) {
                     toReturn ~= "--icon";
                     toReturn ~= iconStr;
                 }
             } else if (token == "%c") {
-                toReturn ~= localizedValue("Name", currentLocale());
+                toReturn ~= localizedName(locale);
             } else if (token == "%k") {
-                toReturn ~= fileName();
+                auto fileStr = fileName();
+                if (fileStr.length) {
+                    toReturn ~= fileStr;
+                }
             } else if (token == "%d" || token == "%D" || token == "%n" || token == "%N" || token == "%m" || token == "%v") {
                 continue;
             } else {
@@ -529,12 +711,27 @@ public:
         return toReturn;
     }
     
+    ///
+    unittest 
+    {
+        string contents = 
+`[Desktop Entry]
+Name=Program
+Name[ru]=Программа
+Exec=program %i -w %c -f %k %U %D
+Icon=folder`;
+        auto df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions, "/example.desktop");
+        assert(df.expandExecString(["one", "two"], "ru") == 
+        ["program", "--icon", "folder", "-w", "Программа", "-f", "/example.desktop", "one", "two"]);
+    }
+    
     /**
      * Starts the application associated with this .desktop file using urls as command line params.
      * If the program should be run in terminal it tries to find system defined terminal emulator to run in.
      * Params:
      *  urls = urls application will start with.
-     *  preferableTerminal = preferable terminal emulator. If this string is empty terminal is determined via determineTerminalEmulator.
+     *  locale = locale that may be needed to be placed in urls if Exec value has %c code.
+     *  preferableTerminal = preferable terminal emulator. If not set then terminal is determined via determineTerminalEmulator.
      * Note:
      *  This function does not check if the type of desktop file is Application. It relies only on "Exec" value.
      * Returns:
@@ -542,36 +739,25 @@ public:
      * Throws:
      *  ProcessException on failure to start the process.
      *  Exception if expanded exec string is empty.
-     * See_Also: determineTerminalEmulator, start
+     * See_Also: determineTerminalEmulator, start, expandExecString
      */
-    @trusted Pid startApplication(in string[] urls = null, string preferableTerminal = null) const
+    @trusted Pid startApplication(in string[] urls = null, string locale = null, lazy string preferableTerminal = determineTerminalEmulator) const
     {
-        auto args = expandExecString(urls);
+        auto args = expandExecString(urls, locale);
         enforce(args.length, "No command line params to run the program. Is Exec missing?");
         
         if (terminal()) {
-            string term = preferableTerminal.length ? preferableTerminal : determineTerminalEmulator();            
+            string term = preferableTerminal();            
             args = [term, "-e"] ~ args;
         }
         
-        File newStdin;
-        version(Posix) {
-            newStdin = File("/dev/null", "rb");
-        } else {
-            newStdin = std.stdio.stdin;
-        }
-        
-        static if( __VERSION__ < 2066 ) {
-            return spawnProcess(args, newStdin, std.stdio.stdout, std.stdio.stderr, null, Config.none);
-        } else {
-            return spawnProcess(args, newStdin, std.stdio.stdout, std.stdio.stderr, null, Config.none, workingDirectory());
-        }
+        return execProcess(args, workingDirectory());
     }
     
     ///ditto, but uses the only url.
-    @trusted Pid startApplication(string url, string preferableTerminal = null) const
+    @trusted Pid startApplication(string url, string locale = null, lazy string preferableTerminal = determineTerminalEmulator) const
     {
-        return startApplication([url], preferableTerminal);
+        return startApplication([url], locale, preferableTerminal);
     }
     
     /**
@@ -618,15 +804,9 @@ private:
     IniLikeGroup _desktopEntry;
 }
 
+///
 unittest 
 {
-    //Test split/join values
-    
-    assert(equal(DesktopFile.splitValues("Application;Utility;FileManager;"), ["Application", "Utility", "FileManager"]));
-    assert(DesktopFile.splitValues(";").empty);
-    assert(equal(DesktopFile.joinValues(["Application", "Utility", "FileManager"]), "Application;Utility;FileManager;"));
-    assert(DesktopFile.joinValues([""]).empty);
-    
     //Test DesktopFile
     string desktopFileContents = 
 `[Desktop Entry]
@@ -640,7 +820,24 @@ Icon=doublecmd
 Exec=doublecmd
 Type=Application
 Categories=Application;Utility;FileManager;
-Keywords=folder;manager;explore;disk;filesystem;orthodox;copy;queue;queuing;operations;`;
+Keywords=folder;manager;explore;disk;filesystem;orthodox;copy;queue;queuing;operations;
+Actions=OpenDirectory;NotPresented;Settings;NoName;
+
+[Desktop Action OpenDirectory]
+Name=Open directory
+Icon=open
+Exec=doublecmd %u
+
+[NoName]
+Icon=folder
+
+[Desktop Action Settings]
+Name=Settings
+Icon=edit
+Exec=doublecmd settings
+
+[Desktop Action Notspecified]
+Name=Notspecified Action`;
     
     auto df = new DesktopFile(iniLikeStringReader(desktopFileContents), DesktopFile.ReadOptions.preserveComments);
     assert(df.name() == "Double Commander");
@@ -649,6 +846,15 @@ Keywords=folder;manager;explore;disk;filesystem;orthodox;copy;queue;queuing;oper
     assert(!df.terminal());
     assert(df.type() == DesktopFile.Type.Application);
     assert(equal(df.categories(), ["Application", "Utility", "FileManager"]));
+    assert(equal(df.actions(), ["OpenDirectory", "NotPresented", "Settings", "NoName"]));
+    
+    assert(equal(df.byAction().map!(desktopAction => tuple(desktopAction.name(), desktopAction.iconName(), desktopAction.execString())), 
+                 [tuple("Open directory", "open", "doublecmd %u"), tuple("Settings", "edit", "doublecmd settings")]));
+    
+    assert(df.action("NotPresented").group() is null);
+    assert(df.action("Notspecified").group() is null);
+    assert(df.action("NoName").group() is null);
+    assert(df.action("Settings").group() !is null);
     
     assert(df.saveToString() == desktopFileContents);
     
