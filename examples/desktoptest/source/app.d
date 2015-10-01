@@ -14,12 +14,11 @@ void main(string[] args)
     version(OSX) {} else version(Posix) {
         import standardpaths;
         
-        desktopDirs = applicationsPaths() ~ writablePath(StandardPath.Desktop);
+        desktopDirs = applicationsPaths() ~ writablePath(StandardPath.desktop);
     } else version(Windows) {
         try {
             auto root = environment.get("SYSTEMDRIVE", "C:");
             auto kdeDir = root ~ `\ProgramData\KDE\share\applications`;
-            writeln(kdeDir);
             if (kdeDir.isDir) {
                 desktopDirs = [kdeDir];
             }

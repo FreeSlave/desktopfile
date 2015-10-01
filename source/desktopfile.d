@@ -319,6 +319,10 @@ public:
     unittest
     {
         auto df = new DesktopFile();
+        df.addGroup("Action");
+        assert(df.group("Action") !is null);
+        df.removeGroup("Action");
+        assert(df.group("Action") is null);
         df.removeGroup("Desktop Entry");
         assert(df.desktopEntry() !is null);
     }
@@ -396,7 +400,10 @@ public:
         assert(desktopFile.type == DesktopFile.Type.Directory);
     }
     
-    /// Sets "Type" field to type
+    /**
+     * Sets "Type" field to type
+     * Note: Setting the Unknown type removes type field.
+     */
     @safe Type type(Type t) {
         final switch(t) {
             case Type.Application:
@@ -409,9 +416,25 @@ public:
                 this["Type"] = "Directory";
                 break;
             case Type.Unknown:
+                this.removeEntry("Type");
                 break;
         }
         return t;
+    }
+    
+    ///
+    unittest
+    {
+        auto desktopFile = new DesktopFile();
+        desktopFile.type = DesktopFile.Type.Application;
+        assert(desktopFile.desktopEntry["Type"] == "Application");
+        desktopFile.type = DesktopFile.Type.Link;
+        assert(desktopFile.desktopEntry["Type"] == "Link");
+        desktopFile.type = DesktopFile.Type.Directory;
+        assert(desktopFile.desktopEntry["Type"] == "Directory");
+        
+        desktopFile.type = DesktopFile.Type.Unknown;
+        assert(desktopFile.desktopEntry.value("Type").empty);
     }
     
     /**
@@ -841,9 +864,16 @@ Icon=folder`;
         return execProcess(args, workingDirectory());
     }
     
-    ///ditto, but uses the only url.
-    @trusted Pid startApplication(string url, string locale = null, lazy string preferableTerminal = determineTerminalEmulator) const
+    ///
+    unittest
     {
+        auto df = new DesktopFile();
+        string[] urls;
+        assertThrown(df.startApplication(urls, null, "xterm"));
+    }
+    
+    ///ditto, but uses the only url.
+    @trusted Pid startApplication(string url, string locale = null, lazy string preferableTerminal = determineTerminalEmulator) const {
         return startApplication([url], locale, preferableTerminal);
     }
     
@@ -862,6 +892,13 @@ Icon=folder`;
         string myurl = url();
         enforce(myurl.length, "No URL to open");
         return spawnProcess(["xdg-open", myurl], null, Config.none);
+    }
+    
+    ///
+    unittest
+    {
+        auto df = new DesktopFile();
+        assertThrown(df.startLink());
     }
     
     /**
@@ -923,6 +960,7 @@ NotShowIn=KDE;
 
 [Desktop Action OpenDirectory]
 Name=Open directory
+Name[ru]=Открыть папку
 Icon=open
 Exec=doublecmd %u
 
@@ -931,6 +969,7 @@ Icon=folder
 
 [Desktop Action Settings]
 Name=Settings
+Name[ru]=Настройки
 Icon=edit
 Exec=doublecmd settings
 
@@ -959,8 +998,9 @@ Name=Notspecified Action`;
     assert(equal(df.onlyShowIn(), ["GNOME", "XFCE", "LXDE"]));
     assert(equal(df.notShowIn(), ["KDE"]));
     
-    assert(equal(df.byAction().map!(desktopAction => tuple(desktopAction.name(), desktopAction.iconName(), desktopAction.execString())), 
-                 [tuple("Open directory", "open", "doublecmd %u"), tuple("Settings", "edit", "doublecmd settings")]));
+    assert(equal(df.byAction().map!(desktopAction => 
+    tuple(desktopAction.name(), desktopAction.localizedName("ru"), desktopAction.iconName(), desktopAction.execString())), 
+                 [tuple("Open directory", "Открыть папку", "open", "doublecmd %u"), tuple("Settings", "Настройки", "edit", "doublecmd settings")]));
     
     assert(df.action("NotPresented").group() is null);
     assert(df.action("Notspecified").group() is null);
