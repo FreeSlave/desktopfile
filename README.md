@@ -2,7 +2,7 @@
 
 D library for working with *.desktop* files. Desktop entries in Freedesktop world are akin to shortcuts from Windows world (.lnk files).
 
-[![Build Status](https://travis-ci.org/MyLittleRobo/desktopfile.svg?branch=master)](https://travis-ci.org/MyLittleRobo/desktopfile)
+[![Build Status](https://travis-ci.org/MyLittleRobo/desktopfile.svg?branch=master)](https://travis-ci.org/MyLittleRobo/desktopfile) [![Coverage Status](https://coveralls.io/repos/MyLittleRobo/desktopfile/badge.svg?branch=master&service=github)](https://coveralls.io/github/MyLittleRobo/desktopfile?branch=master)
 
 The most of desktop environments on Linux and BSD flavors follows [Desktop Entry Specification](http://standards.freedesktop.org/desktop-entry-spec/latest/) today.
 The goal of **desktopfile** library is to provide implementation of this specification in D programming language.
@@ -75,3 +75,11 @@ Use this example to check if the desktopfile library can parse all .desktop file
 To print all directories examined by desktoptest to stdout, build it in non-release mode:
 
     dub run desktopfile:desktoptest
+
+Start desktoptest on specified directories:
+
+    dub run desktopfile:desktoptest -- /path/to/applications /anotherpath/to/applications
+    # Example using cmd on Windows:
+    dub run desktopfile:desktoptest -- "%SYSTEMDRIVE%\ProgramData\KDE\share\applications" "%APPDATA%\.kde\share"
+    
+    

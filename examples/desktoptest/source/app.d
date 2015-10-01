@@ -5,17 +5,42 @@ import std.file;
 import std.path;
 import std.process;
 
-import standardpaths;
 import desktopfile;
-
-string[] desktopDirs()
-{
-    return applicationsPaths() ~ writablePath(StandardPath.Desktop);
-}
 
 void main(string[] args)
 {
-    foreach(dir; desktopDirs().filter!(s => s.exists && s.isDir())) {
+    string[] desktopDirs;
+    
+    version(OSX) {} else version(Posix) {
+        import standardpaths;
+        
+        desktopDirs = applicationsPaths() ~ writablePath(StandardPath.Desktop);
+    } else version(Windows) {
+        try {
+            auto root = environment.get("SYSTEMDRIVE", "C:");
+            auto kdeDir = root ~ `\ProgramData\KDE\share\applications`;
+            writeln(kdeDir);
+            if (kdeDir.isDir) {
+                desktopDirs = [kdeDir];
+            }
+        } catch(Exception e) {
+            
+        }
+    }
+    
+    if (args.length > 1) {
+        desktopDirs = args[1..$];
+    }
+    
+    if (!desktopDirs.length) {
+        writeln("No desktop directories given nor could be detected");
+        writefln("Usage: %s [DIR]...", args[0]);
+        return;
+    }
+    
+    writefln("Using directories: %-(%s, %)", desktopDirs);
+
+    foreach(dir; desktopDirs.filter!(s => s.exists && s.isDir())) {
         foreach(entry; dir.dirEntries(SpanMode.depth).filter!(a => a.isFile() && a.extension == ".desktop")) {
             debug writeln(entry);
             try {

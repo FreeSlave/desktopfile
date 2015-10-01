@@ -14,3 +14,5 @@ matrix:
         
 script:
     - dub test --compiler=${DC}
+    - dub build desktopfile:desktoptest --compiler=${DC}
+    - dub build desktopfile:desktoputil --compiler=${DC}
