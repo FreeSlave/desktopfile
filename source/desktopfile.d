@@ -42,6 +42,12 @@ private {
     return dataPaths.map!(p => buildPath(p, "applications")).array;
 }
 
+///
+unittest
+{
+    assert(equal(applicationsPaths(["share", buildPath("local", "share")]), [buildPath("share", "applications"), buildPath("local", "share", "applications")]));
+}
+
 version(OSX) {}
 else version(Posix)
 {
@@ -89,13 +95,17 @@ else version(Posix)
 
 /**
  * Get terminal emulator.
- * It probes various alternatives in this order: x-terminal-emulator (Linux-only), xdg-terminal (Linux-only), TERM (environment variable).
+ * It probes various alternatives in this order: TERM (environment variable), x-terminal-emulator (Linux-only), xdg-terminal (Linux-only).
  * If all guesses failed, it uses xterm as fallback.
- * Returns: Terminal emulator command name.
+ * Returns: Terminal emulator command name (may be just command or absolute path).
  */
 string determineTerminalEmulator() nothrow @trusted 
 {
     string term;
+    if (term.empty) {
+        collectException(environment.get("TERM"), term);
+    }
+    
     version(linux) {
         if (term.empty) {
             term = findExecutable("x-terminal-emulator");
@@ -105,12 +115,18 @@ string determineTerminalEmulator() nothrow @trusted
         }
     }
     if (term.empty) {
-        collectException(environment.get("TERM"), term);
-    }
-    if (term.empty) {
         term = "xterm";
     }
     return term;
+}
+
+///
+unittest
+{
+    if (environment.get("CI") != "true") {
+        environment["TERM"] = "yakuake";
+        assert(determineTerminalEmulator() == "yakuake");
+    }
 }
 
 private @trusted File getNullStdin()
@@ -270,6 +286,16 @@ public:
         this["Version"] = "1.0";
     }
     
+    ///
+    unittest
+    {
+        auto df = new DesktopFile();
+        assert(df.desktopEntry());
+        assert(df.value("Version") == "1.0");
+        assert(df.categories().empty);
+        assert(df.type() == DesktopFile.Type.Unknown);
+    }
+    
     @safe override IniLikeGroup addGroup(string groupName) {
         if (!_desktopEntry) {
             enforce(groupName == "Desktop Entry", "The first group must be Desktop Entry");
@@ -287,6 +313,14 @@ public:
         if (groupName != "Desktop Entry") {
             super.removeGroup(groupName);
         }
+    }
+    
+    ///
+    unittest
+    {
+        auto df = new DesktopFile();
+        df.removeGroup("Desktop Entry");
+        assert(df.desktopEntry() !is null);
     }
     
     /**
@@ -314,6 +348,15 @@ public:
         return true;
     }
     
+    ///
+    unittest
+    {
+        auto desktopFile = new DesktopFile;
+        assert(desktopFile.isValidKey("Generic-Name"));
+        assert(!desktopFile.isValidKey("Name$"));
+        assert(!desktopFile.isValidKey(""));
+    }
+    
     /**
      * Type of desktop entry.
      * Returns: Type of desktop entry.
@@ -335,6 +378,24 @@ public:
         
         return Type.Unknown;
     }
+    
+    ///
+    unittest
+    {
+        string contents = "[Desktop Entry]\nType=Application";
+        auto desktopFile = new DesktopFile(iniLikeStringReader(contents));
+        assert(desktopFile.type == DesktopFile.Type.Application);
+        
+        desktopFile.desktopEntry["Type"] = "Link";
+        assert(desktopFile.type == DesktopFile.Type.Link);
+        
+        desktopFile.desktopEntry["Type"] = "Directory";
+        assert(desktopFile.type == DesktopFile.Type.Directory);
+        
+        desktopFile = new DesktopFile(iniLikeStringReader("[Desktop Entry]"), ReadOptions.noOptions, ".directory");
+        assert(desktopFile.type == DesktopFile.Type.Directory);
+    }
+    
     /// Sets "Type" field to type
     @safe Type type(Type t) {
         final switch(t) {
@@ -396,6 +457,9 @@ Name=Program
 Type=Application`;
         auto df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions, "/usr/share/applications/de/example.desktop");
         assert(df.id() == "de-example.desktop");
+        
+        df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions, "/etc/desktop");
+        assert(df.id().empty);
     }
     
     /**
@@ -447,6 +511,13 @@ Type=Application`;
         return value("URL");
     }
     
+    ///
+    unittest
+    {
+        auto df = new DesktopFile(iniLikeStringReader("[Desktop Entry]\nType=Link\nURL=https://github.com/"));
+        assert(df.url() == "https://github.com/");
+    }
+    
     /**
      * Value used to determine if the program is actually installed. If the path is not an absolute path, the file should be looked up in the $(B PATH) environment variable. If the file is not present or if it is not executable, the entry may be ignored (not be used in menus, for example).
      * Returns: The value associated with "TryExec" key.
@@ -468,6 +539,14 @@ Type=Application`;
             iconPath = value("X-Window-Icon");
         }
         return iconPath;
+    }
+    
+    ///
+    unittest
+    {
+        string contents = "[Desktop Entry]\nX-Window-Icon=nautilus";
+        auto df = new DesktopFile(iniLikeStringReader(contents));
+        assert(df.iconName() == "nautilus");
     }
     
     /**
@@ -820,16 +899,27 @@ unittest
 `[Desktop Entry]
 # Comment
 Name=Double Commander
+Name[ru]=Двухпанельный коммандер
 GenericName=File manager
 GenericName[ru]=Файловый менеджер
 Comment=Double Commander is a cross platform open source file manager with two panels side by side.
+Comment[ru]=Double Commander - кроссплатформенный файловый менеджер.
 Terminal=false
 Icon=doublecmd
-Exec=doublecmd
+Exec=doublecmd %f
+TryExec=doublecmd
 Type=Application
 Categories=Application;Utility;FileManager;
-Keywords=folder;manager;explore;disk;filesystem;orthodox;copy;queue;queuing;operations;
+Keywords=folder;manager;disk;filesystem;operations;
 Actions=OpenDirectory;NotPresented;Settings;NoName;
+MimeType=inode/directory;application/x-directory;
+NoDisplay=false
+Hidden=false
+StartupNotify=true
+DBusActivatable=true
+Path=/opt/doublecmd
+OnlyShowIn=GNOME;XFCE;LXDE;
+NotShowIn=KDE;
 
 [Desktop Action OpenDirectory]
 Name=Open directory
@@ -849,12 +939,25 @@ Name=Notspecified Action`;
     
     auto df = new DesktopFile(iniLikeStringReader(desktopFileContents), DesktopFile.ReadOptions.preserveComments);
     assert(df.name() == "Double Commander");
+    assert(df.localizedName("ru_RU") == "Двухпанельный коммандер");
     assert(df.genericName() == "File manager");
     assert(df.localizedGenericName("ru_RU") == "Файловый менеджер");
+    assert(df.comment() == "Double Commander is a cross platform open source file manager with two panels side by side.");
+    assert(df.localizedComment("ru_RU") == "Double Commander - кроссплатформенный файловый менеджер.");
+    assert(df.tryExecString() == "doublecmd");
     assert(!df.terminal());
+    assert(!df.noDisplay());
+    assert(!df.hidden());
+    assert(df.startupNotify());
+    assert(df.dbusActivable());
+    assert(df.workingDirectory() == "/opt/doublecmd");
     assert(df.type() == DesktopFile.Type.Application);
+    assert(equal(df.keywords(), ["folder", "manager", "disk", "filesystem", "operations"]));
     assert(equal(df.categories(), ["Application", "Utility", "FileManager"]));
     assert(equal(df.actions(), ["OpenDirectory", "NotPresented", "Settings", "NoName"]));
+    assert(equal(df.mimeTypes(), ["inode/directory", "application/x-directory"]));
+    assert(equal(df.onlyShowIn(), ["GNOME", "XFCE", "LXDE"]));
+    assert(equal(df.notShowIn(), ["KDE"]));
     
     assert(equal(df.byAction().map!(desktopAction => tuple(desktopAction.name(), desktopAction.iconName(), desktopAction.execString())), 
                  [tuple("Open directory", "open", "doublecmd %u"), tuple("Settings", "edit", "doublecmd settings")]));
@@ -873,11 +976,6 @@ Name=Notspecified Action`;
     assert(df.contains("Icon"));
     
     df = new DesktopFile();
-    assert(df.desktopEntry());
-    assert(df.value("Version") == "1.0");
-    assert(df.categories().empty);
-    assert(df.type() == DesktopFile.Type.Unknown);
-    
     df.terminal = true;
     df.type = DesktopFile.Type.Application;
     df.categories = ["Development", "Compilers"];
