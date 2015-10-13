@@ -459,17 +459,37 @@ public:
         return localizedValue("Name", locale);
     }
     
-    /** 
-     * Desktop file ID
-     * Returns: desktop file id as described in $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html, Desktop File ID) or empty string if file does not have an ID.
+    version(OSX) {} version(Posix) {
+        /** 
+        * See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html, Desktop File ID)
+        * Returns: desktop file ID or empty string if file does not have an ID.
+        * Note: This function retrieves applications paths each time it's called. To avoid this issue use overload with argument.
+        */
+        @trusted string id() const nothrow {
+            return id(applicationsPaths());
+        }
+    }
+    
+    /**
+     * See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html, Desktop File ID)
+     * Returns: desktop file ID or empty string if file does not have an ID.
      */
-    @trusted string id() const nothrow {
+    @trusted string id(Range)(Range appPaths) const nothrow if (isInputRange!Range && is(ElementType!Range : string)) 
+    {
         try {
             string absolute = fileName.absolutePath;
-            enum applications = "/applications/";
-            auto index = absolute.indexOf(applications);
-            if (index != -1) {
-                return absolute[index + applications.length..$].replace("/", "-");
+            foreach (path; appPaths) {
+                auto pathSplit = pathSplitter(path);
+                auto fileSplit = pathSplitter(absolute);
+                
+                while (!pathSplit.empty && !fileSplit.empty && pathSplit.front == fileSplit.front) {
+                    pathSplit.popFront();
+                    fileSplit.popFront();
+                }
+                
+                if (pathSplit.empty) {
+                    return to!string(fileSplit.join("-"));
+                }
             }
         } catch(Exception e) {
             
@@ -484,11 +504,16 @@ public:
 `[Desktop Entry]
 Name=Program
 Type=Application`;
-        auto df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions, "/usr/share/applications/de/example.desktop");
-        assert(df.id() == "de-example.desktop");
         
-        df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions, "/etc/desktop");
-        assert(df.id().empty);
+        auto appPaths = ["/usr/share/applications", "/usr/local/share/applications"];
+        auto df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions, "/usr/share/applications/de/example.desktop");
+        assert(df.id(appPaths) == "de-example.desktop");
+        
+        df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions, "/usr/local/share/applications/example.desktop");
+        assert(df.id(appPaths) == "example.desktop");
+        
+        df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions, "/etc/desktop/example.desktop");
+        assert(df.id(appPaths).empty);
     }
     
     /**
