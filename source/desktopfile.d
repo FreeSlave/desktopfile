@@ -95,38 +95,36 @@ else version(Posix)
 
 /**
  * Get terminal emulator.
- * It probes various alternatives in this order: TERM (environment variable), x-terminal-emulator (Linux-only), xdg-terminal (Linux-only).
+ * It probes various alternatives in this order: x-terminal-emulator, xdg-terminal (Linux-only), TERM (environment variable).
  * If all guesses failed, it uses xterm as fallback.
  * Returns: Terminal emulator command name (may be just command or absolute path).
  */
 string determineTerminalEmulator() nothrow @trusted 
 {
     string term;
-    if (term.empty) {
-        collectException(environment.get("TERM"), term);
-    }
     
-    version(linux) {
+    version(OSX) {} else version(Posix) {
         if (term.empty) {
             term = findExecutable("x-terminal-emulator");
         }
+        
+        version(linux) {
+            if (term.empty) {
+                term = findExecutable("xdg-terminal");
+            }
+        }
         if (term.empty) {
-            term = findExecutable("xdg-terminal");
+            collectException(environment.get("TERM"), term);
+            if (!term.empty) {
+                term = findExecutable(term);
+            }
+        }
+        if (term.empty) {
+            term = "xterm";
         }
     }
-    if (term.empty) {
-        term = "xterm";
-    }
+    
     return term;
-}
-
-///
-unittest
-{
-    if (environment.get("CI") != "true") {
-        environment["TERM"] = "yakuake";
-        assert(determineTerminalEmulator() == "yakuake");
-    }
 }
 
 private @trusted File getNullStdin()
@@ -197,6 +195,14 @@ struct DesktopAction
      */
     @nogc @safe string iconName() const nothrow {
         return value("Icon");
+    }
+    
+    /**
+     * Returns: Localized icon name
+     * See_Also: iconName
+     */
+    @safe string localizedIconName(string locale) const nothrow {
+        return localizedValue("Icon", locale);
     }
     
     /**
@@ -551,25 +557,21 @@ Type=Application`;
     
     /**
      * Icon to display in file manager, menus, etc.
-     * Returns: The value associated with "Icon" key. If not found it also tries "X-Window-Icon".
+     * Returns: The value associated with "Icon" key.
      * Note: This function returns Icon as it's defined in .desktop file. 
      *  It does not provide any lookup of actual icon file on the system if the name if not an absolute path.
      *  To find the path to icon file refer to $(LINK2 http://standards.freedesktop.org/icon-theme-spec/icon-theme-spec-latest.html, Icon Theme Specification) or consider using $(LINK2 https://github.com/MyLittleRobo/icontheme, icontheme library).
      */
     @nogc @safe string iconName() const nothrow {
-        string iconPath = value("Icon");
-        if (iconPath is null) {
-            iconPath = value("X-Window-Icon");
-        }
-        return iconPath;
+        return value("Icon");
     }
     
-    ///
-    unittest
-    {
-        string contents = "[Desktop Entry]\nX-Window-Icon=nautilus";
-        auto df = new DesktopFile(iniLikeStringReader(contents));
-        assert(df.iconName() == "nautilus");
+    /**
+     * Returns: Localized icon name
+     * See_Also: iconName
+     */
+    @safe string localizedIconName(string locale) const nothrow {
+        return localizedValue("Icon", locale);
     }
     
     /**
@@ -625,28 +627,65 @@ Type=Application`;
         return t;
     }
     
+    private static struct SplitValues
+    {
+        @trusted this(string value) {
+            _value = value;
+            next();
+        }
+        @trusted string front() {
+            return _current;
+        }
+        @trusted void popFront() {
+            next();
+        }
+        @trusted bool empty() {
+            return _value.empty && _current.empty;
+        }
+        @trusted @property auto save() {
+            return this;
+        }
+    private:
+        void next() {
+            size_t i=0;
+            for (; i<_value.length && ( (_value[i] != ';') || (i && _value[i-1] == '\\' && _value[i] == ';')); ++i) {
+                //pass
+            }
+            _current = _value[0..i].replace("\\;", ";");
+            _value = i == _value.length ? _value[_value.length..$] : _value[i+1..$];
+        }
+        string _value;
+        string _current;
+    }
+
+    static assert(isForwardRange!SplitValues);
+    
     /**
      * Some keys can have multiple values, separated by semicolon. This function helps to parse such kind of strings into the range.
      * Returns: The range of multiple nonempty values.
+     * Note: Returned range unescapes ';' character automatically.
      */
     @trusted static auto splitValues(string values) {
-        return values.splitter(';').filter!(s => s.length != 0);
+        return SplitValues(values).filter!(s => !s.empty);
     }
     
     ///
     unittest 
     {
-        assert(equal(DesktopFile.splitValues("Application;Utility;FileManager;"), ["Application", "Utility", "FileManager"]));
         assert(DesktopFile.splitValues("").empty);
         assert(DesktopFile.splitValues(";").empty);
+        assert(DesktopFile.splitValues(";;;").empty);
+        assert(equal(DesktopFile.splitValues("Application;Utility;FileManager;"), ["Application", "Utility", "FileManager"]));
+        assert(equal(DesktopFile.splitValues("I\\;Me;\\;You\\;We\\;"), ["I;Me", ";You;We;"]));
     }
     
     /**
      * Join range of multiple values into a string using semicolon as separator. Adds trailing semicolon.
-     * If range is empty, then the empty string is returned.
+     * Returns: Values of range joined into one string with ';' after each value or empty string if range is empty.
+     * Note: If some value of range contains ';' character it's automatically escaped.
      */
     @trusted static string joinValues(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
-        auto result = values.filter!( s => s.length != 0 ).joiner(";");
+        auto result = values.filter!( s => !s.empty ).map!( s => s.replace(";", "\\;")).joiner(";");
         if (result.empty) {
             return null;
         } else {
@@ -657,8 +696,9 @@ Type=Application`;
     ///
     unittest
     {
-        assert(equal(DesktopFile.joinValues(["Application", "Utility", "FileManager"]), "Application;Utility;FileManager;"));
         assert(DesktopFile.joinValues([""]).empty);
+        assert(equal(DesktopFile.joinValues(["Application", "Utility", "FileManager"]), "Application;Utility;FileManager;"));
+        assert(equal(DesktopFile.joinValues(["I;Me", ";You;We;"]), "I\\;Me;\\;You\\;We\\;;"));
     }
     
     /**
@@ -857,8 +897,12 @@ Icon=folder`;
         enforce(args.length, "No command line params to run the program. Is Exec missing?");
         
         if (terminal()) {
-            string term = preferableTerminal();            
-            args = [term, "-e"] ~ args;
+            string term = preferableTerminal();
+            if (term.baseName == "xdg-terminal") {
+                args = [term] ~ args;
+            } else {
+                args = [term, "-e"] ~ args;
+            }
         }
         
         return execProcess(args, workingDirectory());

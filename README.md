@@ -79,7 +79,7 @@ To print all directories examined by desktoptest to stdout, build it in non-rele
 Start desktoptest on specified directories:
 
     dub run desktopfile:desktoptest -- /path/to/applications /anotherpath/to/applications
-    # Example using cmd on Windows:
+    # Example using cmd on Windows (KDE installed):
     dub run desktopfile:desktoptest -- "%SYSTEMDRIVE%\ProgramData\KDE\share\applications" "%APPDATA%\.kde\share"
     
     
