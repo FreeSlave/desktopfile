@@ -35,6 +35,16 @@ private {
 }
 
 /**
+ * Exception thrown when "Exec" value of DesktopFile or DesktopAction is invalid.
+ */
+class DesktopExecException : Exception
+{
+    this(string msg, string file = __FILE__, size_t line = __LINE__, Throwable next = null) pure nothrow @safe {
+        super(msg, file, line, next);
+    }
+}
+
+/**
  * Applications paths based on data paths. 
  * This function is available on all platforms, but requires dataPaths argument (e.g. C:\ProgramData\KDE\share on Windows)
  * Returns: Array of paths, based on dataPaths with "applications" directory appended.
@@ -110,7 +120,7 @@ private @trusted string unescapeQuotedArgument(string value) nothrow pure
     return doUnescape(value, pairs);
 }
 
-@trusted string[] unquoteExecString(string value) pure
+@trusted auto unquoteExecString(string value) pure
 {
     string[] result;
     size_t i;
@@ -139,7 +149,7 @@ private @trusted string unescapeQuotedArgument(string value) nothrow pure
                 i++;
             }
             if (inQuotes) {
-                throw new Exception("Missing end delimeter");
+                throw new DesktopExecException("Missing pair double quote");
             }
             result ~= value[start..i];
             i++;
@@ -157,29 +167,82 @@ private @trusted string unescapeQuotedArgument(string value) nothrow pure
         }
     }
     
-    return result.map!(s => s.unescapeQuotedArgument).array;
+    return result.map!(s => s.unescapeQuotedArgument);
 }
 
 ///
 unittest 
 {
-    assert(unquoteExecString(``) == []);
-    assert(unquoteExecString(`   `) == []);
-    assert(unquoteExecString(`"" "  "`) == [``, `  `]);
+    assert(equal(unquoteExecString(``), string[].init));
+    assert(equal(unquoteExecString(`   `), string[].init));
+    assert(equal(unquoteExecString(`"" "  "`), [``, `  `]));
     
-    assert(unquoteExecString(`cmd arg1  arg2   arg3   `) == [`cmd`, `arg1`, `arg2`, `arg3`]);
-    assert(unquoteExecString(`"cmd" arg1 arg2  `) == [`cmd`, `arg1`, `arg2`]);
+    assert(equal(unquoteExecString(`cmd arg1  arg2   arg3   `), [`cmd`, `arg1`, `arg2`, `arg3`]));
+    assert(equal(unquoteExecString(`"cmd" arg1 arg2  `), [`cmd`, `arg1`, `arg2`]));
     
-    assert(unquoteExecString(`"quoted cmd"   arg1  "quoted arg"  `) == [`quoted cmd`, `arg1`, `quoted arg`]);
-    assert(unquoteExecString(`"quoted \"cmd\"" arg1 "quoted \"arg\""`) == [`quoted "cmd"`, `arg1`, `quoted "arg"`]);
+    assert(equal(unquoteExecString(`"quoted cmd"   arg1  "quoted arg"  `), [`quoted cmd`, `arg1`, `quoted arg`]));
+    assert(equal(unquoteExecString(`"quoted \"cmd\"" arg1 "quoted \"arg\""`), [`quoted "cmd"`, `arg1`, `quoted "arg"`]));
     
-    assert(unquoteExecString(`"\\\$" `) == [`\$`]);
-    assert(unquoteExecString(`"\\$" `) == [`\$`]);
-    assert(unquoteExecString(`"\$" `) == [`$`]);
-    assert(unquoteExecString(`"$"`) == [`$`]);
+    assert(equal(unquoteExecString(`"\\\$" `), [`\$`]));
+    assert(equal(unquoteExecString(`"\\$" `), [`\$`]));
+    assert(equal(unquoteExecString(`"\$" `), [`$`]));
+    assert(equal(unquoteExecString(`"$"`), [`$`]));
     
-    assert(unquoteExecString(`"\\" `) == [`\`]);
-    assert(unquoteExecString(`"\\\\" `) == [`\\`]);
+    assert(equal(unquoteExecString(`"\\" `), [`\`]));
+    assert(equal(unquoteExecString(`"\\\\" `), [`\\`]));
+}
+
+@trusted string[] parseExecString(string execString) pure
+{
+    return execString.unquoteExecString().map!(unescapeExecArgument).array;
+}
+
+@trusted string[] expandExecArgs(in string[] execArgs, in string[] urls, string iconName = null, string name = null, string fileName = null) pure
+{
+    string[] toReturn;
+    foreach(token; execArgs) {
+        if (token == "%f") {
+            if (urls.length) {
+                toReturn ~= urls.front;
+            }
+        } else if (token == "%F") {
+            toReturn ~= urls;
+        } else if (token == "%u") {
+            if (urls.length) {
+                toReturn ~= urls.front;
+            }
+        } else if (token == "%U") {
+            toReturn ~= urls;
+        } else if (token == "%i") {
+            if (iconName.length) {
+                toReturn ~= "--icon";
+                toReturn ~= iconName;
+            }
+        } else if (token == "%c") {
+            toReturn ~= name;
+        } else if (token == "%k") {
+            toReturn ~= fileName;
+        } else if (token == "%d" || token == "%D" || token == "%n" || token == "%N" || token == "%m" || token == "%v") {
+            continue;
+        } else {
+            if (token.length == 2 && token[0] == '%') {
+                throw new DesktopExecException("Unknown field code: " ~ token);
+            } else {
+                toReturn ~= token;
+            }
+        }
+    }
+    
+    return toReturn;
+}
+
+@trusted string[] expandExecString(string execString, in string[] urls, string iconName = null, string name = null, string fileName = null) pure
+{
+    auto execArgs = parseExecString(execString);
+    if (execArgs.empty) {
+        throw new DesktopExecException("No arguments. Missing or empty Exec value");
+    }
+    return expandExecArgs(execArgs, urls, iconName, name, fileName);
 }
 
 /**
@@ -302,10 +365,8 @@ struct DesktopAction
      *  Exception if expanded exec string is empty.
      * See_Also: execString
      */
-    @safe Pid start() const {
-        auto args = execString().unquoteExecString().map!(unescapeExecArgument).array;
-        enforce(args.length, "No command line params to run the program. Is Exec missing?");
-        return execProcess(args);
+    @safe Pid start(string locale = null) const {
+        return execProcess(expandExecString(execString, null, localizedIconName(locale), localizedName(locale)));
     }
     
     /**
@@ -927,44 +988,12 @@ Type=Application`;
     
     /**
      * Expand "Exec" value into the array of command line arguments to use to start the program.
+     * It applies unquoting and unescaping.
      * See_Also: execString, unquoteExecString, unescapeExecArgument, startApplication
      */
     @safe string[] expandExecString(in string[] urls = null, string locale = null) const
     {   
-        string[] toReturn;
-        auto execArgs = execString().unquoteExecString().map!(unescapeExecArgument).array;
-        
-        foreach(token; execArgs) {
-            if (token == "%f") {
-                if (urls.length) {
-                    toReturn ~= urls.front;
-                }
-            } else if (token == "%F") {
-                toReturn ~= urls;
-            } else if (token == "%u") {
-                if (urls.length) {
-                    toReturn ~= urls.front;
-                }
-            } else if (token == "%U") {
-                toReturn ~= urls;
-            } else if (token == "%i") {
-                auto iconStr = localizedIconName(locale);
-                if (iconStr.length) {
-                    toReturn ~= "--icon";
-                    toReturn ~= iconStr;
-                }
-            } else if (token == "%c") {
-                toReturn ~= localizedName(locale);
-            } else if (token == "%k") {
-                toReturn ~= fileName();
-            } else if (token == "%d" || token == "%D" || token == "%n" || token == "%N" || token == "%m" || token == "%v") {
-                continue;
-            } else {
-                toReturn ~= token;
-            }
-        }
-        
-        return toReturn;
+        return .expandExecString(execString(), urls, localizedIconName(locale), localizedName(locale), fileName());
     }
     
     ///
@@ -1000,13 +1029,10 @@ Icon=folder`;
     @trusted Pid startApplication(in string[] urls = null, string locale = null, lazy string[] terminalCommand = getTerminalCommand) const
     {
         auto args = expandExecString(urls, locale);
-        enforce(args.length, "No command line params to run the program. Is Exec missing?");
-        
         if (terminal()) {
             auto termCmd = terminalCommand();
             args = termCmd ~ args;
         }
-        
         return execProcess(args, workingDirectory());
     }
     
