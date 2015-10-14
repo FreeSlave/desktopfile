@@ -36,9 +36,7 @@ void main(string[] args)
     } else if (command == "exec") {
         auto df = new DesktopFile(inFile);
         string action;
-        string term;
-        getopt(args, "action", "Action to run", &action, 
-               "term", "Preferred terminal emulator to run console applications", &term);
+        getopt(args, "action", "Action to run", &action);
         if (action.length) {
             auto desktopAction = df.action(action);
             if (desktopAction.group() is null) {
@@ -49,11 +47,7 @@ void main(string[] args)
         } else {
             string[] urls = args[3..$];
             writeln("Exec:", df.expandExecString(urls));
-            if (term.length) {
-                df.startApplication(urls, locale, term);
-            } else {
-                df.startApplication(urls, locale);
-            }
+            df.startApplication(urls, locale);
         }
         
         

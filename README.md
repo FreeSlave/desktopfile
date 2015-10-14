@@ -32,6 +32,7 @@ Ddox:
 ### Desktop util
 
 Utility that can parse, execute and rewrites .desktop files.
+
 This will start vlc with the first parameter set to $HOME/Music:
 
     dub run desktopfile:desktoputil -- exec /usr/share/applications/vlc.desktop $HOME/Music
@@ -39,10 +40,6 @@ This will start vlc with the first parameter set to $HOME/Music:
 This should start command line application in terminal emulator (will be detected automatically):
 
     dub run desktopfile:desktoputil -- exec /usr/share/applications/python2.7.desktop
-    
-Run in specific terminal emulator:
-
-    dub run desktopfile:desktoputil -- exec /usr/share/applications/python2.7.desktop --term=xterm
 
 Additional application actions are supported too:
 
@@ -79,7 +76,9 @@ To print all directories examined by desktoptest to stdout, build it in non-rele
 Start desktoptest on specified directories:
 
     dub run desktopfile:desktoptest -- /path/to/applications /anotherpath/to/applications
-    # Example using cmd on Windows (KDE installed):
+    
+Example using cmd on Windows (KDE installed):
+
     dub run desktopfile:desktoptest -- "%SYSTEMDRIVE%\ProgramData\KDE\share\applications" "%APPDATA%\.kde\share"
     
     

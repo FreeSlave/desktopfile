@@ -29,6 +29,7 @@ private {
     import std.string;
     import std.traits;
     import std.typecons;
+    import std.uni;
     
     static if( __VERSION__ < 2066 ) enum nogc = 1;
 }
@@ -71,9 +72,13 @@ else version(Posix)
 }
 
 
-@trusted string unescapeExec(string str) nothrow pure
+@trusted string unescapeExecArgument(string arg) nothrow pure
 {
     static immutable Tuple!(char, char)[] pairs = [
+       tuple('s', ' '),
+       tuple('n', '\n'),
+       tuple('r', '\r'),
+       tuple('t', '\t'),
        tuple('"', '"'),
        tuple('\'', '\''),
        tuple('\\', '\\'),
@@ -89,42 +94,118 @@ else version(Posix)
        tuple('#', '#'),
        tuple('(', '('),
        tuple(')', ')'),
+       tuple('`', '`'),
     ];
-    return doUnescape(str, pairs);
+    return doUnescape(arg, pairs);
 }
 
-/**
- * Get terminal emulator.
- * It probes various alternatives in this order: x-terminal-emulator, xdg-terminal (Linux-only), TERM (environment variable).
- * If all guesses failed, it uses xterm as fallback.
- * Returns: Terminal emulator command name (may be just command or absolute path).
- */
-string determineTerminalEmulator() nothrow @trusted 
+private @trusted string unescapeQuotedArgument(string value) nothrow pure
 {
-    string term;
+    static immutable Tuple!(char, char)[] pairs = [
+       tuple('`', '`'),
+       tuple('$', '$'),
+       tuple('"', '"'),
+       tuple('\\', '\\')
+    ];
+    return doUnescape(value, pairs);
+}
+
+@trusted string[] unquoteExecString(string value) pure
+{
+    string[] result;
+    size_t i;
     
-    version(OSX) {} else version(Posix) {
-        if (term.empty) {
-            term = findExecutable("x-terminal-emulator");
-        }
-        
-        version(linux) {
-            if (term.empty) {
-                term = findExecutable("xdg-terminal");
+    while(i < value.length) {
+        if (isWhite(value[i])) {
+            i++;
+        } else if (value[i] == '"') {
+            i++;
+            size_t start = i;
+            bool inQuotes = true;
+            bool wasSlash;
+            
+            while(i < value.length) {
+                if (value[i] == '\\' && value.length > i+1 && value[i+1] == '\\') {
+                    i+=2;
+                    wasSlash = true;
+                    continue;
+                }
+                
+                if (value[i] == '"' && (value[i-1] != '\\' || (value[i-1] == '\\' && wasSlash) )) {
+                    inQuotes = false;
+                    break;
+                }
+                wasSlash = false;
+                i++;
             }
-        }
-        if (term.empty) {
-            collectException(environment.get("TERM"), term);
-            if (!term.empty) {
-                term = findExecutable(term);
+            if (inQuotes) {
+                throw new Exception("Missing end delimeter");
             }
-        }
-        if (term.empty) {
-            term = "xterm";
+            result ~= value[start..i];
+            i++;
+            
+        } else {
+            size_t start = i;
+            i++;
+            while(i < value.length) {
+                if (isWhite(value[i])) {
+                    break;
+                }
+                i++;
+            }
+            result ~= value[start..i];
         }
     }
     
-    return term;
+    return result.map!(s => s.unescapeQuotedArgument).array;
+}
+
+///
+unittest 
+{
+    assert(unquoteExecString(``) == []);
+    assert(unquoteExecString(`   `) == []);
+    assert(unquoteExecString(`"" "  "`) == [``, `  `]);
+    
+    assert(unquoteExecString(`cmd arg1  arg2   arg3   `) == [`cmd`, `arg1`, `arg2`, `arg3`]);
+    assert(unquoteExecString(`"cmd" arg1 arg2  `) == [`cmd`, `arg1`, `arg2`]);
+    
+    assert(unquoteExecString(`"quoted cmd"   arg1  "quoted arg"  `) == [`quoted cmd`, `arg1`, `quoted arg`]);
+    assert(unquoteExecString(`"quoted \"cmd\"" arg1 "quoted \"arg\""`) == [`quoted "cmd"`, `arg1`, `quoted "arg"`]);
+    
+    assert(unquoteExecString(`"\\\$" `) == [`\$`]);
+    assert(unquoteExecString(`"\\$" `) == [`\$`]);
+    assert(unquoteExecString(`"\$" `) == [`$`]);
+    assert(unquoteExecString(`"$"`) == [`$`]);
+    
+    assert(unquoteExecString(`"\\" `) == [`\`]);
+    assert(unquoteExecString(`"\\\\" `) == [`\\`]);
+}
+
+/**
+ * Detect command which will run program in terminal emulator.
+ * On Freedesktop it looks for x-terminal-emulator first. If found ["/path/to/x-terminal-emulator", "-e"] is returned.
+ * Otherwise it looks for xdg-terminal. If found ["/path/to/xdg-terminal"] is returned.
+ * If all guesses failed, it uses ["xterm", "-e"] as fallback.
+ * Note: This function always returns empty array on non-freedesktop systems.
+ */
+string[] getTerminalCommand() nothrow @trusted 
+{
+    version(OSX) {
+        return null;
+    } else version(Posix) {
+        string term = findExecutable("x-terminal-emulator");
+        if (!term.empty) {
+            return [term, "-e"];
+        }
+        term = findExecutable("xdg-terminal");
+        if (!term.empty) {
+            return [term];
+        }
+        return ["xterm", "-e"];
+    } else {
+        return null;
+    }
 }
 
 private @trusted File getNullStdin()
@@ -222,7 +303,7 @@ struct DesktopAction
      * See_Also: execString
      */
     @safe Pid start() const {
-        auto args = execString().unescapeExec().split().array;
+        auto args = execString().unquoteExecString().map!(unescapeExecArgument).array;
         enforce(args.length, "No command line params to run the program. Is Exec missing?");
         return execProcess(args);
     }
@@ -846,14 +927,14 @@ Type=Application`;
     
     /**
      * Expand "Exec" value into the array of command line arguments to use to start the program.
-     * See_Also: execString, startApplication
+     * See_Also: execString, unquoteExecString, unescapeExecArgument, startApplication
      */
     @safe string[] expandExecString(in string[] urls = null, string locale = null) const
     {   
         string[] toReturn;
-        auto execStr = execString().unescapeExec(); //add unquoting
+        auto execArgs = execString().unquoteExecString().map!(unescapeExecArgument).array;
         
-        foreach(token; execStr.split) {
+        foreach(token; execArgs) {
             if (token == "%f") {
                 if (urls.length) {
                     toReturn ~= urls.front;
@@ -867,7 +948,7 @@ Type=Application`;
             } else if (token == "%U") {
                 toReturn ~= urls;
             } else if (token == "%i") {
-                auto iconStr = iconName();
+                auto iconStr = localizedIconName(locale);
                 if (iconStr.length) {
                     toReturn ~= "--icon";
                     toReturn ~= iconStr;
@@ -893,11 +974,11 @@ Type=Application`;
 `[Desktop Entry]
 Name=Program
 Name[ru]=Программа
-Exec=program %i -w %c -f %k %U %D %u %f %F
+Exec="quoted program" %i -w %c -f %k %U %D %u %f %F
 Icon=folder`;
         auto df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions, "/example.desktop");
         assert(df.expandExecString(["one", "two"], "ru") == 
-        ["program", "--icon", "folder", "-w", "Программа", "-f", "/example.desktop", "one", "two", "one", "one", "one", "two"]);
+        ["quoted program", "--icon", "folder", "-w", "Программа", "-f", "/example.desktop", "one", "two", "one", "one", "one", "two"]);
     }
     
     /**
@@ -906,7 +987,7 @@ Icon=folder`;
      * Params:
      *  urls = urls application will start with.
      *  locale = locale that may be needed to be placed in urls if Exec value has %c code.
-     *  preferableTerminal = preferable terminal emulator. If not set then terminal is determined via determineTerminalEmulator.
+     *  terminalCommand = preferable terminal emulator command. If not set then terminal is determined via getTerminalCommand.
      * Note:
      *  This function does not check if the type of desktop file is Application. It relies only on "Exec" value.
      * Returns:
@@ -916,18 +997,14 @@ Icon=folder`;
      *  Exception if expanded exec string is empty.
      * See_Also: determineTerminalEmulator, start, expandExecString
      */
-    @trusted Pid startApplication(in string[] urls = null, string locale = null, lazy string preferableTerminal = determineTerminalEmulator) const
+    @trusted Pid startApplication(in string[] urls = null, string locale = null, lazy string[] terminalCommand = getTerminalCommand) const
     {
         auto args = expandExecString(urls, locale);
         enforce(args.length, "No command line params to run the program. Is Exec missing?");
         
         if (terminal()) {
-            string term = preferableTerminal();
-            if (term.baseName == "xdg-terminal") {
-                args = [term] ~ args;
-            } else {
-                args = [term, "-e"] ~ args;
-            }
+            auto termCmd = terminalCommand();
+            args = termCmd ~ args;
         }
         
         return execProcess(args, workingDirectory());
@@ -937,12 +1014,11 @@ Icon=folder`;
     unittest
     {
         auto df = new DesktopFile();
-        string[] urls;
-        assertThrown(df.startApplication(urls, null, "xterm"));
+        assertThrown(df.startApplication(string[].init));
     }
     
     ///ditto, but uses the only url.
-    @trusted Pid startApplication(string url, string locale = null, lazy string preferableTerminal = determineTerminalEmulator) const {
+    @trusted Pid startApplication(string url, string locale = null, lazy string[] preferableTerminal = getTerminalCommand) const {
         return startApplication([url], locale, preferableTerminal);
     }
     
