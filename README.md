@@ -80,6 +80,6 @@ Start desktoptest on specified directories:
 Example using cmd on Windows (KDE installed):
 
     set KDE_SHARE="%SYSTEMDRIVE%\ProgramData\KDE\share"
-    dub run desktopfile:desktoptest -- %KDE_SHARE%\applications %KDE_SHARE%\templates" %KDE_SHARE%\desktop-directories %KDE_SHARE%\autostart
+    dub run desktopfile:desktoptest -- %KDE_SHARE%\applications %KDE_SHARE%\templates %KDE_SHARE%\desktop-directories %KDE_SHARE%\autostart
     
     

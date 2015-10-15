@@ -128,9 +128,9 @@ private @trusted string unescapeQuotedArgument(string value) nothrow pure
     while(i < value.length) {
         if (isWhite(value[i])) {
             i++;
-        } else if (value[i] == '"') {
-            i++;
-            size_t start = i;
+        } else if (value[i] == '"' || value[i] == '\'') {
+            char delimeter = value[i];
+            size_t start = ++i;
             bool inQuotes = true;
             bool wasSlash;
             
@@ -141,7 +141,7 @@ private @trusted string unescapeQuotedArgument(string value) nothrow pure
                     continue;
                 }
                 
-                if (value[i] == '"' && (value[i-1] != '\\' || (value[i-1] == '\\' && wasSlash) )) {
+                if (value[i] == delimeter && (value[i-1] != '\\' || (value[i-1] == '\\' && wasSlash) )) {
                     inQuotes = false;
                     break;
                 }
@@ -149,25 +149,21 @@ private @trusted string unescapeQuotedArgument(string value) nothrow pure
                 i++;
             }
             if (inQuotes) {
-                throw new DesktopExecException("Missing pair double quote");
+                throw new DesktopExecException("Missing pair quote");
             }
-            result ~= value[start..i];
+            result ~= value[start..i].unescapeQuotedArgument();
             i++;
             
         } else {
             size_t start = i;
-            i++;
-            while(i < value.length) {
-                if (isWhite(value[i])) {
-                    break;
-                }
+            while(i < value.length && !isWhite(value[i])) {
                 i++;
             }
             result ~= value[start..i];
         }
     }
     
-    return result.map!(s => s.unescapeQuotedArgument);
+    return result;
 }
 
 ///
@@ -190,6 +186,10 @@ unittest
     
     assert(equal(unquoteExecString(`"\\" `), [`\`]));
     assert(equal(unquoteExecString(`"\\\\" `), [`\\`]));
+    
+    assert(equal(unquoteExecString(`'quoted cmd' arg`), [`quoted cmd`, `arg`]));
+    
+    assertThrown!DesktopExecException(unquoteExecString(`cmd "quoted arg`));
 }
 
 @trusted string[] parseExecString(string execString) pure
@@ -225,8 +225,12 @@ unittest
         } else if (token == "%d" || token == "%D" || token == "%n" || token == "%N" || token == "%m" || token == "%v") {
             continue;
         } else {
-            if (token.length == 2 && token[0] == '%') {
-                throw new DesktopExecException("Unknown field code: " ~ token);
+            if (token.length >= 2 && token[0] == '%') {
+                if (token[1] == '%') {
+                    toReturn ~= token[1..$];
+                } else {
+                    throw new DesktopExecException("Unknown field code: " ~ token);
+                }
             } else {
                 toReturn ~= token;
             }
@@ -362,7 +366,7 @@ struct DesktopAction
      *  Pid of started process.
      * Throws:
      *  ProcessException on failure to start the process.
-     *  Exception if expanded exec string is empty.
+     *  DesktopExecException if exec string is invalid.
      * See_Also: execString
      */
     @safe Pid start(string locale = null) const {
@@ -1037,7 +1041,7 @@ Icon=folder`;
      *  Pid of started process.
      * Throws:
      *  ProcessException on failure to start the process.
-     *  Exception if expanded exec string is empty.
+     *  DesktopExecException if exec string is invalid.
      * See_Also: determineTerminalEmulator, start, expandExecString
      */
     @trusted Pid startApplication(in string[] urls = null, string locale = null, lazy string[] terminalCommand = getTerminalCommand) const
@@ -1058,8 +1062,8 @@ Icon=folder`;
     }
     
     ///ditto, but uses the only url.
-    @trusted Pid startApplication(string url, string locale = null, lazy string[] preferableTerminal = getTerminalCommand) const {
-        return startApplication([url], locale, preferableTerminal);
+    @trusted Pid startApplication(string url, string locale = null, lazy string[] terminalCommand = getTerminalCommand) const {
+        return startApplication([url], locale, terminalCommand);
     }
     
     /**
@@ -1070,7 +1074,7 @@ Icon=folder`;
      *  Pid of started process.
      * Throws:
      *  ProcessException on failure to start the process.
-     *  Exception if desktop file does not define URL.
+     *  Exception if desktop file does not define URL or it's empty.
      * See_Also: start
      */
     @trusted Pid startLink() const {
@@ -1103,7 +1107,7 @@ Icon=folder`;
             case DesktopFile.Type.Link:
                 return startLink();
             case DesktopFile.Type.Directory:
-                throw new Exception("Don't know how to start directory");
+                throw new Exception("Don't know how to start Directory");
             case DesktopFile.Type.Unknown:
                 throw new Exception("Unknown desktop entry type");
         }

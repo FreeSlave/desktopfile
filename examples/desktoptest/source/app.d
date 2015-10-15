@@ -14,7 +14,9 @@ void main(string[] args)
     version(OSX) {} else version(Posix) {
         import standardpaths;
         
-        desktopDirs = applicationsPaths() ~ writablePath(StandardPath.desktop);
+        string[] dataPaths = standardPaths(StandardPath.data);
+        
+        desktopDirs = applicationsPaths() ~ dataPaths.map!(s => buildPath(s, "desktop-directories")).array ~ dataPaths.map!(s => buildPath(s, "templates")).array ~ writablePath(StandardPath.desktop);
     } else version(Windows) {
         try {
             auto root = environment.get("SYSTEMDRIVE", "C:");
@@ -33,7 +35,7 @@ void main(string[] args)
     
     if (!desktopDirs.length) {
         writeln("No desktop directories given nor could be detected");
-        writefln("Usage: %s [DIR]...", args[0]);
+        writefln("Usage: %s [DIRECTORY]...", args[0]);
         return;
     }
     
@@ -43,10 +45,16 @@ void main(string[] args)
         foreach(entry; dir.dirEntries(SpanMode.depth).filter!(a => a.isFile() && (a.extension == ".desktop" || a.extension == ".directory"))) {
             debug writeln(entry);
             try {
-                new DesktopFile(entry);
+                auto df = new DesktopFile(entry);
+                if (!df.execString().empty) {
+                    auto execArgs = df.expandExecString();
+                }
             }
             catch(IniLikeException e) {
                 stderr.writefln("Error reading %s: at %s: %s", entry, e.lineNumber, e.msg);
+            }
+            catch(DesktopExecException e) {
+                stderr.writefln("Error while expanding Exec value of %s: %s", entry, e.msg);
             }
             catch(Exception e) {
                 stderr.writefln("Error reading %s: %s", entry, e.msg);
