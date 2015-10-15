@@ -40,7 +40,7 @@ void main(string[] args)
     writefln("Using directories: %-(%s, %)", desktopDirs);
 
     foreach(dir; desktopDirs.filter!(s => s.exists && s.isDir())) {
-        foreach(entry; dir.dirEntries(SpanMode.depth).filter!(a => a.isFile() && a.extension == ".desktop")) {
+        foreach(entry; dir.dirEntries(SpanMode.depth).filter!(a => a.isFile() && (a.extension == ".desktop" || a.extension == ".directory"))) {
             debug writeln(entry);
             try {
                 new DesktopFile(entry);

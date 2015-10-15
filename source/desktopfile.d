@@ -645,16 +645,30 @@ public:
         string contents = 
 `[Desktop Entry]
 Name=Program
-Type=Application`;
+Type=Directory`;
         
-        auto appPaths = ["/usr/share/applications", "/usr/local/share/applications"];
-        auto df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions, "/usr/share/applications/de/example.desktop");
-        assert(df.id(appPaths) == "de-example.desktop");
+        string[] appPaths;
+        string filePath, nestedFilePath, wrongFilePath;
         
-        df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions, "/usr/local/share/applications/example.desktop");
+        version(Windows) {
+            appPaths = [`C:\ProgramData\KDE\share\applications`, `C:\Users\username\.kde\share\applications`];
+            filePath = `C:\ProgramData\KDE\share\applications\example.desktop`;
+            nestedFilePath = `C:\ProgramData\KDE\share\applications\kde\example.desktop`;
+            wrongFilePath = `C:\ProgramData\desktop\example.desktop`;
+        } else {
+            appPaths = ["/usr/share/applications", "/usr/local/share/applications"];
+            filePath = "/usr/share/applications/example.desktop";
+            nestedFilePath = "/usr/share/applications/kde/example.desktop";
+            wrongFilePath = "/etc/desktop/example.desktop";
+        }
+         
+        auto df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions, nestedFilePath);
+        assert(df.id(appPaths) == "kde-example.desktop");
+        
+        df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions, filePath);
         assert(df.id(appPaths) == "example.desktop");
         
-        df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions, "/etc/desktop/example.desktop");
+        df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions, wrongFilePath);
         assert(df.id(appPaths).empty);
     }
     
