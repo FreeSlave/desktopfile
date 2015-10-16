@@ -21,7 +21,9 @@ void main(string[] args)
         writefln("Comment: %s. Localized: %s", df.comment(), df.localizedComment(locale));
         writeln("Type: ", df.value("Type"));
         writeln("Icon: ", df.iconName());
-        writeln("Desktop ID: ", df.id());
+        version(OSX) {} else version(Posix) {
+            writeln("Desktop ID: ", df.id());
+        }
         writefln("Actions: %(%s %)", df.actions());
         writefln("Categories: %(%s %)", df.categories());
         writefln("MimeTypes: %(%s %)", df.mimeTypes());

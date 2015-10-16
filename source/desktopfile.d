@@ -426,7 +426,7 @@ public:
     {   
         super(byLine, options, fileName);
         _desktopEntry = group("Desktop Entry");
-        enforce(_desktopEntry, new IniLikeException("no groups", 0));
+        enforce(_desktopEntry, new IniLikeException("No \"Desktop Entry\" group", 0));
     }
     
     /**
@@ -449,13 +449,11 @@ public:
     }
     
     @safe override IniLikeGroup addGroup(string groupName) {
-        if (!_desktopEntry) {
-            enforce(groupName == "Desktop Entry", "The first group must be Desktop Entry");
-            _desktopEntry = super.addGroup(groupName);
-            return _desktopEntry;
-        } else {
-            return super.addGroup(groupName);
+        auto entry = super.addGroup(groupName);
+        if (groupName == "Desktop Entry") {
+            _desktopEntry = entry;
         }
+        return entry;
     }
     
     /**
@@ -608,8 +606,9 @@ public:
     version(OSX) {} version(Posix) {
         /** 
         * See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html, Desktop File ID)
-        * Returns: desktop file ID or empty string if file does not have an ID.
-        * Note: This function retrieves applications paths each time it's called. To avoid this issue use overload with argument.
+        * Returns: Desktop file ID or empty string if file does not have an ID.
+        * Note: This function retrieves applications paths each time it's called and therefore can impact performance. To avoid this issue use overload with argument.
+        * See_Also: applicationsPaths
         */
         @trusted string id() const nothrow {
             return id(applicationsPaths());
@@ -618,7 +617,10 @@ public:
     
     /**
      * See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html, Desktop File ID)
-     * Returns: desktop file ID or empty string if file does not have an ID.
+     * Params: 
+     *  appPaths = range of base application paths to check if this file belongs to one of them.
+     * Returns: Desktop file ID or empty string if file does not have an ID.
+     * See_Also: applicationsPaths
      */
     @trusted string id(Range)(Range appPaths) const nothrow if (isInputRange!Range && is(ElementType!Range : string)) 
     {
@@ -673,6 +675,9 @@ Type=Directory`;
         assert(df.id(appPaths) == "example.desktop");
         
         df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions, wrongFilePath);
+        assert(df.id(appPaths).empty);
+        
+        df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions);
         assert(df.id(appPaths).empty);
     }
     
@@ -1042,7 +1047,7 @@ Icon=folder`;
      * Throws:
      *  ProcessException on failure to start the process.
      *  DesktopExecException if exec string is invalid.
-     * See_Also: determineTerminalEmulator, start, expandExecString
+     * See_Also: getTerminalCommand, start, expandExecString
      */
     @trusted Pid startApplication(in string[] urls = null, string locale = null, lazy string[] terminalCommand = getTerminalCommand) const
     {
@@ -1096,7 +1101,7 @@ Icon=folder`;
      *  Pid of started process.
      * Throws:
      *  ProcessException on failure to start the process.
-     *  Exception if type is unknown or directory.
+     *  Exception if type is Unknown or Directory.
      * See_Also: startApplication, startLink
      */
     @trusted Pid start() const

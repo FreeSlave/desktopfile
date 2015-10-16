@@ -11,26 +11,26 @@ void main(string[] args)
 {
     string[] desktopDirs;
     
-    version(OSX) {} else version(Posix) {
+    if (args.length > 1) {
+        desktopDirs = args[1..$];
+    } else {
+        version(OSX) {} else version(Posix) {
         import standardpaths;
         
         string[] dataPaths = standardPaths(StandardPath.data);
         
-        desktopDirs = applicationsPaths() ~ dataPaths.map!(s => buildPath(s, "desktop-directories")).array ~ dataPaths.map!(s => buildPath(s, "templates")).array ~ writablePath(StandardPath.desktop);
-    } else version(Windows) {
-        try {
-            auto root = environment.get("SYSTEMDRIVE", "C:");
-            auto kdeDir = root ~ `\ProgramData\KDE\share\applications`;
-            if (kdeDir.isDir) {
-                desktopDirs = [kdeDir];
+        desktopDirs = applicationsPaths() ~ dataPaths.map!(s => buildPath(s, "desktop-directories")).array ~ dataPaths.map!(s => buildPath(s, "templates")).array ~ dataPaths.map!(s => buildPath(s, "autostart")).array ~ writablePath(StandardPath.desktop);
+        } else version(Windows) {
+            try {
+                auto root = environment.get("SYSTEMDRIVE", "C:");
+                auto kdeDir = root ~ `\ProgramData\KDE\share`;
+                if (kdeDir.isDir) {
+                    desktopDirs = [buildPath(kdeDir, `applications`), buildPath(kdeDir, `desktop-directories`), buildPath(kdeDir, `templates`), buildPath(kdeDir, `autostart`)];
+                }
+            } catch(Exception e) {
+                
             }
-        } catch(Exception e) {
-            
         }
-    }
-    
-    if (args.length > 1) {
-        desktopDirs = args[1..$];
     }
     
     if (!desktopDirs.length) {
