@@ -4,12 +4,17 @@ import std.array;
 import std.file;
 import std.path;
 import std.process;
+import std.getopt;
 
 import desktopfile;
 
 void main(string[] args)
 {
     string[] desktopDirs;
+    
+    bool verbose;
+    
+    getopt(args, "verbose", "Print name of each examined desktop file to standard output", &verbose);
     
     if (args.length > 1) {
         desktopDirs = args[1..$];
@@ -43,7 +48,9 @@ void main(string[] args)
 
     foreach(dir; desktopDirs.filter!(s => s.exists && s.isDir())) {
         foreach(entry; dir.dirEntries(SpanMode.depth).filter!(a => a.isFile() && (a.extension == ".desktop" || a.extension == ".directory"))) {
-            debug writeln(entry);
+            if (verbose) {
+                writeln(entry);
+            }
             try {
                 auto df = new DesktopFile(entry);
                 if (!df.execString().empty) {

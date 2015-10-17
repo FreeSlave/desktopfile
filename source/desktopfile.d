@@ -80,7 +80,10 @@ else version(Posix)
     }
 }
 
-
+/**
+ * Unescape Exec argument as described in [specification](http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s06.html).
+ * Returns: Unescaped string.
+ */
 @trusted string unescapeExecArgument(string arg) nothrow pure
 {
     static immutable Tuple!(char, char)[] pairs = [
@@ -108,6 +111,13 @@ else version(Posix)
     return doUnescape(arg, pairs);
 }
 
+///
+unittest
+{
+    assert(unescapeExecArgument("simple") == "simple");
+    assert(unescapeExecArgument(`with\&\"escaped\"\?symbols\$`) == `with&"escaped"?symbols$`);
+}
+
 private @trusted string unescapeQuotedArgument(string value) nothrow pure
 {
     static immutable Tuple!(char, char)[] pairs = [
@@ -119,6 +129,14 @@ private @trusted string unescapeQuotedArgument(string value) nothrow pure
     return doUnescape(value, pairs);
 }
 
+/**
+ * Unquote Exec value into an array of escaped arguments. 
+ * If an argument was quoted then unescaping of quoted arguments is applied automatically. Note that unescaping of quoted argument is not the same as unquoting argument in general. Read more in [specification](http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s06.html).
+ * Throws:
+ *  DesktopExecException if string can't be unquoted (e.g. no pair quote).
+ * Note:
+ *  Although Desktop Entry Specification says that arguments must be quoted by double quote, for compatibility reasons this implementation also recognizes single quotes.
+ */
 @trusted auto unquoteExecString(string value) pure
 {
     string[] result;
@@ -191,12 +209,43 @@ unittest
     assertThrown!DesktopExecException(unquoteExecString(`cmd "quoted arg`));
 }
 
+
+/**
+ * Convenient function used to unquote and unescape Exec value into an array of arguments.
+ * Note:
+ *  Parsed arguments still may contain field codes that should be appropriately expanded before passing to spawnProcess.
+ * Throws:
+ *  DesktopExecException if string can't be unquoted.
+ * See_Also:
+ *  unquoteExecString, unescapeExecArgument
+ */
 @trusted string[] parseExecString(string execString) pure
 {
     return execString.unquoteExecString().map!(unescapeExecArgument).array;
 }
 
-@trusted string[] expandExecArgs(in string[] execArgs, in string[] urls, string iconName = null, string name = null, string fileName = null) pure
+///
+unittest
+{
+    assert(equal(parseExecString(`"quoted cmd" new\nline "quoted\\\\arg" slash\\arg`), ["quoted cmd", "new\nline", `quoted\arg`, `slash\arg`]));
+}
+
+/**
+ * Expand Exec arguments (usually returned by parseExecString) replacing field codes with given values, making the array suitable for passing to spawnProcess. Deprecated field codes are ignored.
+ * Note:
+ *  Returned array may be empty and should be checked before passing to spawnProcess.
+ * Params:
+ * execArgs = array of unquoted and unescaped arguments.
+ *  urls = array of urls or file names that inserted in the place of %f, %F, %u or %U field codes. For %f and %u only the first element of array is used.
+ *  iconName = icon name used to substitute %i field code by --icon iconName.
+ *  name = name of application used that inserted in the place of %c field code.
+ *  fileName = name of desktop file that inserted in the place of %k field code.
+ * Throws:
+ *  DesktopExecException if command line contains unknown field code.
+ * See_Also:
+ *  parseExecString
+ */
+@trusted string[] expandExecArgs(in string[] execArgs, in string[] urls = null, string iconName = null, string name = null, string fileName = null) pure
 {
     string[] toReturn;
     foreach(token; execArgs) {
@@ -239,13 +288,36 @@ unittest
     return toReturn;
 }
 
-@trusted string[] expandExecString(string execString, in string[] urls, string iconName = null, string name = null, string fileName = null) pure
+///
+unittest
+{
+    assert(expandExecArgs(["program name", "%%f", "%f", "%i"], ["one", "two"], "folder") == ["program name", "%f", "one", "--icon", "folder"]);
+    assertThrown!DesktopExecException(expandExecArgs(["program name", "%y"]));
+}
+
+/**
+ * Unquote, unescape Exec string and expand field codes substituting them with appropriate values.
+ * Throws:
+ *  DesktopExecException if string can't be unquoted, unquoted command line is empty or it has unknown field code.
+ * See_Also:
+ *  expandExecArgs, parseExecString
+ */
+@trusted string[] expandExecString(string execString, in string[] urls = null, string iconName = null, string name = null, string fileName = null) pure
 {
     auto execArgs = parseExecString(execString);
     if (execArgs.empty) {
         throw new DesktopExecException("No arguments. Missing or empty Exec value");
     }
     return expandExecArgs(execArgs, urls, iconName, name, fileName);
+}
+
+///
+unittest
+{
+    assert(expandExecString(`"quoted program" %i -w %c -f %k %U %D %u %f %F`, ["one", "two"], "folder", "Программа", "/example.desktop") == ["quoted program", "--icon", "folder", "-w", "Программа", "-f", "/example.desktop", "one", "two", "one", "one", "one", "two"]);
+    
+    assertThrown!DesktopExecException(expandExecString(`program %f %y`)); //%y is unknown field code.
+    assertThrown!DesktopExecException(expandExecString(``));
 }
 
 /**
@@ -992,10 +1064,11 @@ Type=Directory`;
 Name=Program
 Name[ru]=Программа
 Exec="quoted program" %i -w %c -f %k %U %D %u %f %F
-Icon=folder`;
+Icon=folder
+Icon[ru]=folder_ru`;
         auto df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions, "/example.desktop");
         assert(df.expandExecString(["one", "two"], "ru") == 
-        ["quoted program", "--icon", "folder", "-w", "Программа", "-f", "/example.desktop", "one", "two", "one", "one", "one", "two"]);
+        ["quoted program", "--icon", "folder_ru", "-w", "Программа", "-f", "/example.desktop", "one", "two", "one", "one", "one", "two"]);
     }
     
     /**
@@ -1014,7 +1087,7 @@ Icon=folder`;
      *  DesktopExecException if exec string is invalid.
      * See_Also: getTerminalCommand, start, expandExecString
      */
-    @trusted Pid startApplication(in string[] urls = null, string locale = null, lazy string[] terminalCommand = getTerminalCommand) const
+    @trusted Pid startApplication(in string[] urls = null, string locale = null, lazy const(string)[] terminalCommand = getTerminalCommand) const
     {
         auto args = expandExecString(urls, locale);
         if (terminal()) {
@@ -1032,7 +1105,7 @@ Icon=folder`;
     }
     
     ///ditto, but uses the only url.
-    @trusted Pid startApplication(string url, string locale = null, lazy string[] terminalCommand = getTerminalCommand) const {
+    @trusted Pid startApplication(string url, string locale = null, lazy const(string)[] terminalCommand = getTerminalCommand) const {
         return startApplication([url], locale, terminalCommand);
     }
     
@@ -1083,6 +1156,17 @@ Icon=folder`;
         }
     }
     
+    ///
+    unittest
+    {
+        string contents = "[Desktop Entry]\nType=Directory";
+        auto df = new DesktopFile(iniLikeStringReader(contents));
+        assertThrown(df.start());
+        
+        df = new DesktopFile();
+        assertThrown(df.start());
+    }
+    
 private:
     IniLikeGroup _desktopEntry;
 }
@@ -1103,6 +1187,7 @@ Comment=Double Commander is a cross platform open source file manager with two p
 Comment[ru]=Double Commander - кроссплатформенный файловый менеджер.
 Terminal=false
 Icon=doublecmd
+Icon[ru]=doublecmd_ru
 Exec=doublecmd %f
 TryExec=doublecmd
 Type=Application
@@ -1143,6 +1228,8 @@ Name=Notspecified Action`;
     assert(df.localizedGenericName("ru_RU") == "Файловый менеджер");
     assert(df.comment() == "Double Commander is a cross platform open source file manager with two panels side by side.");
     assert(df.localizedComment("ru_RU") == "Double Commander - кроссплатформенный файловый менеджер.");
+    assert(df.iconName() == "doublecmd");
+    assert(df.localizedIconName("ru_RU") == "doublecmd_ru");
     assert(df.tryExecString() == "doublecmd");
     assert(!df.terminal());
     assert(!df.noDisplay());

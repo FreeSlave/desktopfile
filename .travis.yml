@@ -11,7 +11,3 @@ matrix:
         - d: dmd-2.065.0
         - d: gdc-4.8.2
         - d: ldc-0.14.0
-        
-script:
-    - dub test --compiler=${DC}
-    - dub build desktopfile:desktoptest --compiler=${DC}

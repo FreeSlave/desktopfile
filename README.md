@@ -13,6 +13,27 @@ Please feel free to propose enchancements or report any related bugs to *Issues*
 The library is crossplatform for the most part, though there's little sense to use it on systems that don't follow freedesktop specifications.
 **desktopfile** is developed and tested on FreeBSD and Debian GNU/Linux.
 
+## Features
+
+### Implemented features
+
+**desktopfile** provides basic features like reading and running desktop files, and more:
+
+* [Exec](http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s06.html) value unquoting and unescaping. Expanding field codes.
+* Can rewrite desktop files preserving all comments and the original order of groups.
+* Retrieving [Desktop file ID](http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html).
+* Support for [Additional application actions](http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s10.html).
+* Determining default terminal command to run applications with Terminal=true.
+
+### Missing features
+
+Features that currently should be handled by user, but may be implemented in the future versions of library.
+
+* [D-Bus Activation](http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s07.html).
+* Startup Notification Protocol.
+* Copying files to local file system when %f field code is used.
+* Starting several instances of application if it supports only %f and not %F.
+
 ## Generating documentation
 
 Ddoc:
@@ -69,9 +90,9 @@ Use this example to check if the desktopfile library can parse all .desktop file
 
     dub run desktopfile:desktoptest --build=release
 
-To print all directories examined by desktoptest to stdout, build it in non-release mode:
+To print all directories examined by desktoptest to stdout, add --verbose flag:
 
-    dub run desktopfile:desktoptest
+    dub run desktopfile:desktoptest -- --verbose
 
 Start desktoptest on specified directories:
 
