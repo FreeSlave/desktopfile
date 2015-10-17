@@ -21,7 +21,6 @@ private {
     import std.array;
     import std.conv;
     import std.exception;
-    import std.file;
     import std.path;
     import std.process;
     import std.range;
@@ -475,40 +474,6 @@ public:
         assert(df.group("Action") is null);
         df.removeGroup("Desktop Entry");
         assert(df.desktopEntry() !is null);
-    }
-    
-    /**
-    * Tells whether the string is valid dekstop entry key.
-    * Note: This does not include characters presented in locale names. Use $(B separateFromLocale) to get non-localized key to pass it to this function
-    */
-    @nogc @safe override bool isValidKey(string key) pure nothrow const 
-    {
-        /**
-        * Tells whether the character is valid for entry key.
-        * Note: This does not include characters presented in locale names.
-        */
-        @nogc @safe static bool isValidKeyChar(char c) pure nothrow {
-            return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-';
-        }
-        
-        if (key.empty) {
-            return false;
-        }
-        for (size_t i = 0; i<key.length; ++i) {
-            if (!isValidKeyChar(key[i])) {
-                return false;
-            }
-        }
-        return true;
-    }
-    
-    ///
-    unittest
-    {
-        auto desktopFile = new DesktopFile;
-        assert(desktopFile.isValidKey("Generic-Name"));
-        assert(!desktopFile.isValidKey("Name$"));
-        assert(!desktopFile.isValidKey(""));
     }
     
     /**
@@ -1125,6 +1090,7 @@ private:
 ///
 unittest 
 {
+    import std.file;
     //Test DesktopFile
     string desktopFileContents = 
 `[Desktop Entry]

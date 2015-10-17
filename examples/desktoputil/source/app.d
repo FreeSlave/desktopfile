@@ -1,6 +1,17 @@
 import std.stdio;
 import desktopfile;
 import std.getopt;
+import std.process;
+
+@safe string currentLocale() nothrow
+{
+    try {
+        return environment.get("LC_CTYPE", environment.get("LC_ALL", environment.get("LANG")));
+    }
+    catch(Exception e) {
+        return null;
+    }
+}
 
 void main(string[] args)
 {

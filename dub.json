@@ -3,9 +3,9 @@
     "description": "Desktop Entry Specification implementation",
     "license" : "BSL-1.0",
     "copyright": "Copyright © 2015, Roman Chistokhodov",
-    "authors": ["Roman Chistokhodov", "h2so5"],
+    "authors": ["Roman Chistokhodov"],
     "dependencies": {
-        "inilike": "~>0.2.1",
+        "inilike": "~>0.3.0",
         "standardpaths": "~>0.2.0"
     },
     "targetName" : "desktopfile",
