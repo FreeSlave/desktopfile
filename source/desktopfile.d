@@ -1275,4 +1275,11 @@ Name=Notspecified Action`;
 `[Not desktop entry]
 Key=Value`;
     assertThrown(new DesktopFile(iniLikeStringReader(contents)));
+    
+    contents = 
+`[Some Entry]
+Key=Value
+[Desktop Entry]
+Type=Link`;
+    assertNotThrown(new DesktopFile(iniLikeStringReader(contents)));
 }
