@@ -25,7 +25,7 @@ void main(string[] args)
     string locale = currentLocale();
     
     if (command == "read") {
-        auto df = new DesktopFile(inFile, DesktopFile.ReadOptions.preserveComments | DesktopFile.ReadOptions.firstGroupOnly);
+        auto df = new DesktopFile(inFile);
         
         writefln("Name: %s. Localized: %s", df.name(), df.localizedName(locale));
         writefln("GenericName: %s. Localized: %s", df.genericName(), df.localizedGenericName(locale));
@@ -59,17 +59,17 @@ void main(string[] args)
             }
         } else {
             string[] urls = args[3..$];
-            writeln("Exec:", df.expandExecString(urls));
+            writeln("Exec:", df.expandExecString(urls, locale));
             df.startApplication(urls, locale);
         }
         
         
     } else if (command == "link") {
-        auto df = new DesktopFile(inFile, DesktopFile.ReadOptions.firstGroupOnly);
+        auto df = new DesktopFile(inFile);
         writeln("Link:", df.url());
         df.startLink();
     } else if (command == "start") {
-        auto df = new DesktopFile(inFile, DesktopFile.ReadOptions.firstGroupOnly);
+        auto df = new DesktopFile(inFile);
         df.start();
     } else if (command == "write") {
         auto df = new DesktopFile(inFile, DesktopFile.ReadOptions.preserveComments);

@@ -1005,6 +1005,14 @@ Type=Directory`;
     }
     
     /**
+     * A list of localied strings which may be used in addition to other metadata to describe this entry.
+     * Returns: The range of multiple values associated with "Keywords" key in given locale.
+     */
+    @safe auto localizedKeywords(string locale) const {
+        return splitValues(localizedValue("Keywords", locale));
+    }
+    
+    /**
      * Sets the list of values for the "Keywords" list.
      */
     @safe void keywords(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
@@ -1246,6 +1254,7 @@ TryExec=doublecmd
 Type=Application
 Categories=Application;Utility;FileManager;
 Keywords=folder;manager;disk;filesystem;operations;
+Keywords[ru]=папка;директория;диск;файловый;менеджер;
 Actions=OpenDirectory;NotPresented;Settings;NoName;
 MimeType=inode/directory;application/x-directory;
 NoDisplay=false
@@ -1292,6 +1301,7 @@ Name=Notspecified Action`;
     assert(df.workingDirectory() == "/opt/doublecmd");
     assert(df.type() == DesktopFile.Type.Application);
     assert(equal(df.keywords(), ["folder", "manager", "disk", "filesystem", "operations"]));
+    assert(equal(df.localizedKeywords("ru_RU"), ["папка", "директория", "диск", "файловый", "менеджер"]));
     assert(equal(df.categories(), ["Application", "Utility", "FileManager"]));
     assert(equal(df.actions(), ["OpenDirectory", "NotPresented", "Settings", "NoName"]));
     assert(equal(df.mimeTypes(), ["inode/directory", "application/x-directory"]));

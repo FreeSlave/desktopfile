@@ -17,7 +17,7 @@ The library is crossplatform for the most part, though there's little sense to u
 
 ### Implemented features
 
-**desktopfile** provides basic features like reading and running desktop files, and more:
+**desktopfile** provides basic features like reading and executing desktop files, and more:
 
 * [Exec](http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s06.html) value unquoting and unescaping. Expanding field codes.
 * Can rewrite desktop files preserving all comments and the original order of groups.
@@ -48,6 +48,73 @@ Ddox:
 
     dub test
     
+## Brief
+
+```d
+import std.stdio;
+import std.array;
+import std.process;
+
+import desktopfile;
+
+string filePath = ...;
+string[] arguments = ...;
+
+try {
+    auto df = new DesktopFile(filePath);
+    
+    string locale = environment.get("LC_CTYPE", environment.get("LC_ALL", environment.get("LANG"))); //Detect current locale.
+    
+    string name = df.localizedName(locale); //Specific name of the application.
+    string genericName = df.localizedGenericName(locale); //Generic name of the application. Show it in menu under the specific name.
+    string comment = df.localizedComment(locale); //Show it as tooltip or description.
+    
+    string iconName = df.iconName(); //Freedesktop icon name.
+    
+    if (df.hidden()) {
+        //User uninstalled desktop file and it should be shown in menus.
+    }
+    
+    string[] onlyShowIn = df.onlyShowIn().array; //If not empty, show this application only in listed desktop environments.
+    string[] notShowIn = df.notShowIn().array; //Don't show this application in listed desktop environments.
+    
+    string[] mimeTypes = df.mimeTypes().array; //MIME types supported by application.
+    string[] categories = df.categories().array; //Menu entries where this application should be shown.
+    string[] keywords = df.keywords().array; //Keywords can be used to improve searching of the application.
+    
+    foreach(action; df.byAction()) { //Supported actions.
+        string actionName = action.name();
+    }
+    
+    if (df.type() == DesktopFile.Type.Application) {
+        //This is application
+        string commandLine = df.execString(); //Command line pattern used to start the application.
+        try {
+            df.startApplication(arguments); //Start application using given arguments. It will be automatically started in terminal emulator if required.
+        }
+        catch(ProcessException e) { //Failed to start the application.
+            stderr.writeln(e.msg); 
+        }
+        catch(DesktopExecException e) { //Malformed command line pattern.
+            stderr.writeln(e.msg); 
+        }
+    } else if (df.type() == DesktopFile.Type.Link) {
+        //This is link to file or web resource.
+        string url = df.url(); //URL to open
+        
+    } else if (df.type() == DesktopFile.Type.Directory) {
+        //This is directory or menu section description.
+    } else {
+        //Type is not defined or unknown, e.g. KDE Service.
+        string type = df.value("Type"); //Retrieve value manually as string if you know how to deal with non-standard types.
+    }
+} 
+catch (IniLikeException e) { //Parsing error - file is not desktop file or has errors.
+    stderr.writeln(e.msg); 
+}
+
+```
+
 ## Examples
 
 ### Desktop util
@@ -88,7 +155,7 @@ Parses all .desktop files in system's applications paths (usually /usr/local/sha
 Writes errors (if any) to stderr.
 Use this example to check if the desktopfile library can parse all .desktop files on your system.
 
-    dub run desktopfile:desktoptest --build=release
+    dub run desktopfile:desktoptest
 
 To print all directories examined by desktoptest to stdout, add --verbose flag:
 
