@@ -726,7 +726,11 @@ public:
                 }
                 
                 if (pathSplit.empty) {
-                    return to!string(fileSplit.join("-"));
+                    static if( __VERSION__ < 2066 ) {
+                        return to!string(fileSplit.map!(s => to!string(s)).join("-"));
+                    } else {
+                        return to!string(fileSplit.join("-"));
+                    }
                 }
             }
         } catch(Exception e) {
