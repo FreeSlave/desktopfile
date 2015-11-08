@@ -12,8 +12,6 @@
 
 module desktopfile;
 
-import standardpaths;
-
 public import inilike;
 
 private {
@@ -21,6 +19,7 @@ private {
     import std.array;
     import std.conv;
     import std.exception;
+    import std.file;
     import std.path;
     import std.process;
     import std.range;
@@ -48,7 +47,7 @@ class DesktopExecException : Exception
  * This function is available on all platforms, but requires dataPaths argument (e.g. C:\ProgramData\KDE\share on Windows)
  * Returns: Array of paths, based on dataPaths with "applications" directory appended.
  */
-@trusted string[] applicationsPaths(in string[] dataPaths) nothrow {
+@trusted string[] applicationsPaths(Range)(Range dataPaths) nothrow if (isInputRange!Range && is(ElementType!Range : string)) {
     return dataPaths.map!(p => buildPath(p, "applications")).array;
 }
 
@@ -62,21 +61,42 @@ version(OSX) {}
 else version(Posix)
 {
     /**
-     * ditto, but returns paths based on known data paths. It's practically the same as standardPaths(StandardPath.applications).
+     * ditto, but returns paths based on known data paths.
      * This function is defined only on freedesktop systems to avoid confusion with other systems that have data paths not compatible with Desktop Entry Spec.
      */
     @trusted string[] applicationsPaths() nothrow {
-        return standardPaths(StandardPath.applications);
+        string[] result;
+        
+        collectException(splitter(environment.get("XDG_DATA_DIRS"), ':').map!(p => buildPath(p, "applications")).array, result);
+        if (result.empty) {
+            result = ["/usr/local/share/applications", "/usr/share/applications"];
+        }
+        
+        string homeAppDir = writableApplicationsPath();
+        if(homeAppDir.length) {
+            result = homeAppDir ~ result;
+        }
+        return result;
     }
     
     /**
      * Path where .desktop files can be stored without requiring of root privileges.
-     * It's practically the same as writablePath(StandardPath.applications).
      * This function is defined only on freedesktop systems to avoid confusion with other systems that have data paths not compatible with Desktop Entry Spec.
      * Note: it does not check if returned path exists and appears to be directory.
      */
     @trusted string writableApplicationsPath() nothrow {
-        return writablePath(StandardPath.applications);
+        string dir;
+        collectException(environment.get("XDG_DATA_HOME"), dir);
+        if (!dir.length) {
+            string home;
+            collectException(environment.get("HOME", home));
+            if (home.length) {
+                return buildPath(home, ".local/share/applications");
+            }
+        } else {
+            return buildPath(dir, "applications");
+        }
+        return null;
     }
 }
 
@@ -332,6 +352,39 @@ string[] getTerminalCommand() nothrow @trusted
     version(OSX) {
         return null;
     } else version(Posix) {
+        static string checkExecutable(string filePath) nothrow {
+            import core.sys.posix.unistd;
+            try {
+                if (filePath.isFile && access(toStringz(filePath), X_OK) == 0) {
+                    return buildNormalizedPath(filePath);
+                } else {
+                    return null;
+                }
+            }
+            catch(Exception e) {
+                return null;
+            }
+        }
+        
+        static string findExecutable(string name) nothrow {
+            if (name.isAbsolute()) {
+                return checkExecutable(name);
+            } else {
+                string toReturn;
+                try {
+                    foreach(path; splitter(environment.get("PATH"), ':')) {
+                        toReturn = checkExecutable(buildPath(path, name));
+                        if (toReturn.length) {
+                            return toReturn;
+                        }
+                    }
+                } catch(Exception e) {
+                    
+                }
+                return null;
+            }
+        }
+        
         string term = findExecutable("x-terminal-emulator");
         if (!term.empty) {
             return [term, "-e"];

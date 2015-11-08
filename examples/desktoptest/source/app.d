@@ -39,8 +39,8 @@ void main(string[] args)
     }
     
     if (!desktopDirs.length) {
-        writeln("No desktop directories given nor could be detected");
-        writefln("Usage: %s [DIRECTORY]...", args[0]);
+        stderr.writeln("No desktop directories given nor could be detected");
+        stderr.writefln("Usage: %s [DIRECTORY]...", args[0]);
         return;
     }
     
