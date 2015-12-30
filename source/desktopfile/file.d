@@ -1,439 +1,19 @@
 /**
- * Reading, writing and executing .desktop file
+ * Class representation of desktop file.
  * Authors: 
- *  $(LINK2 https://github.com/MyLittleRobo, Roman Chistokhodov).
+ *  $(LINK2 https://github.com/MyLittleRobo, Roman Chistokhodov)
  * Copyright:
  *  Roman Chistokhodov, 2015
  * License: 
  *  $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
  * See_Also: 
- *  $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/index.html, Desktop Entry Specification).
+ *  $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/index.html, Desktop Entry Specification)
  */
 
-module desktopfile;
+module desktopfile.file;
 
-public import inilike;
-
-private {
-    import std.algorithm;
-    import std.array;
-    import std.conv;
-    import std.exception;
-    import std.file;
-    import std.path;
-    import std.process;
-    import std.range;
-    import std.stdio;
-    import std.string;
-    import std.traits;
-    import std.typecons;
-    import std.uni;
-    
-    static if( __VERSION__ < 2066 ) enum nogc = 1;
-}
-
-/**
- * Exception thrown when "Exec" value of DesktopFile or DesktopAction is invalid.
- */
-class DesktopExecException : Exception
-{
-    this(string msg, string file = __FILE__, size_t line = __LINE__, Throwable next = null) pure nothrow @safe {
-        super(msg, file, line, next);
-    }
-}
-
-/**
- * Applications paths based on data paths. 
- * This function is available on all platforms, but requires dataPaths argument (e.g. C:\ProgramData\KDE\share on Windows)
- * Returns: Array of paths, based on dataPaths with "applications" directory appended.
- */
-@trusted string[] applicationsPaths(Range)(Range dataPaths) nothrow if (isInputRange!Range && is(ElementType!Range : string)) {
-    return dataPaths.map!(p => buildPath(p, "applications")).array;
-}
-
-///
-unittest
-{
-    assert(equal(applicationsPaths(["share", buildPath("local", "share")]), [buildPath("share", "applications"), buildPath("local", "share", "applications")]));
-}
-
-version(OSX) {}
-else version(Posix)
-{
-    /**
-     * ditto, but returns paths based on known data paths.
-     * This function is defined only on freedesktop systems to avoid confusion with other systems that have data paths not compatible with Desktop Entry Spec.
-     */
-    @trusted string[] applicationsPaths() nothrow {
-        string[] result;
-        
-        collectException(splitter(environment.get("XDG_DATA_DIRS"), ':').map!(p => buildPath(p, "applications")).array, result);
-        if (result.empty) {
-            result = ["/usr/local/share/applications", "/usr/share/applications"];
-        }
-        
-        string homeAppDir = writableApplicationsPath();
-        if(homeAppDir.length) {
-            result = homeAppDir ~ result;
-        }
-        return result;
-    }
-    
-    /**
-     * Path where .desktop files can be stored without requiring of root privileges.
-     * This function is defined only on freedesktop systems to avoid confusion with other systems that have data paths not compatible with Desktop Entry Spec.
-     * Note: it does not check if returned path exists and appears to be directory.
-     */
-    @trusted string writableApplicationsPath() nothrow {
-        string dir;
-        collectException(environment.get("XDG_DATA_HOME"), dir);
-        if (!dir.length) {
-            string home;
-            collectException(environment.get("HOME", home));
-            if (home.length) {
-                return buildPath(home, ".local/share/applications");
-            }
-        } else {
-            return buildPath(dir, "applications");
-        }
-        return null;
-    }
-}
-
-/**
- * Unescape Exec argument as described in [specification](http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s06.html).
- * Returns: Unescaped string.
- */
-@trusted string unescapeExecArgument(string arg) nothrow pure
-{
-    static immutable Tuple!(char, char)[] pairs = [
-       tuple('s', ' '),
-       tuple('n', '\n'),
-       tuple('r', '\r'),
-       tuple('t', '\t'),
-       tuple('"', '"'),
-       tuple('\'', '\''),
-       tuple('\\', '\\'),
-       tuple('>', '>'),
-       tuple('<', '<'),
-       tuple('~', '~'),
-       tuple('|', '|'),
-       tuple('&', '&'),
-       tuple(';', ';'),
-       tuple('$', '$'),
-       tuple('*', '*'),
-       tuple('?', '?'),
-       tuple('#', '#'),
-       tuple('(', '('),
-       tuple(')', ')'),
-       tuple('`', '`'),
-    ];
-    return doUnescape(arg, pairs);
-}
-
-///
-unittest
-{
-    assert(unescapeExecArgument("simple") == "simple");
-    assert(unescapeExecArgument(`with\&\"escaped\"\?symbols\$`) == `with&"escaped"?symbols$`);
-}
-
-private @trusted string unescapeQuotedArgument(string value) nothrow pure
-{
-    static immutable Tuple!(char, char)[] pairs = [
-       tuple('`', '`'),
-       tuple('$', '$'),
-       tuple('"', '"'),
-       tuple('\\', '\\')
-    ];
-    return doUnescape(value, pairs);
-}
-
-/**
- * Unquote Exec value into an array of escaped arguments. 
- * If an argument was quoted then unescaping of quoted arguments is applied automatically. Note that unescaping of quoted argument is not the same as unquoting argument in general. Read more in [specification](http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s06.html).
- * Throws:
- *  DesktopExecException if string can't be unquoted (e.g. no pair quote).
- * Note:
- *  Although Desktop Entry Specification says that arguments must be quoted by double quote, for compatibility reasons this implementation also recognizes single quotes.
- */
-@trusted auto unquoteExecString(string value) pure
-{
-    string[] result;
-    size_t i;
-    
-    while(i < value.length) {
-        if (isWhite(value[i])) {
-            i++;
-        } else if (value[i] == '"' || value[i] == '\'') {
-            char delimeter = value[i];
-            size_t start = ++i;
-            bool inQuotes = true;
-            bool wasSlash;
-            
-            while(i < value.length) {
-                if (value[i] == '\\' && value.length > i+1 && value[i+1] == '\\') {
-                    i+=2;
-                    wasSlash = true;
-                    continue;
-                }
-                
-                if (value[i] == delimeter && (value[i-1] != '\\' || (value[i-1] == '\\' && wasSlash) )) {
-                    inQuotes = false;
-                    break;
-                }
-                wasSlash = false;
-                i++;
-            }
-            if (inQuotes) {
-                throw new DesktopExecException("Missing pair quote");
-            }
-            result ~= value[start..i].unescapeQuotedArgument();
-            i++;
-            
-        } else {
-            size_t start = i;
-            while(i < value.length && !isWhite(value[i])) {
-                i++;
-            }
-            result ~= value[start..i];
-        }
-    }
-    
-    return result;
-}
-
-///
-unittest 
-{
-    assert(equal(unquoteExecString(``), string[].init));
-    assert(equal(unquoteExecString(`   `), string[].init));
-    assert(equal(unquoteExecString(`"" "  "`), [``, `  `]));
-    
-    assert(equal(unquoteExecString(`cmd arg1  arg2   arg3   `), [`cmd`, `arg1`, `arg2`, `arg3`]));
-    assert(equal(unquoteExecString(`"cmd" arg1 arg2  `), [`cmd`, `arg1`, `arg2`]));
-    
-    assert(equal(unquoteExecString(`"quoted cmd"   arg1  "quoted arg"  `), [`quoted cmd`, `arg1`, `quoted arg`]));
-    assert(equal(unquoteExecString(`"quoted \"cmd\"" arg1 "quoted \"arg\""`), [`quoted "cmd"`, `arg1`, `quoted "arg"`]));
-    
-    assert(equal(unquoteExecString(`"\\\$" `), [`\$`]));
-    assert(equal(unquoteExecString(`"\\$" `), [`\$`]));
-    assert(equal(unquoteExecString(`"\$" `), [`$`]));
-    assert(equal(unquoteExecString(`"$"`), [`$`]));
-    
-    assert(equal(unquoteExecString(`"\\" `), [`\`]));
-    assert(equal(unquoteExecString(`"\\\\" `), [`\\`]));
-    
-    assert(equal(unquoteExecString(`'quoted cmd' arg`), [`quoted cmd`, `arg`]));
-    
-    assertThrown!DesktopExecException(unquoteExecString(`cmd "quoted arg`));
-}
-
-
-/**
- * Convenient function used to unquote and unescape Exec value into an array of arguments.
- * Note:
- *  Parsed arguments still may contain field codes that should be appropriately expanded before passing to spawnProcess.
- * Throws:
- *  DesktopExecException if string can't be unquoted.
- * See_Also:
- *  unquoteExecString, unescapeExecArgument
- */
-@trusted string[] parseExecString(string execString) pure
-{
-    return execString.unquoteExecString().map!(unescapeExecArgument).array;
-}
-
-///
-unittest
-{
-    assert(equal(parseExecString(`"quoted cmd" new\nline "quoted\\\\arg" slash\\arg`), ["quoted cmd", "new\nline", `quoted\arg`, `slash\arg`]));
-}
-
-/**
- * Expand Exec arguments (usually returned by parseExecString) replacing field codes with given values, making the array suitable for passing to spawnProcess. Deprecated field codes are ignored.
- * Note:
- *  Returned array may be empty and should be checked before passing to spawnProcess.
- * Params:
- * execArgs = array of unquoted and unescaped arguments.
- *  urls = array of urls or file names that inserted in the place of %f, %F, %u or %U field codes. For %f and %u only the first element of array is used.
- *  iconName = icon name used to substitute %i field code by --icon iconName.
- *  name = name of application used that inserted in the place of %c field code.
- *  fileName = name of desktop file that inserted in the place of %k field code.
- * Throws:
- *  DesktopExecException if command line contains unknown field code.
- * See_Also:
- *  parseExecString
- */
-@trusted string[] expandExecArgs(in string[] execArgs, in string[] urls = null, string iconName = null, string name = null, string fileName = null) pure
-{
-    string[] toReturn;
-    foreach(token; execArgs) {
-        if (token == "%f") {
-            if (urls.length) {
-                toReturn ~= urls.front;
-            }
-        } else if (token == "%F") {
-            toReturn ~= urls;
-        } else if (token == "%u") {
-            if (urls.length) {
-                toReturn ~= urls.front;
-            }
-        } else if (token == "%U") {
-            toReturn ~= urls;
-        } else if (token == "%i") {
-            if (iconName.length) {
-                toReturn ~= "--icon";
-                toReturn ~= iconName;
-            }
-        } else if (token == "%c") {
-            toReturn ~= name;
-        } else if (token == "%k") {
-            toReturn ~= fileName;
-        } else if (token == "%d" || token == "%D" || token == "%n" || token == "%N" || token == "%m" || token == "%v") {
-            continue;
-        } else {
-            if (token.length >= 2 && token[0] == '%') {
-                if (token[1] == '%') {
-                    toReturn ~= token[1..$];
-                } else {
-                    throw new DesktopExecException("Unknown field code: " ~ token);
-                }
-            } else {
-                toReturn ~= token;
-            }
-        }
-    }
-    
-    return toReturn;
-}
-
-///
-unittest
-{
-    assert(expandExecArgs(["program name", "%%f", "%f", "%i"], ["one", "two"], "folder") == ["program name", "%f", "one", "--icon", "folder"]);
-    assertThrown!DesktopExecException(expandExecArgs(["program name", "%y"]));
-}
-
-/**
- * Unquote, unescape Exec string and expand field codes substituting them with appropriate values.
- * Throws:
- *  DesktopExecException if string can't be unquoted, unquoted command line is empty or it has unknown field code.
- * See_Also:
- *  expandExecArgs, parseExecString
- */
-@trusted string[] expandExecString(string execString, in string[] urls = null, string iconName = null, string name = null, string fileName = null) pure
-{
-    auto execArgs = parseExecString(execString);
-    if (execArgs.empty) {
-        throw new DesktopExecException("No arguments. Missing or empty Exec value");
-    }
-    return expandExecArgs(execArgs, urls, iconName, name, fileName);
-}
-
-///
-unittest
-{
-    assert(expandExecString(`"quoted program" %i -w %c -f %k %U %D %u %f %F`, ["one", "two"], "folder", "Программа", "/example.desktop") == ["quoted program", "--icon", "folder", "-w", "Программа", "-f", "/example.desktop", "one", "two", "one", "one", "one", "two"]);
-    
-    assertThrown!DesktopExecException(expandExecString(`program %f %y`)); //%y is unknown field code.
-    assertThrown!DesktopExecException(expandExecString(``));
-}
-
-/**
- * Detect command which will run program in terminal emulator.
- * On Freedesktop it looks for x-terminal-emulator first. If found ["/path/to/x-terminal-emulator", "-e"] is returned.
- * Otherwise it looks for xdg-terminal. If found ["/path/to/xdg-terminal"] is returned.
- * If all guesses failed, it uses ["xterm", "-e"] as fallback.
- * Note: This function always returns empty array on non-freedesktop systems.
- */
-string[] getTerminalCommand() nothrow @trusted 
-{
-    version(OSX) {
-        return null;
-    } else version(Posix) {
-        static string checkExecutable(string filePath) nothrow {
-            import core.sys.posix.unistd;
-            try {
-                if (filePath.isFile && access(toStringz(filePath), X_OK) == 0) {
-                    return buildNormalizedPath(filePath);
-                } else {
-                    return null;
-                }
-            }
-            catch(Exception e) {
-                return null;
-            }
-        }
-        
-        static string findExecutable(string name) nothrow {
-            if (name.isAbsolute()) {
-                return checkExecutable(name);
-            } else {
-                string toReturn;
-                try {
-                    foreach(path; splitter(environment.get("PATH"), ':')) {
-                        toReturn = checkExecutable(buildPath(path, name));
-                        if (toReturn.length) {
-                            return toReturn;
-                        }
-                    }
-                } catch(Exception e) {
-                    
-                }
-                return null;
-            }
-        }
-        
-        string term = findExecutable("x-terminal-emulator");
-        if (!term.empty) {
-            return [term, "-e"];
-        }
-        term = findExecutable("xdg-terminal");
-        if (!term.empty) {
-            return [term];
-        }
-        return ["xterm", "-e"];
-    } else {
-        return null;
-    }
-}
-
-private @trusted File getNullStdin()
-{
-    version(Posix) {
-        return File("/dev/null", "rb");
-    } else {
-        return std.stdio.stdin;
-    }
-}
-
-private @trusted File getNullStdout()
-{
-    version(Posix) {
-        return File("/dev/null", "wb");
-    } else {
-        return std.stdio.stdout;
-    }
-}
-
-private @trusted File getNullStderr()
-{
-    version(Posix) {
-        return File("/dev/null", "wb");
-    } else {
-        return std.stdio.stderr;
-    }
-}
-
-private @trusted Pid execProcess(string[] args, string workingDirectory = null)
-{
-    static if( __VERSION__ < 2066 ) {
-        return spawnProcess(args, getNullStdin(), getNullStdout(), getNullStderr(), null, Config.none);
-    } else {
-        return spawnProcess(args, getNullStdin(), getNullStdout(), getNullStderr(), null, Config.none, workingDirectory);
-    }
-}
+public import inilike.file;
+import desktopfile.utils;
 
 /**
  * Adapter of IniLikeGroup for easy access to desktop action.
@@ -546,9 +126,9 @@ public:
      * Throws:
      *  $(B IniLikeException) if error occured while parsing.
      */
-    @trusted this(Range)(Range byLine, ReadOptions options = ReadOptions.noOptions, string fileName = null) if(is(ElementType!Range : IniLikeLine))
+    @trusted this(IniLikeReader)(IniLikeReader reader, ReadOptions options = ReadOptions.noOptions, string fileName = null)
     {   
-        super(byLine, options, fileName);
+        super(reader, options, fileName);
         _desktopEntry = group("Desktop Entry");
         enforce(_desktopEntry, new IniLikeException("No \"Desktop Entry\" group", 0));
     }
@@ -693,7 +273,7 @@ public:
         return localizedValue("Name", locale);
     }
     
-    version(OSX) {} version(Posix) {
+    static if (Freedesktop) {
         /** 
         * See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html, Desktop File ID)
         * Returns: Desktop file ID or empty string if file does not have an ID.
@@ -701,6 +281,7 @@ public:
         * See_Also: applicationsPaths
         */
         @trusted string id() const nothrow {
+            import desktopfile.paths;
             return id(applicationsPaths());
         }
     }
@@ -1178,17 +759,15 @@ Icon[ru]=folder_ru`;
      * Opens url defined in .desktop file using $(LINK2 http://portland.freedesktop.org/xdg-utils-1.0/xdg-open.html, xdg-open).
      * Note:
      *  This function does not check if the type of desktop file is Link. It relies only on "URL" value.
-     * Returns:
-     *  Pid of started process.
      * Throws:
      *  ProcessException on failure to start the process.
      *  Exception if desktop file does not define URL or it's empty.
      * See_Also: start
      */
-    @trusted Pid startLink() const {
+    @trusted void startLink() const {
         string myurl = url();
         enforce(myurl.length, "No URL to open");
-        return spawnProcess(["xdg-open", myurl], null, Config.none);
+        xdgOpen(myurl);
     }
     
     ///
@@ -1200,20 +779,20 @@ Icon[ru]=folder_ru`;
     
     /**
      * Starts application or open link depending on desktop entry type.
-     * Returns: 
-     *  Pid of started process.
      * Throws:
      *  ProcessException on failure to start the process.
      *  Exception if type is Unknown or Directory.
      * See_Also: startApplication, startLink
      */
-    @trusted Pid start() const
+    @trusted void start() const
     {
         final switch(type()) {
             case DesktopFile.Type.Application:
-                return startApplication();
+                startApplication();
+                return;
             case DesktopFile.Type.Link:
-                return startLink();
+                startLink();
+                return;
             case DesktopFile.Type.Directory:
                 throw new Exception("Don't know how to start Directory");
             case DesktopFile.Type.Unknown:
