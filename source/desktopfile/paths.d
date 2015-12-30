@@ -12,7 +12,17 @@
 
 module desktopfile.paths;
 
-import desktopfile.utils;
+private {
+    import desktopfile.isfreedesktop;
+    
+    import std.algorithm;
+    import std.array;
+    import std.exception;
+    import std.path;
+    import std.process : environment;
+    import std.range;
+    import std.string;
+}
 
 /**
  * Applications paths based on data paths. 
@@ -29,7 +39,7 @@ unittest
     assert(equal(applicationsPaths(["share", buildPath("local", "share")]), [buildPath("share", "applications"), buildPath("local", "share", "applications")]));
 }
 
-static if (Freedesktop)
+static if (isFreedesktop)
 {
     /**
      * ditto, but returns paths based on known data paths.

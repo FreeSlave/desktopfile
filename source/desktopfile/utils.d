@@ -31,15 +31,7 @@ package {
     
     static if( __VERSION__ < 2066 ) enum nogc = 1;
     
-    version(OSX) {
-        enum Freedesktop = false;
-    } else version(Android) {
-        enum Freedesktop = false;
-    } else version(Posix) {
-        enum Freedesktop = true;
-    } else {
-        enum Freedesktop = false;
-    }
+    import desktopfile.isfreedesktop;
 }
 
 package @trusted File getNullStdin()
@@ -339,7 +331,7 @@ unittest
  */
 string[] getTerminalCommand() nothrow @trusted 
 {
-    static if (Freedesktop) {
+    static if (isFreedesktop) {
         static string checkExecutable(string filePath) nothrow {
             import core.sys.posix.unistd;
             try {
@@ -432,6 +424,13 @@ struct ShootOptions
      * If it's null shootDesktopFile will use xdg-open.
      */
     void delegate(string) opener = null;
+    
+    /**
+     * Function that should be used to get terminal command.
+     * If it's null, shootDesktopFile will use getTerminalCommand.
+     * See_Also: getTerminalCommand
+     */
+    string[] delegate() terminalDetector = null;
 }
 
 /**
@@ -443,6 +442,7 @@ struct ShootOptions
     enforce(options.flags & (ShootOptions.Exec|ShootOptions.Link), "At least one of the options Exec or Link should be provided");
     
     string iconName, name, execString, url, workingDirectory;
+    bool terminal;
     
     foreach(g; reader.byGroup) {
         if (g.name == "Desktop Entry") {
@@ -458,6 +458,7 @@ struct ShootOptions
                         case "URL": url = value; break;
                         case "Icon": iconName = value; break;
                         case "Path": workingDirectory = value; break;
+                        case "Terminal": terminal = isTrue(value); break;
                         default: {
                             //TODO: Choosing the most appropriate locale
                             auto lt = separateFromLocale(key);
@@ -470,8 +471,18 @@ struct ShootOptions
                 }
             }
             
+            import std.functional : toDelegate;
+            
             if (execString.length && options.flags|ShootOptions.Exec) {
                 auto args = expandExecString(execString, options.urls, iconName, name, fileName);
+                
+                if (terminal) {
+                    if (options.terminalDetector == null) {
+                        options.terminalDetector = toDelegate(&getTerminalCommand);
+                    }
+                    args = options.terminalDetector() ~ args;
+                }
+                
                 execProcess(args, workingDirectory);
             } else if (url.length && options.flags|ShootOptions.Link) {
                 if (options.flags|ShootOptions.FollowLink && url.extension == ".desktop" && url.exists) {
@@ -479,7 +490,6 @@ struct ShootOptions
                     return;
                 }
                 
-                import std.functional : toDelegate;
                 if (options.opener == null) {
                     options.opener = toDelegate(&xdgOpen);
                 }

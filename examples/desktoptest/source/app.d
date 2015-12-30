@@ -6,7 +6,9 @@ import std.path;
 import std.process;
 import std.getopt;
 
-import desktopfile;
+import desktopfile.paths;
+import desktopfile.file;
+import desktopfile.isfreedesktop;
 
 void main(string[] args)
 {
@@ -19,13 +21,15 @@ void main(string[] args)
     if (args.length > 1) {
         desktopDirs = args[1..$];
     } else {
-        version(OSX) {} else version(Posix) {
-        import standardpaths;
+        static if (isFreedesktop) {
+            import standardpaths;
+            
+            string[] dataPaths = standardPaths(StandardPath.data);
+            
+            desktopDirs = applicationsPaths() ~ dataPaths.map!(s => buildPath(s, "desktop-directories")).array ~ dataPaths.map!(s => buildPath(s, "templates")).array ~ dataPaths.map!(s => buildPath(s, "autostart")).array ~ writablePath(StandardPath.desktop);
+        }
         
-        string[] dataPaths = standardPaths(StandardPath.data);
-        
-        desktopDirs = applicationsPaths() ~ dataPaths.map!(s => buildPath(s, "desktop-directories")).array ~ dataPaths.map!(s => buildPath(s, "templates")).array ~ dataPaths.map!(s => buildPath(s, "autostart")).array ~ writablePath(StandardPath.desktop);
-        } else version(Windows) {
+        version(Windows) {
             try {
                 auto root = environment.get("SYSTEMDRIVE", "C:");
                 auto kdeDir = root ~ `\ProgramData\KDE\share`;

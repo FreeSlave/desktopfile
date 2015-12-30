@@ -1,7 +1,9 @@
 import std.stdio;
-import desktopfile;
 import std.getopt;
 import std.process;
+
+import desktopfile.file;
+import desktopfile.isfreedesktop;
 
 @safe string currentLocale() nothrow
 {
@@ -32,7 +34,7 @@ void main(string[] args)
         writefln("Comment: %s. Localized: %s", df.comment(), df.localizedComment(locale));
         writeln("Type: ", df.value("Type"));
         writeln("Icon: ", df.iconName());
-        version(OSX) {} else version(Posix) {
+        static if (isFreedesktop) {
             writeln("Desktop ID: ", df.id());
         }
         writefln("Actions: %(%s %)", df.actions());

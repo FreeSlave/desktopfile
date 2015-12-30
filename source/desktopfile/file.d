@@ -13,7 +13,7 @@
 module desktopfile.file;
 
 public import inilike.file;
-import desktopfile.utils;
+public import desktopfile.utils;
 
 /**
  * Adapter of IniLikeGroup for easy access to desktop action.
@@ -273,7 +273,7 @@ public:
         return localizedValue("Name", locale);
     }
     
-    static if (Freedesktop) {
+    static if (isFreedesktop) {
         /** 
         * See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html, Desktop File ID)
         * Returns: Desktop file ID or empty string if file does not have an ID.

@@ -12,6 +12,6 @@
 
 module desktopfile;
 
-import desktopfile.file;
-import desktopfile.utils;
-import desktopfile.paths;
+public import desktopfile.file;
+public import desktopfile.utils;
+public import desktopfile.paths;
