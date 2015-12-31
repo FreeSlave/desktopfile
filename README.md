@@ -23,7 +23,7 @@ The library is crossplatform for the most part, though there's little sense to u
 * Can rewrite desktop files preserving all comments and the original order of groups.
 * Retrieving [Desktop file ID](http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html).
 * Support for [Additional application actions](http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s10.html).
-* Determining default terminal command to run applications with Terminal=true.
+* Determining default terminal command to run applications with Terminal=true. Note that default terminal detector may not work properly on particular system since there's no standard way to find default terminal emulator that would work on every distribution and desktop environment.
 
 ### Missing features
 
@@ -58,12 +58,13 @@ import std.process;
 import desktopfile;
 
 string filePath = ...;
-string[] arguments = ...;
+string[] urls = ...;
 
 try {
     auto df = new DesktopFile(filePath);
     
-    string locale = environment.get("LC_CTYPE", environment.get("LC_ALL", environment.get("LANG"))); //Detect current locale.
+    //Detect current locale.
+    string locale = environment.get("LC_CTYPE", environment.get("LC_ALL", environment.get("LANG")));
     
     string name = df.localizedName(locale); //Specific name of the application.
     string genericName = df.localizedGenericName(locale); //Generic name of the application. Show it in menu under the specific name.
@@ -72,7 +73,7 @@ try {
     string iconName = df.iconName(); //Freedesktop icon name.
     
     if (df.hidden()) {
-        //User uninstalled desktop file and it should be shown in menus.
+        //User uninstalled desktop file and it should not be shown in menus.
     }
     
     string[] onlyShowIn = df.onlyShowIn().array; //If not empty, show this application only in listed desktop environments.
@@ -84,13 +85,14 @@ try {
     
     foreach(action; df.byAction()) { //Supported actions.
         string actionName = action.name();
+        action.start(locale);
     }
     
     if (df.type() == DesktopFile.Type.Application) {
         //This is application
         string commandLine = df.execString(); //Command line pattern used to start the application.
         try {
-            df.startApplication(arguments); //Start application using given arguments. It will be automatically started in terminal emulator if required.
+            df.startApplication(urls, locale); //Start application using given arguments and specified locale. It will be automatically started in terminal emulator if required.
         }
         catch(ProcessException e) { //Failed to start the application.
             stderr.writeln(e.msg); 
@@ -170,4 +172,9 @@ Example using cmd on Windows (KDE installed):
     set KDE_SHARE="%SYSTEMDRIVE%\ProgramData\KDE\share"
     dub run desktopfile:desktoptest -- %KDE_SHARE%\applications %KDE_SHARE%\templates %KDE_SHARE%\desktop-directories %KDE_SHARE%\autostart
     
+### Shoot desktop file
+
+Uses the alternative way of starting desktop file. Instead of constructing DesktopFile object it just starts the application or opens link after read enough information from file.
+
+    dub run desktopfile:shootdesktop -- $HOME/Desktop/vlc.desktop
     

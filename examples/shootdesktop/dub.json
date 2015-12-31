@@ -1,12 +1,12 @@
 {
-	"name": "shootdesktop",
-	"description": "A minimal D application.",
-	"copyright": "Copyright © 2015, freeslave",
-	"authors": ["freeslave"],
-	"dependencies": {
-		"desktopfile" : "*"
-	},
-	"targetPath" : "bin",
+    "name": "shootdesktop",
+    "description": "A minimal D application.",
+    "copyright": "Copyright © 2015, freeslave",
+    "authors": ["freeslave"],
+    "dependencies": {
+        "desktopfile" : "*"
+    },
+    "targetPath" : "bin",
     "targetType" : "executable",
     "targetName" : "shootdesktop", 
 }

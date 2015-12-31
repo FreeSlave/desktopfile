@@ -352,7 +352,7 @@ string[] getTerminalCommand() nothrow @trusted
             } else {
                 string toReturn;
                 try {
-                    foreach(path; splitter(environment.get("PATH"), ':')) {
+                    foreach(path; std.algorithm.splitter(environment.get("PATH"), ':')) {
                         toReturn = checkExecutable(buildPath(path, name));
                         if (toReturn.length) {
                             return toReturn;
@@ -409,7 +409,7 @@ struct ShootOptions
     
     /**
      * Urls to pass to the program is desktop file points to application.
-     * Empry by default.
+     * Empty by default.
      */
     string[] urls;
     
@@ -420,26 +420,32 @@ struct ShootOptions
     string locale;
     
     /**
-     * Function that should be used to open url if desktop file is link.
+     * Delegate that should be used to open url if desktop file is link.
+     * To set static function use std.functional.toDelegate.
      * If it's null shootDesktopFile will use xdg-open.
      */
     void delegate(string) opener = null;
     
     /**
-     * Function that should be used to get terminal command.
+     * Delegate that should be used to get terminal command.
+     * To set static function use std.functional.toDelegate.
      * If it's null, shootDesktopFile will use getTerminalCommand.
      * See_Also: getTerminalCommand
      */
-    string[] delegate() terminalDetector = null;
+    const(string)[] delegate() terminalDetector = null;
 }
 
 /**
  * Read the desktop file and run application or open link depending on the type of the given desktop file.
  * Params:
  *  reader = IniLikeReader constructed from range of strings using iniLikeRangeReader
- *  fileName = file name of desktop file where data read from.
+ *  fileName = file name of desktop file where data read from. It's optional, but can be set to the file name from which contents IniLikeReader was constructed.
  *  options = options that set behavior of the function.
  * Use this function to execute desktop file fast, without creating of DesktopFile instance.
+ * Throws:
+ *  ProcessException on failure to start the process.
+ *  DesktopExecException if exec string is invalid.
+ *  Exception on other errors.
  * See_Also: ShootOptions
  */
 @trusted void shootDesktopFile(IniLikeReader)(IniLikeReader reader, string fileName = null, ShootOptions options = ShootOptions.init)
@@ -448,6 +454,8 @@ struct ShootOptions
     
     string iconName, name, execString, url, workingDirectory;
     bool terminal;
+    
+    string bestLocale;
     
     foreach(g; reader.byGroup) {
         if (g.name == "Desktop Entry") {
@@ -465,10 +473,11 @@ struct ShootOptions
                         case "Path": workingDirectory = value; break;
                         case "Terminal": terminal = isTrue(value); break;
                         default: {
-                            //TODO: Choosing the most appropriate locale
-                            auto lt = separateFromLocale(key);
-                            if (name.empty && lt[0] == "Name" && (lt[1].empty || lt[1] == options.locale)) {
-                                name = value;
+                            auto kl = separateFromLocale(key);
+                            if (kl[0] == "Name") {
+                                auto lv = chooseLocalizedValue(options.locale, kl[1], value, bestLocale, name);
+                                bestLocale = lv[0];
+                                name = lv[1];
                             }
                         }
                         break;

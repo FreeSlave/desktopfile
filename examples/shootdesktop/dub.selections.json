@@ -1,6 +1,7 @@
 {
 	"fileVersion": 1,
 	"versions": {
-		"inilike": "0.3.0+commit.5.g496b71a"
+		"standardpaths": "0.2.0",
+		"inilike": "0.4.0"
 	}
 }
