@@ -396,7 +396,7 @@ struct ShootOptions
     enum
     {
         Exec = 1, /// shootDesktopFile can start applications.
-        Link = 2, /// shootDesktopFile can open links.
+        Link = 2, /// shootDesktopFile can open links (urls or file names).
         FollowLink = 4, /// If desktop file is link and url points to another desktop file shootDesktopFile will be called on this url with the same options.
         All = Exec|Link|FollowLink /// All flags described above.
     }
@@ -435,7 +435,12 @@ struct ShootOptions
 
 /**
  * Read the desktop file and run application or open link depending on the type of the given desktop file.
+ * Params:
+ *  reader = IniLikeReader constructed from range of strings using iniLikeRangeReader
+ *  fileName = file name of desktop file where data read from.
+ *  options = options that set behavior of the function.
  * Use this function to execute desktop file fast, without creating of DesktopFile instance.
+ * See_Also: ShootOptions
  */
 @trusted void shootDesktopFile(IniLikeReader)(IniLikeReader reader, string fileName = null, ShootOptions options = ShootOptions.init)
 {
@@ -473,7 +478,7 @@ struct ShootOptions
             
             import std.functional : toDelegate;
             
-            if (execString.length && options.flags|ShootOptions.Exec) {
+            if (execString.length && (options.flags & ShootOptions.Exec)) {
                 auto args = expandExecString(execString, options.urls, iconName, name, fileName);
                 
                 if (terminal) {
@@ -484,17 +489,20 @@ struct ShootOptions
                 }
                 
                 execProcess(args, workingDirectory);
-            } else if (url.length && options.flags|ShootOptions.Link) {
-                if (options.flags|ShootOptions.FollowLink && url.extension == ".desktop" && url.exists) {
-                    shootDesktopFile(url, options);
-                    return;
-                }
-                
+            } else if (url.length && (options.flags & ShootOptions.FollowLink) && url.extension == ".desktop" && url.exists) {
+                shootDesktopFile(url, options);
+            } else if (url.length && (options.flags & ShootOptions.Link)) {
                 if (options.opener == null) {
                     options.opener = toDelegate(&xdgOpen);
                 }
                 options.opener(url);
             } else {
+                if (execString.length) {
+                    throw new Exception("Desktop file is an application, but is prohibited to run by caller");
+                }
+                if (url.length) {
+                    throw new Exception("Desktop file is a link, but is prohibited to open by caller");
+                }
                 throw new Exception("Desktop file is neither application nor link");
             }
             

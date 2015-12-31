@@ -11,5 +11,5 @@
     "targetPath" : "lib", 
     "targetType" : "library",
     
-    "subPackages" : ["./examples/desktoptest", "./examples/desktoputil"]
+    "subPackages" : ["./examples/desktoptest", "./examples/desktoputil", "./examples/shootdesktop"]
 }
