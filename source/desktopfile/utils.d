@@ -522,6 +522,32 @@ struct ShootOptions
     throw new Exception("File does not have Desktop Entry group");
 }
 
+///
+unittest
+{
+    string contents;
+    ShootOptions options;
+    
+    contents = "contents";
+    options.flags = ShootOptions.FollowLink;
+    assertThrown(shootDesktopFile(iniLikeStringReader(contents), null, options));
+    
+    contents = "[Group]\nKey=Value";
+    options = ShootOptions.init;
+    assertThrown(shootDesktopFile(iniLikeStringReader(contents), null, options));
+    
+    contents = "[Desktop Entry]\nURL=testurl";
+    options = ShootOptions.init;
+    bool wasCalled;
+    options.opener = delegate void (string url) {
+        assert(url == "testurl");
+        wasCalled = true;
+    };
+    
+    shootDesktopFile(iniLikeStringReader(contents), null, options);
+    assert(wasCalled);
+}
+
 /// ditto, but automatically create IniLikeReader from the file.
 @trusted void shootDesktopFile(string fileName, ShootOptions options = ShootOptions.init)
 {

@@ -1,5 +1,6 @@
 /**
- * Getting paths applications paths where desktop files are stored.
+ * Getting applications paths where desktop files are stored.
+ * 
  * Authors: 
  *  $(LINK2 https://github.com/MyLittleRobo, Roman Chistokhodov)
  * Copyright:
@@ -29,7 +30,7 @@ private {
  * This function is available on all platforms, but requires dataPaths argument (e.g. C:\ProgramData\KDE\share on Windows)
  * Returns: Array of paths, based on dataPaths with "applications" directory appended.
  */
-@trusted string[] applicationsPaths(Range)(Range dataPaths) nothrow if (isInputRange!Range && is(ElementType!Range : string)) {
+@trusted string[] applicationsPaths(Range)(Range dataPaths) if (isInputRange!Range && is(ElementType!Range : string)) {
     return dataPaths.map!(p => buildPath(p, "applications")).array;
 }
 
@@ -60,6 +61,21 @@ static if (isFreedesktop)
         return result;
     }
     
+    ///
+    unittest
+    {
+        try {
+            environment["XDG_DATA_DIRS"] = "/myuser/share:/myuser/share/local";
+            environment["XDG_DATA_HOME"] = "/home/myuser/share";
+            
+            assert(equal(applicationsPaths(), ["/home/myuser/share/applications", "/myuser/share/applications", "/myuser/share/local/applications"]));
+        }
+        catch (Exception e) {
+            import std.stdio;
+            stderr.writeln("environment error in unittest", e.msg);
+        }
+    }
+    
     /**
      * Path where .desktop files can be stored without requiring of root privileges.
      * This function is defined only on freedesktop systems to avoid confusion with other systems that have data paths not compatible with Desktop Entry Spec.
@@ -70,7 +86,7 @@ static if (isFreedesktop)
         collectException(environment.get("XDG_DATA_HOME"), dir);
         if (!dir.length) {
             string home;
-            collectException(environment.get("HOME", home));
+            collectException(environment.get("HOME"), home);
             if (home.length) {
                 return buildPath(home, ".local/share/applications");
             }
@@ -78,5 +94,18 @@ static if (isFreedesktop)
             return buildPath(dir, "applications");
         }
         return null;
+    }
+    
+    ///
+    unittest
+    {
+        try {
+            environment["XDG_DATA_HOME"] = "/home/myuser/share";
+            assert(writableApplicationsPath() == "/home/myuser/share/applications");
+        }
+        catch(Exception e) {
+            import std.stdio;
+            stderr.writeln("environment error in unittest", e.msg);
+        }
     }
 }
