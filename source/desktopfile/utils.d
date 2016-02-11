@@ -450,7 +450,7 @@ struct ShootOptions
  */
 @trusted void shootDesktopFile(IniLikeReader)(IniLikeReader reader, string fileName = null, ShootOptions options = ShootOptions.init)
 {
-    enforce(options.flags & (ShootOptions.Exec|ShootOptions.Link), "At least one of the options Exec or Link should be provided");
+    enforce(options.flags & (ShootOptions.Exec|ShootOptions.Link), "At least one of the options Exec or Link must be provided");
     
     string iconName, name, execString, url, workingDirectory;
     bool terminal;
@@ -499,6 +499,7 @@ struct ShootOptions
                 
                 execProcess(args, workingDirectory);
             } else if (url.length && (options.flags & ShootOptions.FollowLink) && url.extension == ".desktop" && url.exists) {
+                options.flags = options.flags & (~ShootOptions.FollowLink); //avoid recursion
                 shootDesktopFile(url, options);
             } else if (url.length && (options.flags & ShootOptions.Link)) {
                 if (options.opener == null) {
