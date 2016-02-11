@@ -508,10 +508,10 @@ struct ShootOptions
                 options.opener(url);
             } else {
                 if (execString.length) {
-                    throw new Exception("Desktop file is an application, but is prohibited to run by caller");
+                    throw new Exception("Desktop file is an application, but flags don't include ShootOptions.Exec");
                 }
                 if (url.length) {
-                    throw new Exception("Desktop file is a link, but is prohibited to open by caller");
+                    throw new Exception("Desktop file is a link, but flags don't include ShootOptions.Link");
                 }
                 throw new Exception("Desktop file is neither application nor link");
             }
@@ -529,7 +529,7 @@ unittest
     string contents;
     ShootOptions options;
     
-    contents = "contents";
+    contents = "[Desktop Entry]\nURL=testurl";
     options.flags = ShootOptions.FollowLink;
     assertThrown(shootDesktopFile(iniLikeStringReader(contents), null, options));
     
@@ -547,6 +547,18 @@ unittest
     
     shootDesktopFile(iniLikeStringReader(contents), null, options);
     assert(wasCalled);
+    
+    contents = "[Desktop Entry]";
+    options = ShootOptions.init;
+    assertThrown(shootDesktopFile(iniLikeStringReader(contents), null, options));
+    
+    contents = "[Desktop Entry]\nURL=testurl";
+    options.flags = ShootOptions.Exec;
+    assertThrown(shootDesktopFile(iniLikeStringReader(contents), null, options));
+    
+    contents = "[Desktop Entry]\nExec=whoami";
+    options.flags = ShootOptions.Link;
+    assertThrown(shootDesktopFile(iniLikeStringReader(contents), null, options));
 }
 
 /// ditto, but automatically create IniLikeReader from the file.

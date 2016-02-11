@@ -69,6 +69,9 @@ static if (isFreedesktop)
             environment["XDG_DATA_HOME"] = "/home/myuser/share";
             
             assert(equal(applicationsPaths(), ["/home/myuser/share/applications", "/myuser/share/applications", "/myuser/share/local/applications"]));
+            
+            environment["XDG_DATA_DIRS"] = null;
+            assert(equal(applicationsPaths(), ["/home/myuser/share/applications", "/usr/local/share/applications", "/usr/share/applications"]));
         }
         catch (Exception e) {
             import std.stdio;
@@ -102,6 +105,10 @@ static if (isFreedesktop)
         try {
             environment["XDG_DATA_HOME"] = "/home/myuser/share";
             assert(writableApplicationsPath() == "/home/myuser/share/applications");
+            
+            environment["XDG_DATA_HOME"] = null;
+            environment["HOME"] = "/home/myuser";
+            assert(writableApplicationsPath() == "/home/myuser/.local/share/applications");
         }
         catch(Exception e) {
             import std.stdio;
