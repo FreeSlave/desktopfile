@@ -278,11 +278,10 @@ public:
         * See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html, Desktop File ID)
         * Returns: Desktop file ID or empty string if file does not have an ID.
         * Note: This function retrieves applications paths each time it's called and therefore can impact performance. To avoid this issue use overload with argument.
-        * See_Also: applicationsPaths
+        * See_Also: desktopfile.paths.applicationsPaths, desktopfile.utils.desktopId
         */
-        @trusted string id() const nothrow {
-            import desktopfile.paths;
-            return id(applicationsPaths());
+        @safe string id() const nothrow {
+            return desktopId(fileName);
         }
     }
     
@@ -291,33 +290,11 @@ public:
      * Params: 
      *  appPaths = range of base application paths to check if this file belongs to one of them.
      * Returns: Desktop file ID or empty string if file does not have an ID.
-     * See_Also: applicationsPaths
+     * See_Also: desktopfile.paths.applicationsPaths, desktopfile.utils.desktopId
      */
     @trusted string id(Range)(Range appPaths) const nothrow if (isInputRange!Range && is(ElementType!Range : string)) 
     {
-        try {
-            string absolute = fileName.absolutePath;
-            foreach (path; appPaths) {
-                auto pathSplit = pathSplitter(path);
-                auto fileSplit = pathSplitter(absolute);
-                
-                while (!pathSplit.empty && !fileSplit.empty && pathSplit.front == fileSplit.front) {
-                    pathSplit.popFront();
-                    fileSplit.popFront();
-                }
-                
-                if (pathSplit.empty) {
-                    static if( __VERSION__ < 2066 ) {
-                        return to!string(fileSplit.map!(s => to!string(s)).join("-"));
-                    } else {
-                        return to!string(fileSplit.join("-"));
-                    }
-                }
-            }
-        } catch(Exception e) {
-            
-        }
-        return null;
+        return desktopId(fileName, appPaths);
     }
     
     ///
@@ -391,7 +368,7 @@ Type=Directory`;
     /** 
      * Returns: the value associated with "Exec" key.
      * Note: To get arguments from exec string use expandExecString.
-     * See_Also: expandExecString, startApplication
+     * See_Also: expandExecString, startApplication, tryExecString
      */
     @nogc @safe string execString() const nothrow {
         return value("Exec");
@@ -414,10 +391,26 @@ Type=Directory`;
     
     /**
      * Value used to determine if the program is actually installed. If the path is not an absolute path, the file should be looked up in the $(B PATH) environment variable. If the file is not present or if it is not executable, the entry may be ignored (not be used in menus, for example).
-     * Returns: The value associated with "TryExec" key.
+     * Returns: The value associated with "TryExec" key, possibly with quotes removed if path is quoted.
+     * See_Also: execString
      */
     @nogc @safe string tryExecString() const nothrow {
-        return value("TryExec");
+        string orig = value("TryExec");
+        if (orig.length) {
+            if (orig[0] == '"' || orig[0] == '\'' && orig.length > 1 && orig[$-1] == orig[0]) {
+                return orig[1..$-1];
+            }
+        }
+        return orig;
+    }
+    
+    ///
+    unittest
+    {
+        auto df = new DesktopFile(iniLikeStringReader("[Desktop Entry]\nTryExec=whoami"));
+        assert(df.tryExecString() == "whoami");
+        df = new DesktopFile(iniLikeStringReader("[Desktop Entry]\nTryExec='/path to/whoami'"));
+        assert(df.tryExecString() == "/path to/whoami");
     }
     
     /**
@@ -695,7 +688,7 @@ Type=Directory`;
     /**
      * Expand "Exec" value into the array of command line arguments to use to start the program.
      * It applies unquoting and unescaping.
-     * See_Also: execString, unquoteExecString, unescapeExecArgument, startApplication
+     * See_Also: execString, desktopfile.utils.expandExecArgs, startApplication
      */
     @safe string[] expandExecString(in string[] urls = null, string locale = null) const
     {   
@@ -731,7 +724,7 @@ Icon[ru]=folder_ru`;
      * Throws:
      *  ProcessException on failure to start the process.
      *  DesktopExecException if exec string is invalid.
-     * See_Also: getTerminalCommand, start, expandExecString
+     * See_Also: desktopfile.utils.getTerminalCommand, start, expandExecString
      */
     @trusted Pid startApplication(in string[] urls = null, string locale = null, lazy const(string)[] terminalCommand = getTerminalCommand) const
     {
@@ -748,6 +741,15 @@ Icon[ru]=folder_ru`;
     {
         auto df = new DesktopFile();
         assertThrown(df.startApplication(string[].init));
+        
+        version(Posix) {
+            df = new DesktopFile(iniLikeStringReader("[Desktop Entry]\nType=Application\nExec=whoami"));
+            try {
+                df.startApplication();
+            } catch(Exception e) {
+                debug stderr.writeln("Environmental error in unittests: could not execute whoami");
+            }
+        }
     }
     
     ///ditto, but uses the only url.

@@ -3,7 +3,7 @@ import std.getopt;
 import std.process;
 
 import desktopfile.file;
-import desktopfile.isfreedesktop;
+import isfreedesktop;
 
 @safe string currentLocale() nothrow
 {

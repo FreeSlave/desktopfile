@@ -31,13 +31,17 @@ package {
     
     static if( __VERSION__ < 2066 ) enum nogc = 1;
     
-    import desktopfile.isfreedesktop;
+    import isfreedesktop;
 }
 
 package @trusted File getNullStdin()
 {
     version(Posix) {
-        return File("/dev/null", "rb");
+        try {
+            return File("/dev/null", "rb");
+        } catch(Exception e) {
+            return std.stdio.stdin;
+        }
     } else {
         return std.stdio.stdin;
     }
@@ -46,7 +50,11 @@ package @trusted File getNullStdin()
 package @trusted File getNullStdout()
 {
     version(Posix) {
-        return File("/dev/null", "wb");
+        try {
+            return File("/dev/null", "wb");
+        } catch(Exception e) {
+            return std.stdio.stdout;
+        }
     } else {
         return std.stdio.stdout;
     }
@@ -55,7 +63,11 @@ package @trusted File getNullStdout()
 package @trusted File getNullStderr()
 {
     version(Posix) {
-        return File("/dev/null", "wb");
+        try {
+            return File("/dev/null", "wb");
+        } catch(Exception e) {
+            return std.stdio.stderr;
+        }
     } else {
         return std.stdio.stderr;
     }
@@ -435,6 +447,55 @@ struct ShootOptions
     const(string)[] delegate() terminalDetector = null;
 }
 
+package void readNeededKeys(Group)(Group g, string locale, 
+                            out string iconName, out string name, 
+                            out string execString, out string url, 
+                            out string workingDirectory, out bool terminal)
+{
+    string bestLocale;
+    foreach(e; g.byEntry) {
+        auto t = parseKeyValue(e);
+        
+        string key = t[0];
+        string value = t[1];
+        
+        if (key.length) {
+            switch(key) {
+                case "Exec": execString = value; break;
+                case "URL": url = value; break;
+                case "Icon": iconName = value; break;
+                case "Path": workingDirectory = value; break;
+                case "Terminal": terminal = isTrue(value); break;
+                default: {
+                    auto kl = separateFromLocale(key);
+                    if (kl[0] == "Name") {
+                        auto lv = chooseLocalizedValue(locale, kl[1], value, bestLocale, name);
+                        bestLocale = lv[0];
+                        name = lv[1];
+                    }
+                }
+                break;
+            }
+        }
+    }
+}
+
+unittest
+{
+    string contents = "[Desktop Entry]\nExec=whoami\nURL=http://example.org\nIcon=folder\nPath=/usr/bin\nTerminal=true\nName=Example\nName[ru]=Пример";
+    auto reader = iniLikeStringReader(contents);
+    
+    string iconName, name, execString, url, workingDirectory;
+    bool terminal;
+    readNeededKeys(reader.byGroup().front, "ru_RU", iconName, name , execString, url, workingDirectory, terminal);
+    assert(iconName == "folder");
+    assert(execString == "whoami");
+    assert(url == "http://example.org");
+    assert(workingDirectory == "/usr/bin");
+    assert(terminal);
+    assert(name == "Пример");
+}
+
 /**
  * Read the desktop file and run application or open link depending on the type of the given desktop file.
  * Params:
@@ -455,35 +516,9 @@ struct ShootOptions
     string iconName, name, execString, url, workingDirectory;
     bool terminal;
     
-    string bestLocale;
-    
     foreach(g; reader.byGroup) {
         if (g.name == "Desktop Entry") {
-            foreach(e; g.byEntry) {
-                auto t = parseKeyValue(e);
-                
-                string key = t[0];
-                string value = t[1];
-                
-                if (key.length) {
-                    switch(key) {
-                        case "Exec": execString = value; break;
-                        case "URL": url = value; break;
-                        case "Icon": iconName = value; break;
-                        case "Path": workingDirectory = value; break;
-                        case "Terminal": terminal = isTrue(value); break;
-                        default: {
-                            auto kl = separateFromLocale(key);
-                            if (kl[0] == "Name") {
-                                auto lv = chooseLocalizedValue(options.locale, kl[1], value, bestLocale, name);
-                                bestLocale = lv[0];
-                                name = lv[1];
-                            }
-                        }
-                        break;
-                    }
-                }
-            }
+            readNeededKeys(g, options.locale, iconName, name , execString, url, workingDirectory, terminal);
             
             import std.functional : toDelegate;
             
@@ -565,4 +600,80 @@ unittest
 @trusted void shootDesktopFile(string fileName, ShootOptions options = ShootOptions.init)
 {
     shootDesktopFile(iniLikeFileReader(fileName), fileName, options);
+}
+
+/**
+ * See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html, Desktop File ID)
+ * Params: 
+ *  fileName = path of desktop file.
+ *  appPaths = range of base application paths to check if this file belongs to one of them.
+ * Returns: Desktop file ID or empty string if file does not have an ID.
+ * See_Also: desktopfile.paths.applicationsPaths
+ */
+@trusted string desktopId(Range)(string fileName, Range appPaths) nothrow if (isInputRange!Range && is(ElementType!Range : string))
+{
+    try {
+        string absolute = fileName.absolutePath;
+        foreach (path; appPaths) {
+            auto pathSplit = pathSplitter(path);
+            auto fileSplit = pathSplitter(absolute);
+            
+            while (!pathSplit.empty && !fileSplit.empty && pathSplit.front == fileSplit.front) {
+                pathSplit.popFront();
+                fileSplit.popFront();
+            }
+            
+            if (pathSplit.empty) {
+                static if( __VERSION__ < 2066 ) {
+                    return to!string(fileSplit.map!(s => to!string(s)).join("-"));
+                } else {
+                    return to!string(fileSplit.join("-"));
+                }
+            }
+        }
+    } catch(Exception e) {
+        
+    }
+    return null;
+}
+
+///
+unittest
+{
+    string[] appPaths;
+    string filePath, nestedFilePath, wrongFilePath;
+    
+    version(Windows) {
+        appPaths = [`C:\ProgramData\KDE\share\applications`, `C:\Users\username\.kde\share\applications`];
+        filePath = `C:\ProgramData\KDE\share\applications\example.desktop`;
+        nestedFilePath = `C:\ProgramData\KDE\share\applications\kde\example.desktop`;
+        wrongFilePath = `C:\ProgramData\desktop\example.desktop`;
+    } else {
+        appPaths = ["/usr/share/applications", "/usr/local/share/applications"];
+        filePath = "/usr/share/applications/example.desktop";
+        nestedFilePath = "/usr/share/applications/kde/example.desktop";
+        wrongFilePath = "/etc/desktop/example.desktop";
+    }
+    
+    assert(desktopId(nestedFilePath, appPaths) == "kde-example.desktop");
+    assert(desktopId(filePath, appPaths) == "example.desktop");
+    assert(desktopId(wrongFilePath, appPaths).empty);
+    assert(desktopId("", appPaths).empty);
+}
+
+static if (isFreedesktop)
+{
+    /** 
+     * See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html, Desktop File ID)
+     * Returns: Desktop file ID or empty string if file does not have an ID.
+     * Params:
+     *  fileName = path of desktop file.
+     * Note: This function retrieves applications paths each time it's called and therefore can impact performance. To avoid this issue use overload with argument.
+     * See_Also: desktopfile.paths.applicationsPaths
+     */
+    @trusted string desktopId(string fileName) nothrow
+    {
+        import desktopfile.paths;
+        return desktopId(fileName, applicationsPaths());
+    }
 }

@@ -8,7 +8,7 @@ import std.getopt;
 
 import desktopfile.paths;
 import desktopfile.file;
-import desktopfile.isfreedesktop;
+import isfreedesktop;
 
 void main(string[] args)
 {
