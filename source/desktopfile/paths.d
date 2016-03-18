@@ -45,7 +45,7 @@ static if (isFreedesktop)
      * This function is defined only on freedesktop systems to avoid confusion with other systems that have data paths not compatible with Desktop Entry Spec.
      */
     @safe string[] applicationsPaths() nothrow {
-        return xdgDataDirs("applications");
+        return xdgAllDataDirs("applications");
     }
     
     /**
