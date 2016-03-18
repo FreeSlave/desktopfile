@@ -3,7 +3,7 @@
  * Authors: 
  *  $(LINK2 https://github.com/MyLittleRobo, Roman Chistokhodov)
  * Copyright:
- *  Roman Chistokhodov, 2015
+ *  Roman Chistokhodov, 2015-2016
  * License: 
  *  $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
  * See_Also: 
@@ -358,23 +358,26 @@ string[] getTerminalCommand() nothrow @trusted
             }
         }
         
-        static string findExecutable(string name) nothrow {
-            if (name.isAbsolute()) {
-                return checkExecutable(name);
-            } else {
-                string toReturn;
-                try {
-                    foreach(path; std.algorithm.splitter(environment.get("PATH"), ':')) {
-                        toReturn = checkExecutable(buildPath(path, name));
-                        if (toReturn.length) {
-                            return toReturn;
+        static string findExecutable(string fileName) nothrow {
+            try {
+                if (fileName.isAbsolute()) {
+                    return checkExecutable(fileName);
+                } else if (fileName == fileName.baseName) {
+                    foreach(string path; std.algorithm.splitter(environment.get("PATH"), ':')) {
+                        if (path.empty) {
+                            continue;
+                        }
+                        
+                        string candidate = checkExecutable(buildPath(absolutePath(path), fileName));
+                        if (candidate.length) {
+                            return candidate;
                         }
                     }
-                } catch(Exception e) {
-                    
                 }
-                return null;
+            } catch (Exception e) {
+                
             }
+            return null;
         }
         
         string term = findExecutable("x-terminal-emulator");
@@ -393,7 +396,7 @@ string[] getTerminalCommand() nothrow @trusted
 
 package void xdgOpen(string url)
 {
-    spawnProcess(["xdg-open", url], null, Config.none);
+    spawnProcess(["xdg-open", url], getNullStdin(), getNullStdout(), getNullStderr());
 }
 
 /**

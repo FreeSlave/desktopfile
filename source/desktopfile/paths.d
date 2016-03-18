@@ -4,7 +4,7 @@
  * Authors: 
  *  $(LINK2 https://github.com/MyLittleRobo, Roman Chistokhodov)
  * Copyright:
- *  Roman Chistokhodov, 2015
+ *  Roman Chistokhodov, 2015-2016
  * License: 
  *  $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
  * See_Also: 
@@ -19,11 +19,8 @@ private {
     
     import std.algorithm;
     import std.array;
-    import std.exception;
     import std.path;
-    import std.process : environment;
     import std.range;
-    import std.string;
 }
 
 /**

@@ -3,7 +3,7 @@
  * Authors: 
  *  $(LINK2 https://github.com/MyLittleRobo, Roman Chistokhodov)
  * Copyright:
- *  Roman Chistokhodov, 2015
+ *  Roman Chistokhodov, 2015-2016
  * License: 
  *  $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
  * See_Also: 
@@ -487,24 +487,27 @@ Type=Directory`;
     
     private static struct SplitValues
     {
-        @trusted this(string value) {
+        @trusted this(string value) nothrow {
             _value = value;
             next();
         }
-        @trusted string front() {
+        @nogc @trusted string front() const nothrow pure {
             return _current;
         }
-        @trusted void popFront() {
+        @trusted void popFront() nothrow {
             next();
         }
-        @trusted bool empty() {
+        @trusted bool empty() const nothrow pure {
             return _value.empty && _current.empty;
         }
-        @trusted @property auto save() {
-            return this;
+        @trusted @property auto save() const nothrow pure {
+            SplitValues values;
+            values._value = _value;
+            values._current = _current;
+            return values;
         }
     private:
-        void next() {
+        void next() nothrow {
             size_t i=0;
             for (; i<_value.length && ( (_value[i] != ';') || (i && _value[i-1] == '\\' && _value[i] == ';')); ++i) {
                 //pass
@@ -523,7 +526,7 @@ Type=Directory`;
      * Returns: The range of multiple nonempty values.
      * Note: Returned range unescapes ';' character automatically.
      */
-    @trusted static auto splitValues(string values) {
+    @trusted static auto splitValues(string values) nothrow {
         return SplitValues(values).filter!(s => !s.empty);
     }
     
@@ -535,6 +538,15 @@ Type=Directory`;
         assert(DesktopFile.splitValues(";;;").empty);
         assert(equal(DesktopFile.splitValues("Application;Utility;FileManager;"), ["Application", "Utility", "FileManager"]));
         assert(equal(DesktopFile.splitValues("I\\;Me;\\;You\\;We\\;"), ["I;Me", ";You;We;"]));
+        
+        auto values = DesktopFile.splitValues("Application;Utility;FileManager;");
+        assert(values.front == "Application");
+        values.popFront();
+        assert(equal(values, ["Utility", "FileManager"]));
+        auto saved = values.save;
+        values.popFront();
+        assert(equal(values, ["FileManager"]));
+        assert(equal(saved, ["Utility", "FileManager"]));
     }
     
     /**
@@ -563,7 +575,7 @@ Type=Directory`;
      * Categories this program belongs to.
      * Returns: The range of multiple values associated with "Categories" key.
      */
-    @safe auto categories() const {
+    @safe auto categories() const nothrow {
         return splitValues(value("Categories"));
     }
     
@@ -578,7 +590,7 @@ Type=Directory`;
      * A list of strings which may be used in addition to other metadata to describe this entry.
      * Returns: The range of multiple values associated with "Keywords" key.
      */
-    @safe auto keywords() const {
+    @safe auto keywords() const nothrow {
         return splitValues(value("Keywords"));
     }
     
@@ -586,7 +598,7 @@ Type=Directory`;
      * A list of localied strings which may be used in addition to other metadata to describe this entry.
      * Returns: The range of multiple values associated with "Keywords" key in given locale.
      */
-    @safe auto localizedKeywords(string locale) const {
+    @safe auto localizedKeywords(string locale) const nothrow {
         return splitValues(localizedValue("Keywords", locale));
     }
     
@@ -601,7 +613,7 @@ Type=Directory`;
      * The MIME type(s) supported by this application.
      * Returns: The range of multiple values associated with "MimeType" key.
      */
-    @safe auto mimeTypes() const {
+    @safe auto mimeTypes() nothrow const {
         return splitValues(value("MimeType"));
     }
     
@@ -618,7 +630,7 @@ Type=Directory`;
      * Note: This only depends on "Actions" value, not on actually presented sections in desktop file.
      * See_Also: byAction, action
      */
-    @safe auto actions() const {
+    @safe auto actions() nothrow const {
         return splitValues(value("Actions"));
     }
     
