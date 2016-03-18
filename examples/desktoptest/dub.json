@@ -5,7 +5,7 @@
     "authors": ["freeslave"],
     "dependencies": {
         "desktopfile" : "*",
-        "standardpaths": "~>0.2.0"
+        "standardpaths": "~>0.3.1"
     },
     "targetPath" : "bin",
     "targetType" : "executable",
