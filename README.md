@@ -177,4 +177,4 @@ Example using cmd on Windows (KDE installed):
 Uses the alternative way of starting desktop file. Instead of constructing DesktopFile object it just starts the application or opens link after read enough information from file.
 
     dub run desktopfile:shootdesktop -- $HOME/Desktop/vlc.desktop
-    
+    dub run desktopfile:shootdesktop -- /usr/share/applications/python2.7.desktop

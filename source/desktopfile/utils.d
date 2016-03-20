@@ -394,6 +394,11 @@ string[] getTerminalCommand() nothrow @trusted
     }
 }
 
+unittest
+{
+    string[] terminalArgs = getTerminalCommand();
+}
+
 package void xdgOpen(string url)
 {
     spawnProcess(["xdg-open", url], getNullStdin(), getNullStdout(), getNullStderr());

@@ -16,20 +16,24 @@ public import inilike.file;
 public import desktopfile.utils;
 
 /**
- * Adapter of IniLikeGroup for easy access to desktop action.
+ * Subclass of IniLikeGroup for easy access to desktop action.
  */
-struct DesktopAction
+final class DesktopAction : IniLikeGroup
 {
-    @nogc @safe this(const(IniLikeGroup) group) nothrow {
-        _group = group;
+protected:
+    @trusted override void validateKeyValue(string key, string value) const {
+        enforce(isValidKey(key), "key is invalid");
+    }
+public:
+    package @nogc @safe this(string groupName) nothrow {
+        super(groupName);
     }
     
     /**
      * Label that will be shown to the user.
      * Returns: The value associated with "Name" key.
-     * Note: Don't confuse this with name of section. To access name of section use group().name.
      */
-    @nogc @safe string name() const nothrow {
+    @nogc @safe string displayName() const nothrow {
         return value("Name");
     }
     
@@ -37,7 +41,7 @@ struct DesktopAction
      * Label that will be shown to the user in given locale.
      * Returns: The value associated with "Name" key and given locale.
      */
-    @safe string localizedName(string locale) const nothrow {
+    @safe string localizedDisplayName(string locale) const nothrow {
         return localizedValue("Name", locale);
     }
     
@@ -74,32 +78,15 @@ struct DesktopAction
      * See_Also: execString
      */
     @safe Pid start(string locale = null) const {
-        return execProcess(expandExecString(execString, null, localizedIconName(locale), localizedName(locale)));
+        return execProcess(expandExecString(execString, null, localizedIconName(locale), localizedDisplayName(locale)));
     }
-    
-    /**
-     * Underlying IniLikeGroup instance. 
-     * Returns: IniLikeGroup this object was constrcucted from.
-     */
-    @nogc @safe const(IniLikeGroup) group() const nothrow {
-        return _group;
-    }
-    
-    /**
-     * This alias allows to call functions of underlying IniLikeGroup instance.
-     */
-    alias group this;
-private:
-    const(IniLikeGroup) _group;
 }
 
 /**
- * Represents .desktop file.
- * 
+ * Subclass of IniLikeGroup for easy accessing of Desktop Entry properties.
  */
-final class DesktopFile : IniLikeFile
+final class DesktopEntry : IniLikeGroup
 {
-public:
     ///Desktop entry type
     enum Type
     {
@@ -109,76 +96,8 @@ public:
         Directory ///Desktop entry describes directory settings
     }
     
-    alias IniLikeFile.ReadOptions ReadOptions;
-    
-    /**
-     * Reads desktop file from file.
-     * Throws:
-     *  $(B ErrnoException) if file could not be opened.
-     *  $(B IniLikeException) if error occured while reading the file.
-     */
-    @safe this(string fileName, ReadOptions options = ReadOptions.noOptions) {
-        this(iniLikeFileReader(fileName), options, fileName);
-    }
-    
-    /**
-     * Reads desktop file from range of $(B IniLikeLine)s.
-     * Throws:
-     *  $(B IniLikeException) if error occured while parsing.
-     */
-    @trusted this(IniLikeReader)(IniLikeReader reader, ReadOptions options = ReadOptions.noOptions, string fileName = null)
-    {   
-        super(reader, options, fileName);
-        _desktopEntry = group("Desktop Entry");
-        enforce(_desktopEntry, new IniLikeException("No \"Desktop Entry\" group", 0));
-    }
-    
-    /**
-     * Constructs DesktopFile with "Desktop Entry" group and Version set to 1.0
-     */
-    @safe this() {
-        super();
-        _desktopEntry = super.addGroup("Desktop Entry");
-        this["Version"] = "1.0";
-    }
-    
-    ///
-    unittest
-    {
-        auto df = new DesktopFile();
-        assert(df.desktopEntry());
-        assert(df.value("Version") == "1.0");
-        assert(df.categories().empty);
-        assert(df.type() == DesktopFile.Type.Unknown);
-    }
-    
-    @safe override IniLikeGroup addGroup(string groupName) {
-        auto entry = super.addGroup(groupName);
-        if (groupName == "Desktop Entry") {
-            _desktopEntry = entry;
-        }
-        return entry;
-    }
-    
-    /**
-     * Removes group by name. You can't remove "Desktop Entry" group with this function.
-     */
-    @safe override void removeGroup(string groupName) nothrow {
-        if (groupName != "Desktop Entry") {
-            super.removeGroup(groupName);
-        }
-    }
-    
-    ///
-    unittest
-    {
-        auto df = new DesktopFile();
-        df.addGroup("Action");
-        assert(df.group("Action") !is null);
-        df.removeGroup("Action");
-        assert(df.group("Action") is null);
-        df.removeGroup("Desktop Entry");
-        assert(df.desktopEntry() !is null);
+    protected @nogc @safe this() nothrow {
+        super("Desktop Entry");
     }
     
     /**
@@ -196,10 +115,6 @@ public:
                 return Type.Directory;
             }
         }
-        if (fileName().endsWith(".directory")) {
-            return Type.Directory;
-        }
-        
         return Type.Unknown;
     }
     
@@ -208,16 +123,13 @@ public:
     {
         string contents = "[Desktop Entry]\nType=Application";
         auto desktopFile = new DesktopFile(iniLikeStringReader(contents));
-        assert(desktopFile.type == DesktopFile.Type.Application);
+        assert(desktopFile.type == Type.Application);
         
         desktopFile.desktopEntry["Type"] = "Link";
-        assert(desktopFile.type == DesktopFile.Type.Link);
+        assert(desktopFile.type == Type.Link);
         
         desktopFile.desktopEntry["Type"] = "Directory";
-        assert(desktopFile.type == DesktopFile.Type.Directory);
-        
-        desktopFile = new DesktopFile(iniLikeStringReader("[Desktop Entry]"), ReadOptions.noOptions, ".directory");
-        assert(desktopFile.type == DesktopFile.Type.Directory);
+        assert(desktopFile.type == Type.Directory);
     }
     
     /**
@@ -246,14 +158,14 @@ public:
     unittest
     {
         auto desktopFile = new DesktopFile();
-        desktopFile.type = DesktopFile.Type.Application;
-        assert(desktopFile.desktopEntry["Type"] == "Application");
-        desktopFile.type = DesktopFile.Type.Link;
-        assert(desktopFile.desktopEntry["Type"] == "Link");
-        desktopFile.type = DesktopFile.Type.Directory;
-        assert(desktopFile.desktopEntry["Type"] == "Directory");
+        desktopFile.type = Type.Application;
+        assert(desktopFile.desktopEntry.value("Type") == "Application");
+        desktopFile.type = Type.Link;
+        assert(desktopFile.desktopEntry.value("Type") == "Link");
+        desktopFile.type = Type.Directory;
+        assert(desktopFile.desktopEntry.value("Type") == "Directory");
         
-        desktopFile.type = DesktopFile.Type.Unknown;
+        desktopFile.type = Type.Unknown;
         assert(desktopFile.desktopEntry.value("Type").empty);
     }
     
@@ -262,75 +174,15 @@ public:
      * Returns: The value associated with "Name" key.
      * See_Also: localizedName
      */
-    @nogc @safe string name() const nothrow {
+    @nogc @safe string displayName() const nothrow {
         return value("Name");
     }
     /**
      * Returns: Localized name.
      * See_Also: name
      */
-    @safe string localizedName(string locale) const nothrow {
+    @safe string localizedDisplayName(string locale) const nothrow {
         return localizedValue("Name", locale);
-    }
-    
-    static if (isFreedesktop) {
-        /** 
-        * See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html, Desktop File ID)
-        * Returns: Desktop file ID or empty string if file does not have an ID.
-        * Note: This function retrieves applications paths each time it's called and therefore can impact performance. To avoid this issue use overload with argument.
-        * See_Also: desktopfile.paths.applicationsPaths, desktopfile.utils.desktopId
-        */
-        @safe string id() const nothrow {
-            return desktopId(fileName);
-        }
-    }
-    
-    /**
-     * See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html, Desktop File ID)
-     * Params: 
-     *  appPaths = range of base application paths to check if this file belongs to one of them.
-     * Returns: Desktop file ID or empty string if file does not have an ID.
-     * See_Also: desktopfile.paths.applicationsPaths, desktopfile.utils.desktopId
-     */
-    @trusted string id(Range)(Range appPaths) const nothrow if (isInputRange!Range && is(ElementType!Range : string)) 
-    {
-        return desktopId(fileName, appPaths);
-    }
-    
-    ///
-    unittest 
-    {
-        string contents = 
-`[Desktop Entry]
-Name=Program
-Type=Directory`;
-        
-        string[] appPaths;
-        string filePath, nestedFilePath, wrongFilePath;
-        
-        version(Windows) {
-            appPaths = [`C:\ProgramData\KDE\share\applications`, `C:\Users\username\.kde\share\applications`];
-            filePath = `C:\ProgramData\KDE\share\applications\example.desktop`;
-            nestedFilePath = `C:\ProgramData\KDE\share\applications\kde\example.desktop`;
-            wrongFilePath = `C:\ProgramData\desktop\example.desktop`;
-        } else {
-            appPaths = ["/usr/share/applications", "/usr/local/share/applications"];
-            filePath = "/usr/share/applications/example.desktop";
-            nestedFilePath = "/usr/share/applications/kde/example.desktop";
-            wrongFilePath = "/etc/desktop/example.desktop";
-        }
-         
-        auto df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions, nestedFilePath);
-        assert(df.id(appPaths) == "kde-example.desktop");
-        
-        df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions, filePath);
-        assert(df.id(appPaths) == "example.desktop");
-        
-        df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions, wrongFilePath);
-        assert(df.id(appPaths).empty);
-        
-        df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions);
-        assert(df.id(appPaths).empty);
     }
     
     /**
@@ -485,6 +337,348 @@ Type=Directory`;
         return t;
     }
     
+    /**
+     * Categories this program belongs to.
+     * Returns: The range of multiple values associated with "Categories" key.
+     */
+    @safe auto categories() const nothrow {
+        return DesktopFile.splitValues(value("Categories"));
+    }
+    
+    /**
+     * Sets the list of values for the "Categories" list.
+     */
+    @safe void categories(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
+        this["Categories"] = DesktopFile.joinValues(values);
+    }
+    
+    /**
+     * A list of strings which may be used in addition to other metadata to describe this entry.
+     * Returns: The range of multiple values associated with "Keywords" key.
+     */
+    @safe auto keywords() const nothrow {
+        return DesktopFile.splitValues(value("Keywords"));
+    }
+    
+    /**
+     * A list of localied strings which may be used in addition to other metadata to describe this entry.
+     * Returns: The range of multiple values associated with "Keywords" key in given locale.
+     */
+    @safe auto localizedKeywords(string locale) const nothrow {
+        return DesktopFile.splitValues(localizedValue("Keywords", locale));
+    }
+    
+    /**
+     * Sets the list of values for the "Keywords" list.
+     */
+    @safe void keywords(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
+        this["Keywords"] = DesktopFile.joinValues(values);
+    }
+    
+    /**
+     * The MIME type(s) supported by this application.
+     * Returns: The range of multiple values associated with "MimeType" key.
+     */
+    @safe auto mimeTypes() nothrow const {
+        return DesktopFile.splitValues(value("MimeType"));
+    }
+    
+    /**
+     * Sets the list of values for the "MimeType" list.
+     */
+    @safe void mimeTypes(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
+        this["MimeType"] = DesktopFile.joinValues(values);
+    }
+    
+    /**
+     * Actions supported by application.
+     * Returns: Range of multiple values associated with "Actions" key.
+     * Note: This only depends on "Actions" value, not on actually presented sections in desktop file.
+     * See_Also: byAction, action
+     */
+    @safe auto actions() nothrow const {
+        return DesktopFile.splitValues(value("Actions"));
+    }
+    
+    /**
+     * Sets the list of values for "Actions" list.
+     */
+    @safe void actions(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
+        this["Actions"] = DesktopFile.joinValues(values);
+    }
+    
+    /**
+     * A list of strings identifying the desktop environments that should display a given desktop entry.
+     * Returns: The range of multiple values associated with "OnlyShowIn" key.
+     */
+    @safe auto onlyShowIn() const {
+        return DesktopFile.splitValues(value("OnlyShowIn"));
+    }
+    
+    /**
+     * A list of strings identifying the desktop environments that should not display a given desktop entry.
+     * Returns: The range of multiple values associated with "NotShowIn" key.
+     */
+    @safe auto notShowIn() const {
+        return DesktopFile.splitValues(value("NotShowIn"));
+    }
+protected:
+    @trusted override void validateKeyValue(string key, string value) const {
+        enforce(isValidKey(key), "key is invalid");
+    }
+}
+
+/**
+ * Represents .desktop file.
+ * 
+ */
+final class DesktopFile : IniLikeFile
+{
+public:
+    /**
+     * Alias for backward compatibility.
+     */
+    alias DesktopEntry.Type Type;
+    
+    ///Flags to manage desktop file reading
+    enum ReadOptions
+    {
+        noOptions = 0,              /// Read all groups, skip comments and empty lines, stop on any error.
+        preserveComments = 2,       /// Preserve comments and empty lines. Use this when you want to keep them across writing.
+        ignoreGroupDuplicates = 4,  /// Ignore group duplicates. The first found will be used.
+        ignoreInvalidKeys = 8,      /// Skip invalid keys during parsing.
+        ignoreKeyDuplicates = 16,   /// Ignore key duplicates. The first found will be used.
+        ignoreUnknownGroups = 32,   /// Don't throw on unknown groups. Still save them.
+        skipUnknownGroups = 64,     /// Don't save unknown groups. Use it with ignoreUnknownGroups.
+        skipExtensionGroups = 128   /// Skip groups started with X-.
+    }
+    
+    /**
+     * Default options for desktop file reading.
+     */
+    enum defaultReadOptions = ReadOptions.ignoreUnknownGroups | ReadOptions.skipUnknownGroups | ReadOptions.preserveComments;
+    
+protected:
+    @trusted override void addCommentForGroup(string comment, IniLikeGroup currentGroup, string groupName)
+    {
+        if (currentGroup && (_options & ReadOptions.preserveComments)) {
+            currentGroup.addComment(comment);
+        }
+    }
+    
+    @trusted override void addKeyValueForGroup(string key, string value, IniLikeGroup currentGroup, string groupName)
+    {
+        if (currentGroup) {
+            if (!isValidKey(key) && (_options & ReadOptions.ignoreInvalidKeys)) {
+                return;
+            }
+            if (currentGroup.contains(key)) {
+                if (_options & ReadOptions.ignoreKeyDuplicates) {
+                    return;
+                } else {
+                    throw new Exception("key already exists");
+                }
+            }
+            currentGroup[key] = value;
+        }
+    }
+    
+    @trusted override IniLikeGroup createGroup(string groupName)
+    {
+        if (group(groupName) !is null) {
+            if (_options & ReadOptions.ignoreGroupDuplicates) {
+                return null;
+            } else {
+                throw new Exception("group already exists");
+            }
+        }
+        
+        if (groupName == "Desktop Entry") {
+            _desktopEntry = new DesktopEntry();
+            return _desktopEntry;
+        } else if (groupName.startsWith("X-")) {
+            if (_options & ReadOptions.skipExtensionGroups) {
+                return null;
+            }
+            return createEmptyGroup(groupName);
+        } else if (groupName.startsWith("Desktop Action ")) {
+            return new DesktopAction(groupName);
+        } else {
+            if (_options & ReadOptions.ignoreUnknownGroups) {
+                if (_options & ReadOptions.skipUnknownGroups) {
+                    return null;
+                } else {
+                    return createEmptyGroup(groupName);
+                }
+            } else {
+                throw new Exception("Invalid group name: must start with 'Desktop Action ' or 'X-'");
+            }
+        }
+    }
+    
+public:
+    /**
+     * Reads desktop file from file.
+     * Throws:
+     *  $(B ErrnoException) if file could not be opened.
+     *  $(B IniLikeException) if error occured while reading the file.
+     */
+    @safe this(string fileName, ReadOptions options = defaultReadOptions) {
+        this(iniLikeFileReader(fileName), options, fileName);
+    }
+    
+    /**
+     * Reads desktop file from IniLikeReader, e.g. acquired from iniLikeFileReader or iniLikeStringReader.
+     * Throws:
+     *  $(B IniLikeException) if error occured while parsing.
+     */
+    @trusted this(IniLikeReader)(IniLikeReader reader, ReadOptions options = defaultReadOptions, string fileName = null)
+    {   
+        _options = options;
+        super(reader, fileName);
+        enforce(_desktopEntry !is null, new IniLikeException("No \"Desktop Entry\" group", 0));
+    }
+    
+    /**
+     * Reads desktop file from IniLikeReader, e.g. acquired from iniLikeFileReader or iniLikeStringReader.
+     * Throws:
+     *  $(B IniLikeException) if error occured while parsing.
+     */
+    @trusted this(IniLikeReader)(IniLikeReader reader, string fileName, ReadOptions options = defaultReadOptions)
+    {
+        this(reader, options, fileName);
+    }
+    
+    /**
+     * Constructs DesktopFile with "Desktop Entry" group and Version set to 1.0
+     */
+    @safe this() {
+        super();
+        addGroup("Desktop Entry");
+        _desktopEntry["Version"] = "1.0";
+    }
+    
+    ///
+    unittest
+    {
+        auto df = new DesktopFile();
+        assert(df.desktopEntry());
+        assert(df.value("Version") == "1.0");
+        assert(df.categories().empty);
+        assert(df.type() == DesktopFile.Type.Unknown);
+    }
+    
+    /**
+     * Removes group by name. You can't remove "Desktop Entry" group with this function.
+     */
+    @safe override void removeGroup(string groupName) nothrow {
+        if (groupName != "Desktop Entry") {
+            super.removeGroup(groupName);
+        }
+    }
+    
+    ///
+    unittest
+    {
+        auto df = new DesktopFile();
+        df.addGroup("X-Action");
+        assert(df.group("X-Action") !is null);
+        df.removeGroup("X-Action");
+        assert(df.group("X-Action") is null);
+        df.removeGroup("Desktop Entry");
+        assert(df.desktopEntry() !is null);
+    }
+    
+    @trusted override void addLeadingComment(string line) nothrow {
+        if (_options & ReadOptions.preserveComments) {
+            super.addLeadingComment(line);
+        }
+    }
+    
+    /**
+     * Type of desktop entry.
+     * Returns: Type of desktop entry.
+     * See_Also: DesktopEntry.type
+     */
+    @nogc @safe Type type() const nothrow {
+        auto t = desktopEntry().type();
+        if (t == Type.Unknown && fileName().endsWith(".directory")) {
+            return Type.Directory;
+        }
+        return t;
+    }
+    
+    @safe Type type(Type t) {
+        return desktopEntry().type(t);
+    }
+    
+    ///
+    unittest
+    {   
+        auto desktopFile = new DesktopFile(iniLikeStringReader("[Desktop Entry]"), ReadOptions.noOptions, ".directory");
+        assert(desktopFile.type == DesktopFile.Type.Directory);
+    }
+    
+    static if (isFreedesktop) {
+        /** 
+        * See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html, Desktop File ID)
+        * Returns: Desktop file ID or empty string if file does not have an ID.
+        * Note: This function retrieves applications paths each time it's called and therefore can impact performance. To avoid this issue use overload with argument.
+        * See_Also: desktopfile.paths.applicationsPaths, desktopfile.utils.desktopId
+        */
+        @safe string id() const nothrow {
+            return desktopId(fileName);
+        }
+    }
+    
+    /**
+     * See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html, Desktop File ID)
+     * Params: 
+     *  appPaths = range of base application paths to check if this file belongs to one of them.
+     * Returns: Desktop file ID or empty string if file does not have an ID.
+     * See_Also: desktopfile.paths.applicationsPaths, desktopfile.utils.desktopId
+     */
+    @trusted string id(Range)(Range appPaths) const nothrow if (isInputRange!Range && is(ElementType!Range : string)) 
+    {
+        return desktopId(fileName, appPaths);
+    }
+    
+    ///
+    unittest 
+    {
+        string contents = 
+`[Desktop Entry]
+Name=Program
+Type=Directory`;
+        
+        string[] appPaths;
+        string filePath, nestedFilePath, wrongFilePath;
+        
+        version(Windows) {
+            appPaths = [`C:\ProgramData\KDE\share\applications`, `C:\Users\username\.kde\share\applications`];
+            filePath = `C:\ProgramData\KDE\share\applications\example.desktop`;
+            nestedFilePath = `C:\ProgramData\KDE\share\applications\kde\example.desktop`;
+            wrongFilePath = `C:\ProgramData\desktop\example.desktop`;
+        } else {
+            appPaths = ["/usr/share/applications", "/usr/local/share/applications"];
+            filePath = "/usr/share/applications/example.desktop";
+            nestedFilePath = "/usr/share/applications/kde/example.desktop";
+            wrongFilePath = "/etc/desktop/example.desktop";
+        }
+         
+        auto df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions, nestedFilePath);
+        assert(df.id(appPaths) == "kde-example.desktop");
+        
+        df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions, filePath);
+        assert(df.id(appPaths) == "example.desktop");
+        
+        df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions, wrongFilePath);
+        assert(df.id(appPaths).empty);
+        
+        df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions);
+        assert(df.id(appPaths).empty);
+    }
+    
     private static struct SplitValues
     {
         @trusted this(string value) nothrow {
@@ -572,89 +766,18 @@ Type=Directory`;
     }
     
     /**
-     * Categories this program belongs to.
-     * Returns: The range of multiple values associated with "Categories" key.
-     */
-    @safe auto categories() const nothrow {
-        return splitValues(value("Categories"));
-    }
-    
-    /**
-     * Sets the list of values for the "Categories" list.
-     */
-    @safe void categories(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
-        this["Categories"] = joinValues(values);
-    }
-    
-    /**
-     * A list of strings which may be used in addition to other metadata to describe this entry.
-     * Returns: The range of multiple values associated with "Keywords" key.
-     */
-    @safe auto keywords() const nothrow {
-        return splitValues(value("Keywords"));
-    }
-    
-    /**
-     * A list of localied strings which may be used in addition to other metadata to describe this entry.
-     * Returns: The range of multiple values associated with "Keywords" key in given locale.
-     */
-    @safe auto localizedKeywords(string locale) const nothrow {
-        return splitValues(localizedValue("Keywords", locale));
-    }
-    
-    /**
-     * Sets the list of values for the "Keywords" list.
-     */
-    @safe void keywords(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
-        this["Keywords"] = joinValues(values);
-    }
-    
-    /**
-     * The MIME type(s) supported by this application.
-     * Returns: The range of multiple values associated with "MimeType" key.
-     */
-    @safe auto mimeTypes() nothrow const {
-        return splitValues(value("MimeType"));
-    }
-    
-    /**
-     * Sets the list of values for the "MimeType" list.
-     */
-    @safe void mimeTypes(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
-        this["MimeType"] = joinValues(values);
-    }
-    
-    /**
-     * Actions supported by application.
-     * Returns: Range of multiple values associated with "Actions" key.
-     * Note: This only depends on "Actions" value, not on actually presented sections in desktop file.
-     * See_Also: byAction, action
-     */
-    @safe auto actions() nothrow const {
-        return splitValues(value("Actions"));
-    }
-    
-    /**
-     * Sets the list of values for "Actions" list.
-     */
-    @safe void actions(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
-        this["Actions"] = joinValues(values);
-    }
-    
-    /**
      * Get $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s10.html, additional application action) by name.
-     * Returns: DesktopAction with given action name or DesktopAction with null group if not found or found section does not have a name.
+     * Returns: DesktopAction with given action name or null if not found or found section does not have a name.
      * See_Also: actions, byAction
      */
-    @safe const(DesktopAction) action(string actionName) const {
+    @trusted inout(DesktopAction) action(string actionName) inout {
         if (actions().canFind(actionName)) {
-            auto desktopAction = DesktopAction(group("Desktop Action "~actionName));
-            if (desktopAction.group() !is null && desktopAction.name().length != 0) {
+            auto desktopAction = cast(typeof(return))group("Desktop Action "~actionName);
+            if (desktopAction !is null && desktopAction.displayName().length != 0) {
                 return desktopAction;
             }
         }
-        
-        return DesktopAction(null);
+        return null;
     }
     
     /**
@@ -663,32 +786,14 @@ Type=Directory`;
      * See_Also: actions, action
      */
     @safe auto byAction() const {
-        return actions().map!(actionName => DesktopAction(group("Desktop Action "~actionName))).filter!(delegate(desktopAction) {
-            return desktopAction.group !is null && desktopAction.name.length != 0;
-        });
-    }
-    
-    /**
-     * A list of strings identifying the desktop environments that should display a given desktop entry.
-     * Returns: The range of multiple values associated with "OnlyShowIn" key.
-     */
-    @safe auto onlyShowIn() const {
-        return splitValues(value("OnlyShowIn"));
-    }
-    
-    /**
-     * A list of strings identifying the desktop environments that should not display a given desktop entry.
-     * Returns: The range of multiple values associated with "NotShowIn" key.
-     */
-    @safe auto notShowIn() const {
-        return splitValues(value("NotShowIn"));
+        return actions().map!(actionName => action(actionName)).filter!(desktopAction => desktopAction !is null);
     }
     
     /**
      * Returns: instance of "Desktop Entry" group.
      * Note: Usually you don't need to call this function since you can rely on alias this.
      */
-    @nogc @safe inout(IniLikeGroup) desktopEntry() nothrow inout {
+    @nogc @safe inout(DesktopEntry) desktopEntry() nothrow inout {
         return _desktopEntry;
     }
     
@@ -704,7 +809,7 @@ Type=Directory`;
      */
     @safe string[] expandExecString(in string[] urls = null, string locale = null) const
     {   
-        return .expandExecString(execString(), urls, localizedIconName(locale), localizedName(locale), fileName());
+        return .expandExecString(execString(), urls, localizedIconName(locale), localizedDisplayName(locale), fileName());
     }
     
     ///
@@ -826,7 +931,8 @@ Icon[ru]=folder_ru`;
     }
     
 private:
-    IniLikeGroup _desktopEntry;
+    DesktopEntry _desktopEntry;
+    ReadOptions _options;
 }
 
 ///
@@ -852,7 +958,7 @@ Type=Application
 Categories=Application;Utility;FileManager;
 Keywords=folder;manager;disk;filesystem;operations;
 Keywords[ru]=папка;директория;диск;файловый;менеджер;
-Actions=OpenDirectory;NotPresented;Settings;NoName;
+Actions=OpenDirectory;NotPresented;Settings;X-NoName;
 MimeType=inode/directory;application/x-directory;
 NoDisplay=false
 Hidden=false
@@ -868,7 +974,7 @@ Name[ru]=Открыть папку
 Icon=open
 Exec=doublecmd %u
 
-[NoName]
+[X-NoName]
 Icon=folder
 
 [Desktop Action Settings]
@@ -880,9 +986,10 @@ Exec=doublecmd settings
 [Desktop Action Notspecified]
 Name=Notspecified Action`;
     
-    auto df = new DesktopFile(iniLikeStringReader(desktopFileContents), DesktopFile.ReadOptions.preserveComments);
-    assert(df.name() == "Double Commander");
-    assert(df.localizedName("ru_RU") == "Двухпанельный коммандер");
+    auto df = new DesktopFile(iniLikeStringReader(desktopFileContents), DesktopFile.ReadOptions.preserveComments, "doublecmd.desktop");
+    assert(df.fileName() == "doublecmd.desktop");
+    assert(df.displayName() == "Double Commander");
+    assert(df.localizedDisplayName("ru_RU") == "Двухпанельный коммандер");
     assert(df.genericName() == "File manager");
     assert(df.localizedGenericName("ru_RU") == "Файловый менеджер");
     assert(df.comment() == "Double Commander is a cross platform open source file manager with two panels side by side.");
@@ -900,19 +1007,19 @@ Name=Notspecified Action`;
     assert(equal(df.keywords(), ["folder", "manager", "disk", "filesystem", "operations"]));
     assert(equal(df.localizedKeywords("ru_RU"), ["папка", "директория", "диск", "файловый", "менеджер"]));
     assert(equal(df.categories(), ["Application", "Utility", "FileManager"]));
-    assert(equal(df.actions(), ["OpenDirectory", "NotPresented", "Settings", "NoName"]));
+    assert(equal(df.actions(), ["OpenDirectory", "NotPresented", "Settings", "X-NoName"]));
     assert(equal(df.mimeTypes(), ["inode/directory", "application/x-directory"]));
     assert(equal(df.onlyShowIn(), ["GNOME", "XFCE", "LXDE"]));
     assert(equal(df.notShowIn(), ["KDE"]));
     
     assert(equal(df.byAction().map!(desktopAction => 
-    tuple(desktopAction.name(), desktopAction.localizedName("ru"), desktopAction.iconName(), desktopAction.execString())), 
+    tuple(desktopAction.displayName(), desktopAction.localizedDisplayName("ru"), desktopAction.iconName(), desktopAction.execString())), 
                  [tuple("Open directory", "Открыть папку", "open", "doublecmd %u"), tuple("Settings", "Настройки", "edit", "doublecmd settings")]));
     
-    assert(df.action("NotPresented").group() is null);
-    assert(df.action("Notspecified").group() is null);
-    assert(df.action("NoName").group() is null);
-    assert(df.action("Settings").group() !is null);
+    assert(df.action("NotPresented") is null);
+    assert(df.action("Notspecified") is null);
+    assert(df.action("X-NoName") is null);
+    assert(df.action("Settings") !is null);
     
     assert(df.saveToString() == desktopFileContents);
     
@@ -932,14 +1039,69 @@ Name=Notspecified Action`;
     assert(equal(df.categories(), ["Development", "Compilers"]));
     
     string contents = 
-`[Not desktop entry]
-Key=Value`;
-    assertThrown(new DesktopFile(iniLikeStringReader(contents)));
+`# First comment
+[Desktop Entry]
+Key=Value
+# Comment in group`;
+
+    df = new DesktopFile(iniLikeStringReader(contents), "test.desktop", DesktopFile.ReadOptions.noOptions);
+    assert(df.fileName() == "test.desktop");
+    df.removeGroup("Desktop Entry");
+    assert(df.group("Desktop Entry") !is null);
+    assert(df.desktopEntry() !is null);
+    assert(df.leadingComments().empty);
+    assert(equal(df.desktopEntry().byIniLine(), [IniLikeLine.fromKeyValue("Key", "Value")]));
+    
+    df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.preserveComments);
+    assert(equal(df.leadingComments(), ["# First comment"]));
+    assert(equal(df.desktopEntry().byIniLine(), [IniLikeLine.fromKeyValue("Key", "Value"), IniLikeLine.fromComment("# Comment in group")]));
     
     contents = 
-`[Some Entry]
-Key=Value
+`[X-SomeGroup]
+Key=Value`;
+
+    auto thrown = collectException!IniLikeException(new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions));
+    assert(thrown !is null);
+    assert(thrown.lineNumber == 0);
+    
+    contents = 
+`[Desktop Entry]
+Valid=Key
+$=Invalid`;
+
+    assertThrown(new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions));
+    assertNotThrown(new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.ignoreInvalidKeys));
+    
+    contents = 
+`[Desktop Entry]
+Key=Value1
+Key=Value2`;
+
+    assertThrown(new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions));
+    assertNotThrown(df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.ignoreKeyDuplicates));
+    assert(df.desktopEntry().value("Key") == "Value1");
+    
+    contents = 
+`[Desktop Entry]
+Name=Name
+[Unknown]
+Key=Value`;
+
+    assertThrown(new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions));
+    assertNotThrown(df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.ignoreUnknownGroups));
+    assert(df.group("Unknown") !is null);
+    
+    df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.ignoreUnknownGroups|DesktopFile.ReadOptions.skipUnknownGroups);
+    assert(df.group("Unknown") is null);
+    
+    contents = 
+`[Desktop Entry]
+Name=Name1
 [Desktop Entry]
-Type=Link`;
-    assertNotThrown(new DesktopFile(iniLikeStringReader(contents)));
+Name=Name2`;
+    
+    assertThrown(new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions));
+    assertNotThrown(df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.ignoreGroupDuplicates));
+    
+    assert(df.desktopEntry().value("Name") == "Name1");
 }

@@ -56,7 +56,7 @@ void main(string[] args)
                 writeln(entry);
             }
             try {
-                auto df = new DesktopFile(entry);
+                auto df = new DesktopFile(entry, DesktopFile.ReadOptions.noOptions);
                 if (!df.execString().empty) {
                     auto execArgs = df.expandExecString();
                 }

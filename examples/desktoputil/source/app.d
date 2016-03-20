@@ -29,7 +29,7 @@ void main(string[] args)
     if (command == "read") {
         auto df = new DesktopFile(inFile);
         
-        writefln("Name: %s. Localized: %s", df.name(), df.localizedName(locale));
+        writefln("Name: %s. Localized: %s", df.displayName(), df.localizedDisplayName(locale));
         writefln("GenericName: %s. Localized: %s", df.genericName(), df.localizedGenericName(locale));
         writefln("Comment: %s. Localized: %s", df.comment(), df.localizedComment(locale));
         writeln("Type: ", df.value("Type"));
@@ -54,7 +54,7 @@ void main(string[] args)
         getopt(args, "action", "Action to run", &action);
         if (action.length) {
             auto desktopAction = df.action(action);
-            if (desktopAction.group() is null) {
+            if (desktopAction is null) {
                 stderr.writefln("No such action %s", action);
             } else {
                 desktopAction.start();
