@@ -48,6 +48,18 @@ static if (isFreedesktop)
         return xdgAllDataDirs("applications");
     }
     
+    ///
+    unittest
+    {
+        auto dataHomeGuard = EnvGuard("XDG_DATA_HOME");
+        auto dataDirsGuard = EnvGuard("XDG_DATA_DIRS");
+        
+        environment["XDG_DATA_HOME"] = "/home/user/data";
+        environment["XDG_DATA_DIRS"] = "/usr/local/data:/usr/data";
+        
+        assert(applicationsPaths() == ["/home/user/data/applications", "/usr/local/data/applications", "/usr/data/applications"]);
+    }
+    
     /**
      * Path where .desktop files can be stored without requiring of root privileges.
      * This function is defined only on freedesktop systems to avoid confusion with other systems that have data paths not compatible with Desktop Entry Spec.
@@ -55,5 +67,13 @@ static if (isFreedesktop)
      */
     @safe string writableApplicationsPath() nothrow {
         return xdgDataHome("applications");
+    }
+    
+    ///
+    unittest
+    {
+        auto dataHomeGuard = EnvGuard("XDG_DATA_HOME");
+        environment["XDG_DATA_HOME"] = "/home/user/data";
+        assert(writableApplicationsPath() == "/home/user/data/applications");
     }
 }

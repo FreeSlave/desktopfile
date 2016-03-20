@@ -629,6 +629,18 @@ public:
         @safe string id() const nothrow {
             return desktopId(fileName);
         }
+        
+        ///
+        unittest
+        {
+            import xdgpaths;
+            
+            string contents = "[Desktop Entry]\nType=Directory";
+            auto df = new DesktopFile(iniLikeStringReader(contents), "/home/user/data/applications/test/example.desktop");
+            auto dataHomeGuard = EnvGuard("XDG_DATA_HOME");
+            environment["XDG_DATA_HOME"] = "/home/user/data";
+            assert(df.id() == "test-example.desktop");
+        }
     }
     
     /**
@@ -860,11 +872,15 @@ Icon[ru]=folder_ru`;
         assertThrown(df.startApplication(string[].init));
         
         version(Posix) {
+            static string[] emptyTerminalCommand() nothrow {
+                return null;
+            }
+            
             df = new DesktopFile(iniLikeStringReader("[Desktop Entry]\nType=Application\nExec=whoami"));
             try {
-                df.startApplication();
+                df.startApplication((string[]).init, null, emptyTerminalCommand);
             } catch(Exception e) {
-                debug stderr.writeln("Environmental error in unittests: could not execute whoami");
+                
             }
         }
     }

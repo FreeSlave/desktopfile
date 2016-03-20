@@ -37,11 +37,13 @@ package {
 package @trusted File getNullStdin()
 {
     version(Posix) {
+        auto toReturn = std.stdio.stdin;
         try {
-            return File("/dev/null", "rb");
+            toReturn = File("/dev/null", "rb");
         } catch(Exception e) {
-            return std.stdio.stdin;
+            
         }
+        return toReturn;
     } else {
         return std.stdio.stdin;
     }
@@ -50,11 +52,13 @@ package @trusted File getNullStdin()
 package @trusted File getNullStdout()
 {
     version(Posix) {
+        auto toReturn = std.stdio.stdout;
         try {
-            return File("/dev/null", "wb");
+            toReturn = File("/dev/null", "wb");
         } catch(Exception e) {
-            return std.stdio.stdout;
+            
         }
+        return toReturn;
     } else {
         return std.stdio.stdout;
     }
@@ -63,11 +67,13 @@ package @trusted File getNullStdout()
 package @trusted File getNullStderr()
 {
     version(Posix) {
+        auto toReturn = std.stdio.stderr;
         try {
-            return File("/dev/null", "wb");
+            toReturn = File("/dev/null", "wb");
         } catch(Exception e) {
-            return std.stdio.stderr;
+            
         }
+        return toReturn;
     } else {
         return std.stdio.stderr;
     }
@@ -360,18 +366,14 @@ string[] getTerminalCommand() nothrow @trusted
         
         static string findExecutable(string fileName) nothrow {
             try {
-                if (fileName.isAbsolute()) {
-                    return checkExecutable(fileName);
-                } else if (fileName == fileName.baseName) {
-                    foreach(string path; std.algorithm.splitter(environment.get("PATH"), ':')) {
-                        if (path.empty) {
-                            continue;
-                        }
-                        
-                        string candidate = checkExecutable(buildPath(absolutePath(path), fileName));
-                        if (candidate.length) {
-                            return candidate;
-                        }
+                foreach(string path; std.algorithm.splitter(environment.get("PATH"), ':')) {
+                    if (path.empty) {
+                        continue;
+                    }
+                    
+                    string candidate = checkExecutable(buildPath(absolutePath(path), fileName));
+                    if (candidate.length) {
+                        return candidate;
                     }
                 }
             } catch (Exception e) {
@@ -396,7 +398,53 @@ string[] getTerminalCommand() nothrow @trusted
 
 unittest
 {
-    string[] terminalArgs = getTerminalCommand();
+    import isfreedesktop;
+    static if (isFreedesktop) {
+        import xdgpaths;
+        
+        auto pathGuard = EnvGuard("PATH");
+        
+        try {
+            static void changeMod(string fileName, uint mode)
+            {
+                import core.sys.posix.sys.stat;
+                enforce(chmod(fileName.toStringz, cast(mode_t)mode) == 0);
+            }
+            
+            string tempPath = buildPath(tempDir(), "desktopfile-unittest-tempdir");
+            
+            if (!tempPath.exists) {
+                mkdir(tempPath);   
+            }
+            scope(exit) rmdir(tempPath);
+            
+            environment["PATH"] = tempPath;
+            
+            string tempXTerminalEmulatorFile = buildPath(tempPath, "x-terminal-emulator");
+            string tempXdgTerminalFile = buildPath(tempPath, "xdg-terminal");
+            
+            File(tempXdgTerminalFile, "w");
+            scope(exit) remove(tempXdgTerminalFile);
+            changeMod(tempXdgTerminalFile, octal!755);
+            assert(getTerminalCommand() == [buildPath(tempPath, "xdg-terminal")]);
+            
+            changeMod(tempXdgTerminalFile, octal!644);
+            assert(getTerminalCommand() == ["xterm", "-e"]);
+            
+            File(tempXTerminalEmulatorFile, "w");
+            scope(exit) remove(tempXTerminalEmulatorFile);
+            changeMod(tempXTerminalEmulatorFile, octal!755);
+            assert(getTerminalCommand() == [buildPath(tempPath, "x-terminal-emulator"), "-e"]);
+            
+            environment["PATH"] = ":";
+            assert(getTerminalCommand() == ["xterm", "-e"]);
+            
+        } catch(Exception e) {
+            
+        }
+    } else {
+        assert(getTerminalCommand().empty);
+    }
 }
 
 package void xdgOpen(string url)
@@ -602,6 +650,43 @@ unittest
     contents = "[Desktop Entry]\nExec=whoami";
     options.flags = ShootOptions.Link;
     assertThrown(shootDesktopFile(iniLikeStringReader(contents), null, options));
+    
+    static if (isFreedesktop) {
+        try {
+            contents = "[Desktop Entry]\nExec=whoami\nTerminal=true";
+            options.flags = ShootOptions.Exec;
+            wasCalled = false;
+            options.terminalDetector = delegate string[] () {wasCalled = true; return null;};
+            shootDesktopFile(iniLikeStringReader(contents), null, options);
+            assert(wasCalled);
+            
+            string tempPath = buildPath(tempDir(), "desktopfile-unittest-tempdir");
+            if (!tempPath.exists) {
+                mkdir(tempPath);
+            }
+            scope(exit) rmdir(tempPath);
+            
+            string tempDesktopFile = buildPath(tempPath, "followtest.desktop");
+            auto f = File(tempDesktopFile, "w");
+            scope(exit) remove(tempDesktopFile);
+            f.rawWrite("[Desktop Entry]\nURL=testurl");
+            f.flush();
+            
+            contents = "[Desktop Entry]\nURL=" ~ tempDesktopFile;
+            options.flags = ShootOptions.Link | ShootOptions.FollowLink;
+            options.opener = delegate void (string url) {
+                assert(url == "testurl");
+                wasCalled = true;
+            };
+            
+            shootDesktopFile(iniLikeStringReader(contents), null, options);
+            assert(wasCalled);
+        } catch(Exception e) {
+            
+        }
+    }
+    
+    
 }
 
 /// ditto, but automatically create IniLikeReader from the file.
