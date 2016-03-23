@@ -450,7 +450,8 @@ public:
         ignoreKeyDuplicates = 16,   /// Ignore key duplicates. The first found will be used.
         ignoreUnknownGroups = 32,   /// Don't throw on unknown groups. Still save them.
         skipUnknownGroups = 64,     /// Don't save unknown groups. Use it with ignoreUnknownGroups.
-        skipExtensionGroups = 128   /// Skip groups started with X-.
+        skipExtensionGroups = 128,  /// Don't save groups which names are started with X-.
+        skipActionGroups = 256      /// Don't save Desktop Action groups during parsing.
     }
     
     /**
@@ -459,6 +460,11 @@ public:
     enum defaultReadOptions = ReadOptions.ignoreUnknownGroups | ReadOptions.skipUnknownGroups | ReadOptions.preserveComments;
     
 protected:
+    @trusted bool isActionName(string groupName)
+    {
+        return groupName.startsWith("Desktop Action ");
+    }
+    
     @trusted override void addCommentForGroup(string comment, IniLikeGroup currentGroup, string groupName)
     {
         if (currentGroup && (_options & ReadOptions.preserveComments)) {
@@ -469,7 +475,7 @@ protected:
     @trusted override void addKeyValueForGroup(string key, string value, IniLikeGroup currentGroup, string groupName)
     {
         if (currentGroup) {
-            if (!isValidKey(key) && (_options & ReadOptions.ignoreInvalidKeys)) {
+            if ((groupName == "Desktop Entry" || isActionName(groupName)) && !isValidKey(key) && (_options & ReadOptions.ignoreInvalidKeys)) {
                 return;
             }
             if (currentGroup.contains(key)) {
@@ -501,8 +507,12 @@ protected:
                 return null;
             }
             return createEmptyGroup(groupName);
-        } else if (groupName.startsWith("Desktop Action ")) {
-            return new DesktopAction(groupName);
+        } else if (isActionName(groupName)) {
+            if (_options & ReadOptions.skipActionGroups) {
+                return null;
+            } else {
+                return new DesktopAction(groupName);
+            }
         } else {
             if (_options & ReadOptions.ignoreUnknownGroups) {
                 if (_options & ReadOptions.skipUnknownGroups) {
@@ -537,6 +547,7 @@ public:
         _options = options;
         super(reader, fileName);
         enforce(_desktopEntry !is null, new IniLikeException("No \"Desktop Entry\" group", 0));
+        _options = ReadOptions.ignoreUnknownGroups | ReadOptions.preserveComments;
     }
     
     /**
@@ -1068,6 +1079,12 @@ Key=Value
     assert(df.leadingComments().empty);
     assert(equal(df.desktopEntry().byIniLine(), [IniLikeLine.fromKeyValue("Key", "Value")]));
     
+    //after constructing can add comments
+    df.addLeadingComment("# Another comment");
+    assert(equal(df.leadingComments(), ["# Another comment"]));
+    // and add unknown groups
+    assert(df.addGroup("Some unknown name") !is null);
+    
     df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.preserveComments);
     assert(equal(df.leadingComments(), ["# First comment"]));
     assert(equal(df.desktopEntry().byIniLine(), [IniLikeLine.fromKeyValue("Key", "Value"), IniLikeLine.fromComment("# Comment in group")]));
@@ -1079,6 +1096,16 @@ Key=Value`;
     auto thrown = collectException!IniLikeException(new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions));
     assert(thrown !is null);
     assert(thrown.lineNumber == 0);
+    
+    contents = 
+`[Desktop Entry]
+Key=Value
+Actions=Action1;
+[Desktop Action Action1]
+Key=Value`;
+
+    df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.skipActionGroups);
+    assert(df.action("Action1") is null);
     
     contents = 
 `[Desktop Entry]
