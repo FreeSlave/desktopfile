@@ -177,6 +177,13 @@ final class DesktopEntry : IniLikeGroup
     @nogc @safe string displayName() const nothrow {
         return value("Name");
     }
+    
+    ///setter
+    @safe string displayName(string name) {
+        this["Name"] = name;
+        return name;
+    }
+    
     /**
      * Returns: Localized name.
      * See_Also: name
@@ -192,6 +199,12 @@ final class DesktopEntry : IniLikeGroup
      */
     @nogc @safe string genericName() const nothrow {
         return value("GenericName");
+    }
+    
+    ///setter
+    @safe string genericName(string name) {
+        this["GenericName"] = name;
+        return name;
     }
     /**
      * Returns: Localized generic name
@@ -209,6 +222,13 @@ final class DesktopEntry : IniLikeGroup
     @nogc @safe string comment() const nothrow {
         return value("Comment");
     }
+    
+    ///setter
+    @safe string comment(string commentary) {
+        this["Comment"] = commentary;
+        return commentary;
+    }
+    
     /**
      * Returns: Localized comment
      * See_Also: comment
@@ -226,12 +246,24 @@ final class DesktopEntry : IniLikeGroup
         return value("Exec");
     }
     
+    ///setter
+    @safe string execString(string exec) {
+        this["Exec"] = exec;
+        return exec;
+    }
+    
     /**
      * URL to access.
      * Returns: The value associated with "URL" key.
      */
     @nogc @safe string url() const nothrow {
         return value("URL");
+    }
+    
+    ///setter
+    @safe string url(string link) {
+        this["URL"] = link;
+        return link;
     }
     
     ///
@@ -247,22 +279,18 @@ final class DesktopEntry : IniLikeGroup
      * See_Also: execString
      */
     @nogc @safe string tryExecString() const nothrow {
-        string orig = value("TryExec");
-        if (orig.length) {
-            if (orig[0] == '"' || orig[0] == '\'' && orig.length > 1 && orig[$-1] == orig[0]) {
-                return orig[1..$-1];
-            }
-        }
-        return orig;
+        return value("TryExec");
     }
     
-    ///
-    unittest
-    {
-        auto df = new DesktopFile(iniLikeStringReader("[Desktop Entry]\nTryExec=whoami"));
-        assert(df.tryExecString() == "whoami");
-        df = new DesktopFile(iniLikeStringReader("[Desktop Entry]\nTryExec='/path to/whoami'"));
-        assert(df.tryExecString() == "/path to/whoami");
+    /**
+     * Set TryExec value.
+     * Throws:
+     *  Exception if tryExec is not abolute path nor base name.
+     */
+    @safe string tryExecString(string tryExec) {
+        enforce(tryExec.isAbsolute || tryExec.baseName == tryExec, "TryExec must be absolute path or base name");
+        this["TryExec"] = tryExec;
+        return tryExec;
     }
     
     /**
@@ -277,11 +305,26 @@ final class DesktopEntry : IniLikeGroup
     }
     
     /**
+     * Set Icon value.
+     * Throws:
+     *  Exception if icon is not abolute path nor base name.
+     */
+    @safe string iconName(string icon) {
+        enforce(icon.isAbsolute || icon.baseName == icon, "Icon must be absolute path or base name");
+        this["Icon"] = icon;
+        return icon;
+    }
+    
+    /**
      * Returns: Localized icon name
      * See_Also: iconName
      */
     @safe string localizedIconName(string locale) const nothrow {
         return localizedValue("Icon", locale);
+    }
+    
+    private @nogc @safe static string boolToString(bool b) nothrow pure {
+        return b ? "true" : "false";
     }
     
     /**
@@ -290,6 +333,12 @@ final class DesktopEntry : IniLikeGroup
      */
     @nogc @safe bool noDisplay() const nothrow {
         return isTrue(value("NoDisplay"));
+    }
+    
+    ///setter
+    @safe bool noDisplay(bool notDisplay) {
+        this["NoDisplay"] = boolToString(notDisplay);
+        return notDisplay;
     }
     
     /**
@@ -301,12 +350,24 @@ final class DesktopEntry : IniLikeGroup
         return isTrue(value("Hidden"));
     }
     
+    ///setter
+    @safe bool hidden(bool hide) {
+        this["Hidden"] = boolToString(hide);
+        return hide;
+    }
+    
     /**
      * A boolean value specifying if D-Bus activation is supported for this application.
      * Returns: The value associated with "dbusActivable" key converted to bool using isTrue.
      */
     @nogc @safe bool dbusActivable() const nothrow {
         return isTrue(value("DBusActivatable"));
+    }
+    
+    ///setter
+    @safe bool dbusActivable(bool activable) {
+        this["DBusActivatable"] = boolToString(activable);
+        return activable;
     }
     
     /**
@@ -316,12 +377,29 @@ final class DesktopEntry : IniLikeGroup
         return isTrue(value("StartupNotify"));
     }
     
+    ///setter
+    @safe bool startupNotify(bool notify) {
+        this["StartupNotify"] = boolToString(notify);
+        return notify;
+    }
+    
     /**
      * The working directory to run the program in.
      * Returns: The value associated with "Path" key.
      */
     @nogc @safe string workingDirectory() const nothrow {
         return value("Path");
+    }
+    
+    /**
+     * Set Path value.
+     * Throws:
+     *  Exception if path is not valid path.
+     */
+    @safe string workingDirectory(string path) {
+        enforce(path.isValidPath, "Working directory must be valid path");
+        this["Path"] = path;
+        return path;
     }
     
     /**
@@ -415,6 +493,11 @@ final class DesktopEntry : IniLikeGroup
         return DesktopFile.splitValues(value("OnlyShowIn"));
     }
     
+    ///setter
+    @safe void onlyShowIn(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
+        this["OnlyShowIn"] = DesktopFile.joinValues(values);
+    }
+    
     /**
      * A list of strings identifying the desktop environments that should not display a given desktop entry.
      * Returns: The range of multiple values associated with "NotShowIn" key.
@@ -422,6 +505,12 @@ final class DesktopEntry : IniLikeGroup
     @safe auto notShowIn() const {
         return DesktopFile.splitValues(value("NotShowIn"));
     }
+    
+    ///setter
+    @safe void notShowIn(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
+        this["NotShowIn"] = DesktopFile.joinValues(values);
+    }
+    
 protected:
     @trusted override void validateKeyValue(string key, string value) const {
         enforce(isValidKey(key), "key is invalid");
