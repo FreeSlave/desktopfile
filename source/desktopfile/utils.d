@@ -724,7 +724,7 @@ unittest
  * Read the desktop file and run application or open link depending on the type of the given desktop file.
  * Params:
  *  reader = IniLikeReader constructed from range of strings using iniLikeRangeReader
- *  fileName = file name of desktop file where data read from. It's optional, but can be set to the file name from which contents IniLikeReader was constructed.
+ *  fileName = file name of desktop file where data read from. Can be used in field code expanding, should be set to the file name from which contents IniLikeReader was constructed.
  *  options = options that set behavior of the function.
  * Use this function to execute desktop file fast, without creating of DesktopFile instance.
  * Throws:

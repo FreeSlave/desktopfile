@@ -66,7 +66,7 @@ try {
     //Detect current locale.
     string locale = environment.get("LC_CTYPE", environment.get("LC_ALL", environment.get("LANG")));
     
-    string name = df.localizedName(locale); //Specific name of the application.
+    string name = df.localizedDisplayName(locale); //Specific name of the application.
     string genericName = df.localizedGenericName(locale); //Generic name of the application. Show it in menu under the specific name.
     string comment = df.localizedComment(locale); //Show it as tooltip or description.
     
