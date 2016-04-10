@@ -266,14 +266,14 @@ unittest
  * execArgs = array of unquoted and unescaped arguments.
  *  urls = array of urls or file names that inserted in the place of %f, %F, %u or %U field codes. For %f and %u only the first element of array is used.
  *  iconName = icon name used to substitute %i field code by --icon iconName.
- *  name = name of application used that inserted in the place of %c field code.
+ *  displayName = name of application used that inserted in the place of %c field code.
  *  fileName = name of desktop file that inserted in the place of %k field code.
  * Throws:
  *  DesktopExecException if command line contains unknown field code.
  * See_Also:
  *  parseExecString
  */
-@trusted string[] expandExecArgs(in string[] execArgs, in string[] urls = null, string iconName = null, string name = null, string fileName = null) pure
+@trusted string[] expandExecArgs(in string[] execArgs, in string[] urls = null, string iconName = null, string displayName = null, string fileName = null) pure
 {
     string[] toReturn;
     foreach(token; execArgs) {
@@ -316,22 +316,12 @@ unittest
                         break;
                         case 'c':
                         {
-                            if (name.length) {
-                                expand(token, expanded, restPos, i, name);
-                            } else {
-                                ignore = true;
-                                break loop;
-                            }
+                            expand(token, expanded, restPos, i, displayName);
                         }
                         break;
                         case 'k':
                         {
-                            if (fileName.length) {
-                                expand(token, expanded, restPos, i, fileName);
-                            } else {
-                                ignore = true;
-                                break loop;
-                            }
+                            expand(token, expanded, restPos, i, fileName);
                         }
                         break;
                         case 'd': case 'D': case 'n': case 'N': case 'm': case 'v':
@@ -353,11 +343,7 @@ unittest
             }
             
             if (!ignore) {
-                if (expanded.length) {
                 toReturn ~= expanded ~ token[restPos..$];
-                } else {
-                    toReturn ~= token;
-                }
             }
         }
     }
@@ -373,6 +359,13 @@ unittest
         ["one"], 
         "folder", "program", "location"
     ) == ["program path", "%f", "%i", "--file=one", "--icon", "folder", "one", "--myname=program", "--mylocation=location", "100%"]);
+    
+    assert(expandExecArgs(["program path"], ["one", "two"]) == ["program path"]);
+    assert(expandExecArgs(["program path", "%f"], ["one", "two"]) == ["program path", "one"]);
+    assert(expandExecArgs(["program path", "%F"], ["one", "two"]) == ["program path", "one", "two"]);
+    
+    assert(expandExecArgs(["program path", "--location=%k", "--myname=%c"]) == ["program path", "--location=", "--myname="]);
+    assert(expandExecArgs(["program path", "%k", "%c"]) == ["program path", "", ""]);
     assertThrown!DesktopExecException(expandExecArgs(["program name", "%y"]));
     assertThrown!DesktopExecException(expandExecArgs(["program name", "--file=%x"]));
 }
@@ -384,13 +377,13 @@ unittest
  * See_Also:
  *  expandExecArgs, parseExecString
  */
-@trusted string[] expandExecString(string execString, in string[] urls = null, string iconName = null, string name = null, string fileName = null) pure
+@trusted string[] expandExecString(string execString, in string[] urls = null, string iconName = null, string displayName = null, string fileName = null) pure
 {
     auto execArgs = parseExecString(execString);
     if (execArgs.empty) {
         throw new DesktopExecException("No arguments. Missing or empty Exec value");
     }
-    return expandExecArgs(execArgs, urls, iconName, name, fileName);
+    return expandExecArgs(execArgs, urls, iconName, displayName, fileName);
 }
 
 ///

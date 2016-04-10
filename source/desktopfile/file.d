@@ -293,6 +293,18 @@ final class DesktopEntry : IniLikeGroup
         return tryExec;
     }
     
+    ///
+    unittest
+    {
+        auto df = new DesktopFile();
+        assertNotThrown(df.tryExecString = "base");
+        version(Posix) {
+            assertNotThrown(df.tryExecString = "/absolute/path");
+        }
+        assertThrown(df.tryExecString = "not/absolute");
+        assertThrown(df.tryExecString = "./relative");
+    }
+    
     /**
      * Icon to display in file manager, menus, etc.
      * Returns: The value associated with "Icon" key.
@@ -315,6 +327,18 @@ final class DesktopEntry : IniLikeGroup
         return icon;
     }
     
+    ///
+    unittest
+    {
+        auto df = new DesktopFile();
+        assertNotThrown(df.iconName = "base");
+        version(Posix) {
+            assertNotThrown(df.iconName = "/absolute/path");
+        }
+        assertThrown(df.iconName = "not/absolute");
+        assertThrown(df.iconName = "./relative");
+    }
+    
     /**
      * Returns: Localized icon name
      * See_Also: iconName
@@ -325,6 +349,12 @@ final class DesktopEntry : IniLikeGroup
     
     private @nogc @safe static string boolToString(bool b) nothrow pure {
         return b ? "true" : "false";
+    }
+    
+    unittest
+    {
+        assert(boolToString(false) == "false");
+        assert(boolToString(true) == "true");
     }
     
     /**
@@ -394,12 +424,21 @@ final class DesktopEntry : IniLikeGroup
     /**
      * Set Path value.
      * Throws:
-     *  Exception if path is not valid path.
+     *  Exception if wd is not valid path or wd is not abolute path nor base name.
      */
-    @safe string workingDirectory(string path) {
-        enforce(path.isValidPath, "Working directory must be valid path");
-        this["Path"] = path;
-        return path;
+    @safe string workingDirectory(string wd) {
+        enforce(wd.isValidPath, "Working directory must be valid path");
+        enforce(wd.isAbsolute || wd.baseName == wd, "Path (working directory) must be absolute path or base name");
+        this["Path"] = wd;
+        return wd;
+    }
+    
+    ///
+    unittest
+    {
+        auto df = new DesktopFile();
+        assertNotThrown(df.workingDirectory = "valid path");
+        assertThrown(df.workingDirectory = "/foo\0/bar");
     }
     
     /**
@@ -976,7 +1015,7 @@ Icon[ru]=folder_ru`;
                 return null;
             }
             
-            df = new DesktopFile(iniLikeStringReader("[Desktop Entry]\nType=Application\nExec=whoami"));
+            df = new DesktopFile(iniLikeStringReader("[Desktop Entry]\nTerminal=true\nType=Application\nExec=whoami"));
             try {
                 df.startApplication((string[]).init, null, emptyTerminalCommand);
             } catch(Exception e) {
