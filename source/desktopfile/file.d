@@ -571,7 +571,7 @@ protected:
                 if (_options & ReadOptions.ignoreKeyDuplicates) {
                     return;
                 } else {
-                    throw new Exception("key already exists");
+                    throw new Exception("key '" ~ key ~ "' already exists");
                 }
             }
             currentGroup[key] = value;
@@ -584,7 +584,7 @@ protected:
             if (_options & ReadOptions.ignoreGroupDuplicates) {
                 return null;
             } else {
-                throw new Exception("group already exists");
+                throw new Exception("group '" ~ groupName ~ "' already exists");
             }
         }
         
@@ -610,7 +610,7 @@ protected:
                     return createEmptyGroup(groupName);
                 }
             } else {
-                throw new Exception("Invalid group name: must start with 'Desktop Action ' or 'X-'");
+                throw new Exception("Invalid group name: '" ~ groupName ~ "'. Must start with 'Desktop Action ' or 'X-'");
             }
         }
     }

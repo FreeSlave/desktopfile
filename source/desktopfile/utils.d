@@ -116,6 +116,16 @@ private @safe bool needQuoting(string arg) nothrow pure
     return false;
 }
 
+unittest
+{
+    assert(needQuoting("hello\tworld"));
+    assert(needQuoting("hello world"));
+    assert(needQuoting("world?"));
+    assert(needQuoting("sneaky_stdout_redirect>"));
+    assert(needQuoting("sneaky_pipe|"));
+    assert(!needQuoting("hello"));
+}
+
 private @trusted string unescapeQuotedArgument(string value) nothrow pure
 {
     static immutable Tuple!(char, char)[] pairs = [
@@ -136,6 +146,14 @@ private @trusted string quoteIfNeeded(string value, char quote = '"') pure {
         return quote ~ value.escapeQuotedArgument() ~ quote;
     }
     return value;
+}
+
+unittest
+{
+    assert(quoteIfNeeded("hello $world") == `"hello \$world"`);
+    assert(quoteIfNeeded("hello \"world\"") == `"hello \"world\""`);
+    assert(quoteIfNeeded("hello world") == `"hello world"`);
+    assert(quoteIfNeeded("hello") == "hello");
 }
 
 /**
@@ -223,7 +241,7 @@ unittest
 /**
  * Convenient function used to unquote and unescape Exec value into an array of arguments.
  * Note:
- *  Parsed arguments still may contain field codes that should be appropriately expanded before passing to spawnProcess.
+ *  Parsed arguments still may contain field codes and double percent symbols that should be appropriately expanded before passing to spawnProcess.
  * Throws:
  *  DesktopExecException if string can't be unquoted.
  * See_Also:
@@ -256,19 +274,11 @@ unittest
  *  parseExecString
  */
 @trusted string[] expandExecArgs(in string[] execArgs, in string[] urls = null, string iconName = null, string name = null, string fileName = null) pure
-{   
+{
     string[] toReturn;
     foreach(token; execArgs) {
-        if (token == "%f") {
-            if (urls.length) {
-                toReturn ~= urls.front;
-            }
-        } else if (token == "%F") {
+        if (token == "%F") {
             toReturn ~= urls;
-        } else if (token == "%u") {
-            if (urls.length) {
-                toReturn ~= urls.front;
-            }
         } else if (token == "%U") {
             toReturn ~= urls;
         } else if (token == "%i") {
@@ -276,21 +286,78 @@ unittest
                 toReturn ~= "--icon";
                 toReturn ~= iconName;
             }
-        } else if (token == "%c") {
-            toReturn ~= name;
-        } else if (token == "%k") {
-            toReturn ~= fileName;
-        } else if (token == "%d" || token == "%D" || token == "%n" || token == "%N" || token == "%m" || token == "%v") {
-            continue;
         } else {
-            if (token.length >= 2 && token[0] == '%') {
-                if (token[1] == '%') {
-                    toReturn ~= token[1..$];
+            static void expand(string token, ref string expanded, ref size_t restPos, ref size_t i, string insert)
+            {
+                if (token.length == 2) {
+                    expanded = insert;
                 } else {
-                    throw new DesktopExecException("Unknown field code: " ~ token);
+                    expanded ~= token[0..i] ~ insert;
                 }
-            } else {
-                toReturn ~= token;
+                restPos = i+2;
+                i++;
+            }
+            
+            string expanded;
+            size_t restPos = 0;
+            bool ignore;
+            loop: for(size_t i=0; i<token.length; ++i) {
+                if (token[i] == '%' && i<token.length-1) {
+                    switch(token[i+1]) {
+                        case 'f': case 'u':
+                        {
+                            if (urls.length) {
+                                expand(token, expanded, restPos, i, urls.front);
+                            } else {
+                                ignore = true;
+                                break loop;
+                            }
+                        }
+                        break;
+                        case 'c':
+                        {
+                            if (name.length) {
+                                expand(token, expanded, restPos, i, name);
+                            } else {
+                                ignore = true;
+                                break loop;
+                            }
+                        }
+                        break;
+                        case 'k':
+                        {
+                            if (fileName.length) {
+                                expand(token, expanded, restPos, i, fileName);
+                            } else {
+                                ignore = true;
+                                break loop;
+                            }
+                        }
+                        break;
+                        case 'd': case 'D': case 'n': case 'N': case 'm': case 'v':
+                        {
+                            ignore = true;
+                            break loop;
+                        }
+                        case '%':
+                        {
+                            expand(token, expanded, restPos, i, "%");
+                        }
+                        break;
+                        default:
+                        {
+                            throw new DesktopExecException("Unknown field code: " ~ token);
+                        }
+                    }
+                }
+            }
+            
+            if (!ignore) {
+                if (expanded.length) {
+                toReturn ~= expanded ~ token[restPos..$];
+                } else {
+                    toReturn ~= token;
+                }
             }
         }
     }
@@ -301,8 +368,13 @@ unittest
 ///
 unittest
 {
-    assert(expandExecArgs(["program name", "%%f", "%f", "%i"], ["one", "two"], "folder") == ["program name", "%f", "one", "--icon", "folder"]);
+    assert(expandExecArgs(
+        ["program path", "%%f", "%%i", "%D", "--deprecated=%d", "%n", "%N", "%m", "%v", "--file=%f", "%i", "%F", "--myname=%c", "--mylocation=%k", "100%%"], 
+        ["one"], 
+        "folder", "program", "location"
+    ) == ["program path", "%f", "%i", "--file=one", "--icon", "folder", "one", "--myname=program", "--mylocation=location", "100%"]);
     assertThrown!DesktopExecException(expandExecArgs(["program name", "%y"]));
+    assertThrown!DesktopExecException(expandExecArgs(["program name", "--file=%x"]));
 }
 
 /**
@@ -324,7 +396,7 @@ unittest
 ///
 unittest
 {
-    assert(expandExecString(`"quoted program" %i -w %c -f %k %U %D %u %f %F`, ["one", "two"], "folder", "Программа", "/example.desktop") == ["quoted program", "--icon", "folder", "-w", "Программа", "-f", "/example.desktop", "one", "two", "one", "one", "one", "two"]);
+    assert(expandExecString(`"quoted program" %i -w %c --file=%k %U %D %u %f %F`, ["one", "two"], "folder", "Программа", "/example.desktop") == ["quoted program", "--icon", "folder", "-w", "Программа", "--file=/example.desktop", "one", "two", "one", "one", "one", "two"]);
     
     assertThrown!DesktopExecException(expandExecString(`program %f %y`)); //%y is unknown field code.
     assertThrown!DesktopExecException(expandExecString(``));
