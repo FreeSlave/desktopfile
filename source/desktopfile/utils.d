@@ -98,42 +98,22 @@ class DesktopExecException : Exception
     }
 }
 
-/**
- * Unescape Exec argument as described in [specification](http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s06.html).
- * Returns: Unescaped string.
- */
-@trusted string unescapeExecArgument(string arg) nothrow pure
+private @safe bool needQuoting(string arg) nothrow pure
 {
-    static immutable Tuple!(char, char)[] pairs = [
-       tuple('s', ' '),
-       tuple('n', '\n'),
-       tuple('r', '\r'),
-       tuple('t', '\t'),
-       tuple('"', '"'),
-       tuple('\'', '\''),
-       tuple('\\', '\\'),
-       tuple('>', '>'),
-       tuple('<', '<'),
-       tuple('~', '~'),
-       tuple('|', '|'),
-       tuple('&', '&'),
-       tuple(';', ';'),
-       tuple('$', '$'),
-       tuple('*', '*'),
-       tuple('?', '?'),
-       tuple('#', '#'),
-       tuple('(', '('),
-       tuple(')', ')'),
-       tuple('`', '`'),
-    ];
-    return doUnescape(arg, pairs);
-}
-
-///
-unittest
-{
-    assert(unescapeExecArgument("simple") == "simple");
-    assert(unescapeExecArgument(`with\&\"escaped\"\?symbols\$`) == `with&"escaped"?symbols$`);
+    import std.uni : isWhite;
+    for (size_t i=0; i<arg.length; ++i)
+    {
+        switch(arg[i]) {
+            case ' ':   case '\t':  case '\n':  case '\r':  case '"': 
+            case '\\':  case '\'':  case '>':   case '<':   case '~':
+            case '|':   case '&':   case ';':   case '$':   case '*': 
+            case '?':   case '#':   case '(':   case ')':   case '`':
+                return true;
+            default:
+                break;
+        }
+    }
+    return false;
 }
 
 private @trusted string unescapeQuotedArgument(string value) nothrow pure
@@ -147,9 +127,19 @@ private @trusted string unescapeQuotedArgument(string value) nothrow pure
     return doUnescape(value, pairs);
 }
 
+private @trusted string escapeQuotedArgument(string value) pure {
+    return value.replace("`", "\\`").replace("\\", `\\`).replace("$", `\$`).replace("\"", `\"`);
+}
+
+private @trusted string quoteIfNeeded(string value, char quote = '"') pure {
+    if (value.needQuoting) {
+        return quote ~ value.escapeQuotedArgument() ~ quote;
+    }
+    return value;
+}
+
 /**
- * Unquote Exec value into an array of escaped arguments. 
- * If an argument was quoted then unescaping of quoted arguments is applied automatically. Note that unescaping of quoted argument is not the same as unquoting argument in general. Read more in [specification](http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s06.html).
+ * Apply unquoting to Exec value making it into an array of escaped arguments. It automatically performs quote-related unescaping. Returned values are still escaped as by general rule. Read more: [specification](http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s06.html).
  * Throws:
  *  DesktopExecException if string can't be unquoted (e.g. no pair quote).
  * Note:
@@ -237,11 +227,11 @@ unittest
  * Throws:
  *  DesktopExecException if string can't be unquoted.
  * See_Also:
- *  unquoteExecString, unescapeExecArgument
+ *  unquoteExecString, expandExecArgs
  */
 @trusted string[] parseExecString(string execString) pure
 {
-    return execString.unquoteExecString().map!(unescapeExecArgument).array;
+    return execString.unquoteExecString().map!(s => unescapeValue(s)).array;
 }
 
 ///
@@ -266,7 +256,7 @@ unittest
  *  parseExecString
  */
 @trusted string[] expandExecArgs(in string[] execArgs, in string[] urls = null, string iconName = null, string name = null, string fileName = null) pure
-{
+{   
     string[] toReturn;
     foreach(token; execArgs) {
         if (token == "%f") {
@@ -338,6 +328,119 @@ unittest
     
     assertThrown!DesktopExecException(expandExecString(`program %f %y`)); //%y is unknown field code.
     assertThrown!DesktopExecException(expandExecString(``));
+}
+
+/**
+ * Helper struct to build Exec string for desktop file.
+ */
+struct ExecBuilder
+{
+    /**
+     * Construct ExecBuilder.
+     * Params:
+     *  executable = path to executable. Value will be escaped and quoted as needed.
+     */
+    @safe this(string executable) {
+        escapedArgs ~= executable.escapeValue().quoteIfNeeded();
+    }
+    
+    /**
+     * Add literal argument which is not field code.
+     * Params:
+     *  arg = Literal argument. Value will be escaped and quoted as needed.
+     * Returns: this object for chained calls.
+     */
+    @safe ExecBuilder argument(string arg) {
+        escapedArgs ~= arg.escapeValue().quoteIfNeeded();
+        return this;
+    }
+    
+    /**
+     * Add "%i" field code.
+     * Returns: this object for chained calls.
+     */
+    @safe ExecBuilder icon() {
+        escapedArgs ~= "%i";
+        return this;
+    }
+    
+    
+    /**
+     * Add "%f" field code.
+     * Returns: this object for chained calls.
+     */
+    @safe ExecBuilder file() {
+        escapedArgs ~= "%f";
+        return this;
+    }
+    
+    /**
+     * Add "%F" field code.
+     * Returns: this object for chained calls.
+     */
+    @safe ExecBuilder files() {
+        escapedArgs ~= "%F";
+        return this;
+    }
+    
+    /**
+     * Add "%u" field code.
+     * Returns: this object for chained calls.
+     */
+    @safe ExecBuilder url() {
+        escapedArgs ~= "%u";
+        return this;
+    }
+    
+    /**
+     * Add "%U" field code.
+     * Returns: this object for chained calls.
+     */
+    @safe ExecBuilder urls() {
+        escapedArgs ~= "%U";
+        return this;
+    }
+    
+    /**
+     * Add "%c" field code (name of application).
+     * Returns: this object for chained calls.
+     */
+    @safe ExecBuilder name() {
+        escapedArgs ~= "%c";
+        return this;
+    }
+    
+    /**
+     * Add "%k" field code (location of desktop file).
+     * Returns: this object for chained calls.
+     */
+    @safe ExecBuilder location() {
+        escapedArgs ~= "%k";
+        return this;
+    }
+    
+    /**
+     * Get resulting string that can be set to Exec field of Desktop Entry.
+     */
+    @trusted string result() const {
+        static if( __VERSION__ < 2066 ) {
+            return escapedArgs.map!(s => s).join(" ");
+        } else {
+            return escapedArgs.join(" ");
+        }
+    }
+    
+private:
+    string[] escapedArgs;
+}
+
+///
+unittest
+{
+    assert(ExecBuilder("quoted program").icon()
+            .argument("-w").name()
+            .argument("-f").location()
+            .urls().url().file().files().result() == `"quoted program" %i -w %c -f %k %U %u %f %F`);
 }
 
 /**
