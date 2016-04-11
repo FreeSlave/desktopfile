@@ -1,7 +1,7 @@
 {
 	"fileVersion": 1,
 	"versions": {
-		"standardpaths": "0.3.1",
+		"standardpaths": "0.4.0",
 		"isfreedesktop": "0.1.0",
 		"inilike": "0.5.1",
 		"xdgpaths": "0.2.1"

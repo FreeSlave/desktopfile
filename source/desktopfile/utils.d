@@ -292,7 +292,7 @@ unittest
                 if (token.length == 2) {
                     expanded = insert;
                 } else {
-                    expanded ~= token[0..i] ~ insert;
+                    expanded ~= token[restPos..i] ~ insert;
                 }
                 restPos = i+2;
                 i++;
@@ -336,7 +336,7 @@ unittest
                         break;
                         default:
                         {
-                            throw new DesktopExecException("Unknown field code: " ~ token);
+                            throw new DesktopExecException("Unknown or misplaced field code: " ~ token);
                         }
                     }
                 }
@@ -360,6 +360,8 @@ unittest
         "folder", "program", "location"
     ) == ["program path", "%f", "%i", "--file=one", "--icon", "folder", "one", "--myname=program", "--mylocation=location", "100%"]);
     
+    assert(expandExecArgs(["program path", "many%%%%"]) == ["program path", "many%%"]);
+    assert(expandExecArgs(["program path", "%f%%%f"], ["file"]) == ["program path", "file%file"]);
     assert(expandExecArgs(["program path"], ["one", "two"]) == ["program path"]);
     assert(expandExecArgs(["program path", "%f"], ["one", "two"]) == ["program path", "one"]);
     assert(expandExecArgs(["program path", "%F"], ["one", "two"]) == ["program path", "one", "two"]);
@@ -368,6 +370,7 @@ unittest
     assert(expandExecArgs(["program path", "%k", "%c"]) == ["program path", "", ""]);
     assertThrown!DesktopExecException(expandExecArgs(["program name", "%y"]));
     assertThrown!DesktopExecException(expandExecArgs(["program name", "--file=%x"]));
+    assertThrown!DesktopExecException(expandExecArgs(["program name", "--files=%F"]));
 }
 
 /**
@@ -395,6 +398,11 @@ unittest
     assertThrown!DesktopExecException(expandExecString(``));
 }
 
+private @trusted string doublePercentSymbol(string value)
+{
+    return value.replace("%", "%%");
+}
+
 /**
  * Helper struct to build Exec string for desktop file.
  */
@@ -404,8 +412,11 @@ struct ExecBuilder
      * Construct ExecBuilder.
      * Params:
      *  executable = path to executable. Value will be escaped and quoted as needed.
+     * Throws:
+     *  Exception if executable is not absolute path nor base name.
      */
     @safe this(string executable) {
+        enforce(executable.isAbsolute || executable.baseName == executable, "Program part of Exec must be absolute path or base name");
         escapedArgs ~= executable.escapeValue().quoteIfNeeded();
     }
     
@@ -416,7 +427,7 @@ struct ExecBuilder
      * Returns: this object for chained calls.
      */
     @safe ExecBuilder argument(string arg) {
-        escapedArgs ~= arg.escapeValue().quoteIfNeeded();
+        escapedArgs ~= arg.escapeValue().quoteIfNeeded().doublePercentSymbol();
         return this;
     }
     
@@ -434,9 +445,8 @@ struct ExecBuilder
      * Add "%f" field code.
      * Returns: this object for chained calls.
      */
-    @safe ExecBuilder file() {
-        escapedArgs ~= "%f";
-        return this;
+    @safe ExecBuilder file(string preprend = null) {
+        return fieldCode(preprend, "%f");
     }
     
     /**
@@ -452,9 +462,8 @@ struct ExecBuilder
      * Add "%u" field code.
      * Returns: this object for chained calls.
      */
-    @safe ExecBuilder url() {
-        escapedArgs ~= "%u";
-        return this;
+    @safe ExecBuilder url(string preprend = null) {
+        return fieldCode(preprend, "%u");
     }
     
     /**
@@ -470,18 +479,16 @@ struct ExecBuilder
      * Add "%c" field code (name of application).
      * Returns: this object for chained calls.
      */
-    @safe ExecBuilder name() {
-        escapedArgs ~= "%c";
-        return this;
+    @safe ExecBuilder displayName(string preprend = null) {
+        return fieldCode(preprend, "%c");
     }
     
     /**
      * Add "%k" field code (location of desktop file).
      * Returns: this object for chained calls.
      */
-    @safe ExecBuilder location() {
-        escapedArgs ~= "%k";
-        return this;
+    @safe ExecBuilder location(string preprend = null) {
+        return fieldCode(preprend, "%k");
     }
     
     /**
@@ -496,6 +503,12 @@ struct ExecBuilder
     }
     
 private:
+    @safe ExecBuilder fieldCode(string prepend, string code)
+    {
+        escapedArgs ~= prepend.doublePercentSymbol() ~ code;
+        return this;
+    }
+    
     string[] escapedArgs;
 }
 
@@ -503,9 +516,14 @@ private:
 unittest
 {
     assert(ExecBuilder("quoted program").icon()
-            .argument("-w").name()
-            .argument("-f").location()
-            .urls().url().file().files().result() == `"quoted program" %i -w %c -f %k %U %u %f %F`);
+            .argument("-w").displayName()
+            .argument("$value")
+            .argument("slash\\")
+            .argument("100%")
+            .location("--location=")
+            .urls().url().file("--file=").files().result() == `"quoted program" %i -w %c "\$value" "slash\\\\" 100%% --location=%k %U %u --file=%f %F`);
+    
+    assertThrown(ExecBuilder("./relative/path"));
 }
 
 /**

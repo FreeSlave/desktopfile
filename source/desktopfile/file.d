@@ -246,7 +246,12 @@ final class DesktopEntry : IniLikeGroup
         return value("Exec");
     }
     
-    ///setter
+    /**
+     * Setter for Exec value.
+     * Params:
+     *  exec = String to set as "Exec" value. Should be properly escaped and quoted.
+     * See_Also: desktopfile.utils.ExecBuilder.
+     */
     @safe string execString(string exec) {
         this["Exec"] = exec;
         return exec;

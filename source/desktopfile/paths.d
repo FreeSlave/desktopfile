@@ -51,6 +51,7 @@ static if (isFreedesktop)
     ///
     unittest
     {
+        import std.process : environment;
         auto dataHomeGuard = EnvGuard("XDG_DATA_HOME");
         auto dataDirsGuard = EnvGuard("XDG_DATA_DIRS");
         
@@ -72,6 +73,7 @@ static if (isFreedesktop)
     ///
     unittest
     {
+        import std.process : environment;
         auto dataHomeGuard = EnvGuard("XDG_DATA_HOME");
         environment["XDG_DATA_HOME"] = "/home/user/data";
         assert(writableApplicationsPath() == "/home/user/data/applications");
