@@ -15,6 +15,20 @@ module desktopfile.file;
 public import inilike.file;
 public import desktopfile.utils;
 
+private @trusted void validateKeyValueImpl(string key, string value) {
+    if (!isValidKey(key)) {
+        throw new IniLikeEntryException("key is invalid", key, value);
+    }
+}
+
+private @safe string escapeIfNeeded(string value) nothrow {
+    if (value.needEscaping()) {
+        return value.escapeValue();
+    } else {
+        return value;
+    }
+}
+
 /**
  * Subclass of IniLikeGroup for easy access to desktop action.
  */
@@ -22,7 +36,7 @@ final class DesktopAction : IniLikeGroup
 {
 protected:
     @trusted override void validateKeyValue(string key, string value) const {
-        enforce(isValidKey(key), "key is invalid");
+        validateKeyValueImpl(key, value);
     }
 public:
     package @nogc @safe this(string groupName) nothrow {
@@ -170,23 +184,24 @@ final class DesktopEntry : IniLikeGroup
     }
     
     /**
-     * Specific name of the application, for example "Mozilla".
+     * Specific name of the application, for example "Qupzilla".
      * Returns: The value associated with "Name" key.
-     * See_Also: localizedName
+     * See_Also: localizedDisplayName
      */
     @nogc @safe string displayName() const nothrow {
         return value("Name");
     }
     
-    ///setter
+    /**
+     * Set "Name" to name escaping the value if needed.
+     */
     @safe string displayName(string name) {
-        this["Name"] = name;
-        return name;
+        return this["Name"] = escapeIfNeeded(name);
     }
     
     /**
      * Returns: Localized name.
-     * See_Also: name
+     * See_Also: displayName
      */
     @safe string localizedDisplayName(string locale) const nothrow {
         return localizedValue("Name", locale);
@@ -201,10 +216,11 @@ final class DesktopEntry : IniLikeGroup
         return value("GenericName");
     }
     
-    ///setter
+    /**
+     * Set "GenericName" to name escaping the value if needed.
+     */
     @safe string genericName(string name) {
-        this["GenericName"] = name;
-        return name;
+        return this["GenericName"] = escapeIfNeeded(name);
     }
     /**
      * Returns: Localized generic name
@@ -223,10 +239,11 @@ final class DesktopEntry : IniLikeGroup
         return value("Comment");
     }
     
-    ///setter
+    /**
+     * Set "Comment" to commentary escaping the value if needed.
+     */
     @safe string comment(string commentary) {
-        this["Comment"] = commentary;
-        return commentary;
+        return this["Comment"] = escapeIfNeeded(commentary);
     }
     
     /**
@@ -253,8 +270,7 @@ final class DesktopEntry : IniLikeGroup
      * See_Also: desktopfile.utils.ExecBuilder.
      */
     @safe string execString(string exec) {
-        this["Exec"] = exec;
-        return exec;
+        return this["Exec"] = exec;
     }
     
     /**
@@ -265,10 +281,11 @@ final class DesktopEntry : IniLikeGroup
         return value("URL");
     }
     
-    ///setter
+    /**
+     * Set "URL" to link escaping the value if needed.
+     */
     @safe string url(string link) {
-        this["URL"] = link;
-        return link;
+        return this["URL"] = escapeIfNeeded(link);
     }
     
     ///
@@ -290,12 +307,13 @@ final class DesktopEntry : IniLikeGroup
     /**
      * Set TryExec value.
      * Throws:
-     *  Exception if tryExec is not abolute path nor base name.
+     *  IniLikeEntryException if tryExec is not abolute path nor base name.
      */
     @safe string tryExecString(string tryExec) {
-        enforce(tryExec.isAbsolute || tryExec.baseName == tryExec, "TryExec must be absolute path or base name");
-        this["TryExec"] = tryExec;
-        return tryExec;
+        if (!tryExec.isAbsolute && tryExec.baseName != tryExec) {
+            throw new IniLikeEntryException("TryExec must be absolute path or base name", "TryExec", tryExec);
+        }
+        return this["TryExec"] = escapeIfNeeded(tryExec);
     }
     
     ///
@@ -324,12 +342,13 @@ final class DesktopEntry : IniLikeGroup
     /**
      * Set Icon value.
      * Throws:
-     *  Exception if icon is not abolute path nor base name.
+     *  IniLikeEntryException if icon is not abolute path nor base name.
      */
     @safe string iconName(string icon) {
-        enforce(icon.isAbsolute || icon.baseName == icon, "Icon must be absolute path or base name");
-        this["Icon"] = icon;
-        return icon;
+        if (!icon.isAbsolute && icon.baseName != icon) {
+            throw new IniLikeEntryException("Icon must be absolute path or base name", "Icon", icon);
+        }
+        return this["Icon"] = escapeIfNeeded(icon);
     }
     
     ///
@@ -429,20 +448,28 @@ final class DesktopEntry : IniLikeGroup
     /**
      * Set Path value.
      * Throws:
-     *  Exception if wd is not valid path or wd is not abolute path nor base name.
+     *  IniLikeEntryException if wd is not valid path or wd is not abolute path.
      */
     @safe string workingDirectory(string wd) {
-        enforce(wd.isValidPath, "Working directory must be valid path");
-        enforce(wd.isAbsolute || wd.baseName == wd, "Path (working directory) must be absolute path or base name");
-        this["Path"] = wd;
-        return wd;
+        if (!wd.isValidPath) {
+            throw new IniLikeEntryException("Working directory must be valid path", "Path", wd);
+        }
+        version(Posix) {
+            if (!wd.isAbsolute) {
+                throw new IniLikeEntryException("Working directory must be absolute path", "Path", wd);
+            }
+        }
+        return this["Path"] = escapeIfNeeded(wd);
     }
     
     ///
     unittest
     {
         auto df = new DesktopFile();
-        assertNotThrown(df.workingDirectory = "valid path");
+        version(Posix) {
+            assertNotThrown(df.workingDirectory = "/valid");
+            assertThrown(df.workingDirectory = "not absolute");
+        }
         assertThrown(df.workingDirectory = "/foo\0/bar");
     }
     
@@ -557,7 +584,7 @@ final class DesktopEntry : IniLikeGroup
     
 protected:
     @trusted override void validateKeyValue(string key, string value) const {
-        enforce(isValidKey(key), "key is invalid");
+        validateKeyValueImpl(key, value);
     }
 }
 
@@ -905,7 +932,7 @@ Type=Directory`;
      * Note: If some value of range contains ';' character it's automatically escaped.
      */
     @trusted static string joinValues(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
-        auto result = values.filter!( s => !s.empty ).map!( s => s.replace(";", "\\;")).joiner(";");
+        auto result = values.filter!( s => !s.empty ).map!( s => s.replace(";", "\\;").escapeIfNeeded() ).joiner(";");
         if (result.empty) {
             return null;
         } else {
@@ -1280,4 +1307,12 @@ Name=Name2`;
     assertNotThrown(df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.ignoreGroupDuplicates));
     
     assert(df.desktopEntry().value("Name") == "Name1");
+    
+    df = new DesktopFile();
+    df.displayName = "Program name";
+    assert(df.displayName() == "Program name");
+    df.genericName = "Program";
+    assert(df.genericName() == "Program");
+    df.comment = "Do\nthings";
+    assert(df.comment() == `Do\nthings`);
 }

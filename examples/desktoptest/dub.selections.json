@@ -3,7 +3,7 @@
 	"versions": {
 		"standardpaths": "0.4.0",
 		"isfreedesktop": "0.1.0",
-		"inilike": "0.5.1",
+		"inilike": "0.6.0",
 		"xdgpaths": "0.2.1"
 	}
 }
