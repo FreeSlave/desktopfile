@@ -44,6 +44,7 @@ void main(string[] args)
         if (df.type() == DesktopFile.Type.Application) {
             writeln("Exec: ", df.execString());
             writeln("In terminal: ", df.terminal());
+            writeln("Trusted: ", isTrusted(df.fileName));
         }
         if (df.type() == DesktopFile.Type.Link) {
             writeln("URL: ", df.url());

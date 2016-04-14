@@ -21,9 +21,9 @@ private @trusted void validateKeyValueImpl(string key, string value) {
     }
 }
 
-private @safe string escapeIfNeeded(string value) nothrow {
+private @trusted string escapeIfNeeded(string value) pure {
     if (value.needEscaping()) {
-        return value.escapeValue();
+        return value.replace("\r", `\r`).replace("\n", `\n`);
     } else {
         return value;
     }
@@ -1315,4 +1315,19 @@ Name=Name2`;
     assert(df.genericName() == "Program");
     df.comment = "Do\nthings";
     assert(df.comment() == `Do\nthings`);
+    
+    df.execString = "utilname";
+    assert(df.execString() == "utilname");
+    
+    df.noDisplay = true;
+    assert(df.noDisplay());
+    df.hidden = true;
+    assert(df.hidden());
+    df.dbusActivable = true;
+    assert(df.dbusActivable());
+    df.startupNotify = true;
+    assert(df.startupNotify());
+    
+    df.url = "/some/url";
+    assert(df.url == "/some/url");
 }

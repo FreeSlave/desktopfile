@@ -612,18 +612,18 @@ unittest
             File(tempXdgTerminalFile, "w");
             scope(exit) remove(tempXdgTerminalFile);
             changeMod(tempXdgTerminalFile, octal!755);
-            assert(getTerminalCommand() == [buildPath(tempPath, "xdg-terminal")]);
+            enforce(getTerminalCommand() == [buildPath(tempPath, "xdg-terminal")]);
             
             changeMod(tempXdgTerminalFile, octal!644);
-            assert(getTerminalCommand() == ["xterm", "-e"]);
+            enforce(getTerminalCommand() == ["xterm", "-e"]);
             
             File(tempXTerminalEmulatorFile, "w");
             scope(exit) remove(tempXTerminalEmulatorFile);
             changeMod(tempXTerminalEmulatorFile, octal!755);
-            assert(getTerminalCommand() == [buildPath(tempPath, "x-terminal-emulator"), "-e"]);
+            enforce(getTerminalCommand() == [buildPath(tempPath, "x-terminal-emulator"), "-e"]);
             
             environment["PATH"] = ":";
-            assert(getTerminalCommand() == ["xterm", "-e"]);
+            enforce(getTerminalCommand() == ["xterm", "-e"]);
             
         } catch(Exception e) {
             
@@ -954,5 +954,35 @@ static if (isFreedesktop)
     {
         import desktopfile.paths;
         return desktopId(fileName, applicationsPaths());
+    }
+}
+
+
+/**
+ * Check if .desktop file is trusted. This is not actually part of Desktop File Specification but many file managers has this concept.
+ * The trusted .desktop file is a file the current user has executable access to or the owner of which is root.
+ * This function should be applicable only to desktop files of Application type.
+ * Note: Always returns true on non-posix systems.
+ */
+@trusted bool isTrusted(string appFileName) nothrow
+{
+    version(Posix) {
+        import core.sys.posix.sys.stat;
+        import core.sys.posix.unistd;
+        
+        try { // try for outdated compilers
+            auto namez = toStringz(appFileName);
+            if (access(namez, X_OK) == 0) {
+                return true;
+            }
+            
+            stat_t statbuf;
+            auto result = stat(namez, &statbuf);
+            return (result == 0 && statbuf.st_uid == 0);
+        } catch(Exception e) {
+            return false;
+        }
+    } else {
+        return true;
     }
 }
