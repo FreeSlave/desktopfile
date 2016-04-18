@@ -2,7 +2,7 @@
 	"fileVersion": 1,
 	"versions": {
 		"isfreedesktop": "0.1.0",
-		"inilike": "0.6.1",
+		"inilike": "0.6.2",
 		"xdgpaths": "0.2.1"
 	}
 }

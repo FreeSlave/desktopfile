@@ -4,7 +4,7 @@ D library for working with *.desktop* files. Desktop entries in Freedesktop worl
 
 [![Build Status](https://travis-ci.org/MyLittleRobo/desktopfile.svg?branch=master)](https://travis-ci.org/MyLittleRobo/desktopfile) [![Coverage Status](https://coveralls.io/repos/MyLittleRobo/desktopfile/badge.svg?branch=master&service=github)](https://coveralls.io/github/MyLittleRobo/desktopfile?branch=master)
 
-The most of desktop environments on Linux and BSD flavors follow [Desktop Entry Specification](http://standards.freedesktop.org/desktop-entry-spec/latest/) today.
+The most of desktop environments on Linux and BSD flavors follow [Desktop Entry Specification](https://www.freedesktop.org/wiki/Specifications/desktop-entry-spec/) today.
 The goal of **desktopfile** library is to provide implementation of this specification in D programming language.
 Please feel free to propose enchancements or report any related bugs to *Issues* page.
 
@@ -125,31 +125,31 @@ Utility that can parse, execute and rewrites .desktop files.
 
 This will start vlc with the first parameter set to $HOME/Music:
 
-    dub run desktopfile:desktoputil -- exec /usr/share/applications/vlc.desktop $HOME/Music
+    dub run :desktoputil -- exec /usr/share/applications/vlc.desktop $HOME/Music
     
 This should start command line application in terminal emulator (will be detected automatically):
 
-    dub run desktopfile:desktoputil -- exec /usr/share/applications/python2.7.desktop
+    dub run :desktoputil -- exec /usr/share/applications/python2.7.desktop
 
 Additional application actions are supported too:
 
-    dub run desktopfile:desktoputil -- exec /usr/share/applications/steam.desktop --action=Settings
+    dub run :desktoputil -- exec /usr/share/applications/steam.desktop --action=Settings
     
 Open link with preferred application:
 
-    dub run desktopfile:desktoputil -- link /usr/share/desktop-base/debian-homepage.desktop
+    dub run :desktoputil -- link /usr/share/desktop-base/debian-homepage.desktop
 
 Starts .desktop file defined executable or opens link:
 
-    dub run desktopfile:desktoputil -- start /path/to/file.desktop
+    dub run :desktoputil -- start /path/to/file.desktop
     
 Parse and write .desktop file to new location (to testing purposes):
 
-    dub run desktopfile:desktoputil -- write /usr/share/applications/vlc.desktop $HOME/Desktop/vlc.desktop
+    dub run :desktoputil -- write /usr/share/applications/vlc.desktop $HOME/Desktop/vlc.desktop
 
 Read basic information about desktop file:
 
-    dub run desktopfile:desktoputil -- read /usr/share/applications/kde4/kate.desktop
+    dub run :desktoputil -- read /usr/share/applications/kde4/kate.desktop
  
 ### [Desktop test](examples/desktoptest/source/app.d)
 
@@ -157,24 +157,24 @@ Parses all .desktop files in system's applications paths (usually /usr/local/sha
 Writes errors (if any) to stderr.
 Use this example to check if the desktopfile library can parse all .desktop files on your system.
 
-    dub run desktopfile:desktoptest
+    dub run :test
 
 To print all directories examined by desktoptest to stdout, add --verbose flag:
 
-    dub run desktopfile:desktoptest -- --verbose
+    dub run :test -- --verbose
 
 Start desktoptest on specified directories:
 
-    dub run desktopfile:desktoptest -- /path/to/applications /anotherpath/to/applications
+    dub run :test -- /path/to/applications /anotherpath/to/applications
     
 Example using cmd on Windows (KDE installed):
 
     set KDE_SHARE="%SYSTEMDRIVE%\ProgramData\KDE\share"
-    dub run desktopfile:desktoptest -- %KDE_SHARE%\applications %KDE_SHARE%\templates %KDE_SHARE%\desktop-directories %KDE_SHARE%\autostart
+    dub run :test -- %KDE_SHARE%\applications %KDE_SHARE%\templates %KDE_SHARE%\desktop-directories %KDE_SHARE%\autostart
     
 ### [Shoot desktop file](examples/shootdesktop/source/app.d)
 
 Uses the alternative way of starting desktop file. Instead of constructing DesktopFile object it just starts the application or opens link after read enough information from file.
 
-    dub run desktopfile:shootdesktop -- $HOME/Desktop/vlc.desktop
-    dub run desktopfile:shootdesktop -- /usr/share/applications/python2.7.desktop
+    dub run :shootdesktop -- $HOME/Desktop/vlc.desktop
+    dub run :shootdesktop -- /usr/share/applications/python2.7.desktop

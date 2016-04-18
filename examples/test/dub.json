@@ -1,5 +1,5 @@
 {
-    "name": "desktoptest",
+    "name": "test",
     "description": "A minimal D application.",
     "copyright": "Copyright © 2015, freeslave",
     "authors": ["freeslave"],
@@ -8,6 +8,5 @@
         "standardpaths": "~>0.4.0"
     },
     "targetPath" : "bin",
-    "targetType" : "executable",
-    "targetName" : "desktoptest", 
+    "targetType" : "executable"
 }

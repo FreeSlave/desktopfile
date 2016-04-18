@@ -7,7 +7,7 @@
  * License: 
  *  $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
  * See_Also: 
- *  $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/index.html, Desktop Entry Specification)
+ *  $(LINK2 https://www.freedesktop.org/wiki/Specifications/desktop-entry-spec/, Desktop Entry Specification)
  */
 
 module desktopfile.utils;
@@ -751,7 +751,7 @@ unittest
  *  Exception on other errors.
  * See_Also: ShootOptions
  */
-@trusted void shootDesktopFile(IniLikeReader)(IniLikeReader reader, string fileName = null, ShootOptions options = ShootOptions.init)
+void shootDesktopFile(IniLikeReader)(IniLikeReader reader, string fileName = null, ShootOptions options = ShootOptions.init)
 {
     enforce(options.flags & (ShootOptions.Exec|ShootOptions.Link), "At least one of the options Exec or Link must be provided");
     
@@ -889,7 +889,7 @@ unittest
  * Returns: Desktop file ID or empty string if file does not have an ID.
  * See_Also: desktopfile.paths.applicationsPaths
  */
-@trusted string desktopId(Range)(string fileName, Range appPaths) nothrow if (isInputRange!Range && is(ElementType!Range : string))
+string desktopId(Range)(string fileName, Range appPaths) nothrow if (isInputRange!Range && is(ElementType!Range : string))
 {
     try {
         string absolute = fileName.absolutePath;

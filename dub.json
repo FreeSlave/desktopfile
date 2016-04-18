@@ -5,12 +5,12 @@
     "copyright": "Copyright © 2015-2016, Roman Chistokhodov",
     "authors": ["Roman Chistokhodov"],
     "dependencies": {
-        "inilike": "~>0.6.1",
+        "inilike": "~>0.6.2",
         "xdgpaths" : "~>0.2.1"
     },
     "targetName" : "desktopfile",
     "targetPath" : "lib", 
     "targetType" : "library",
     
-    "subPackages" : ["./examples/desktoptest", "./examples/desktoputil", "./examples/shootdesktop"]
+    "subPackages" : ["./examples/test", "./examples/desktoputil", "./examples/shootdesktop"]
 }

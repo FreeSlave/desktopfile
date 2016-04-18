@@ -8,7 +8,7 @@
  * License: 
  *  $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
  * See_Also: 
- *  $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/index.html, Desktop Entry Specification)
+ *  $(LINK2 https://www.freedesktop.org/wiki/Specifications/desktop-entry-spec/, Desktop Entry Specification)
  */
 
 module desktopfile.paths;
@@ -28,7 +28,7 @@ private {
  * This function is available on all platforms, but requires dataPaths argument (e.g. C:\ProgramData\KDE\share on Windows)
  * Returns: Array of paths, based on dataPaths with "applications" directory appended.
  */
-@trusted string[] applicationsPaths(Range)(Range dataPaths) if (isInputRange!Range && is(ElementType!Range : string)) {
+string[] applicationsPaths(Range)(Range dataPaths) if (isInputRange!Range && is(ElementType!Range : string)) {
     return dataPaths.map!(p => buildPath(p, "applications")).array;
 }
 
@@ -44,7 +44,7 @@ static if (isFreedesktop)
      * ditto, but returns paths based on known data paths.
      * This function is defined only on freedesktop systems to avoid confusion with other systems that have data paths not compatible with Desktop Entry Spec.
      */
-    @safe string[] applicationsPaths() nothrow {
+    @trusted string[] applicationsPaths() nothrow {
         return xdgAllDataDirs("applications");
     }
     

@@ -7,7 +7,7 @@
  * License: 
  *  $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
  * See_Also: 
- *  $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/index.html, Desktop Entry Specification)
+ *  $(LINK2 https://www.freedesktop.org/wiki/Specifications/desktop-entry-spec/, Desktop Entry Specification)
  */
 
 module desktopfile.file;
@@ -47,7 +47,7 @@ public:
      * Label that will be shown to the user.
      * Returns: The value associated with "Name" key.
      */
-    @nogc @safe string displayName() const nothrow {
+    @nogc @safe string displayName() const nothrow pure {
         return value("Name");
     }
     
@@ -55,7 +55,7 @@ public:
      * Label that will be shown to the user in given locale.
      * Returns: The value associated with "Name" key and given locale.
      */
-    @safe string localizedDisplayName(string locale) const nothrow {
+    @safe string localizedDisplayName(string locale) const nothrow pure {
         return localizedValue("Name", locale);
     }
     
@@ -63,7 +63,7 @@ public:
      * Icon name of action.
      * Returns: The value associated with "Icon" key.
      */
-    @nogc @safe string iconName() const nothrow {
+    @nogc @safe string iconName() const nothrow pure {
         return value("Icon");
     }
     
@@ -71,14 +71,14 @@ public:
      * Returns: Localized icon name
      * See_Also: iconName
      */
-    @safe string localizedIconName(string locale) const nothrow {
+    @safe string localizedIconName(string locale) const nothrow pure {
         return localizedValue("Icon", locale);
     }
     
     /**
      * Returns: The value associated with "Exec" key and given locale.
      */
-    @nogc @safe string execString() const nothrow {
+    @nogc @safe string execString() const nothrow pure {
         return value("Exec");
     }
     
@@ -118,7 +118,7 @@ final class DesktopEntry : IniLikeGroup
      * Type of desktop entry.
      * Returns: Type of desktop entry.
      */
-    @nogc @safe Type type() const nothrow {
+    @nogc @safe Type type() const nothrow pure {
         string t = value("Type");
         if (t.length) {
             if (t == "Application") {
@@ -188,7 +188,7 @@ final class DesktopEntry : IniLikeGroup
      * Returns: The value associated with "Name" key.
      * See_Also: localizedDisplayName
      */
-    @nogc @safe string displayName() const nothrow {
+    @nogc @safe string displayName() const nothrow pure {
         return value("Name");
     }
     
@@ -203,7 +203,7 @@ final class DesktopEntry : IniLikeGroup
      * Returns: Localized name.
      * See_Also: displayName
      */
-    @safe string localizedDisplayName(string locale) const nothrow {
+    @safe string localizedDisplayName(string locale) const nothrow pure {
         return localizedValue("Name", locale);
     }
     
@@ -212,7 +212,7 @@ final class DesktopEntry : IniLikeGroup
      * Returns: The value associated with "GenericName" key.
      * See_Also: localizedGenericName
      */
-    @nogc @safe string genericName() const nothrow {
+    @nogc @safe string genericName() const nothrow pure {
         return value("GenericName");
     }
     
@@ -226,7 +226,7 @@ final class DesktopEntry : IniLikeGroup
      * Returns: Localized generic name
      * See_Also: genericName
      */
-    @safe string localizedGenericName(string locale) const nothrow {
+    @safe string localizedGenericName(string locale) const nothrow pure {
         return localizedValue("GenericName", locale);
     }
     
@@ -235,7 +235,7 @@ final class DesktopEntry : IniLikeGroup
      * Returns: The value associated with "Comment" key.
      * See_Also: localizedComment
      */
-    @nogc @safe string comment() const nothrow {
+    @nogc @safe string comment() const nothrow pure {
         return value("Comment");
     }
     
@@ -250,7 +250,7 @@ final class DesktopEntry : IniLikeGroup
      * Returns: Localized comment
      * See_Also: comment
      */
-    @safe string localizedComment(string locale) const nothrow {
+    @safe string localizedComment(string locale) const nothrow pure {
         return localizedValue("Comment", locale);
     }
     
@@ -259,7 +259,7 @@ final class DesktopEntry : IniLikeGroup
      * Note: To get arguments from exec string use expandExecString.
      * See_Also: expandExecString, startApplication, tryExecString
      */
-    @nogc @safe string execString() const nothrow {
+    @nogc @safe string execString() const nothrow pure {
         return value("Exec");
     }
     
@@ -277,7 +277,7 @@ final class DesktopEntry : IniLikeGroup
      * URL to access.
      * Returns: The value associated with "URL" key.
      */
-    @nogc @safe string url() const nothrow {
+    @nogc @safe string url() const nothrow pure {
         return value("URL");
     }
     
@@ -300,7 +300,7 @@ final class DesktopEntry : IniLikeGroup
      * Returns: The value associated with "TryExec" key, possibly with quotes removed if path is quoted.
      * See_Also: execString
      */
-    @nogc @safe string tryExecString() const nothrow {
+    @nogc @safe string tryExecString() const nothrow pure {
         return value("TryExec");
     }
     
@@ -335,7 +335,7 @@ final class DesktopEntry : IniLikeGroup
      *  It does not provide any lookup of actual icon file on the system if the name if not an absolute path.
      *  To find the path to icon file refer to $(LINK2 http://standards.freedesktop.org/icon-theme-spec/icon-theme-spec-latest.html, Icon Theme Specification) or consider using $(LINK2 https://github.com/MyLittleRobo/icontheme, icontheme library).
      */
-    @nogc @safe string iconName() const nothrow {
+    @nogc @safe string iconName() const nothrow pure {
         return value("Icon");
     }
     
@@ -367,7 +367,7 @@ final class DesktopEntry : IniLikeGroup
      * Returns: Localized icon name
      * See_Also: iconName
      */
-    @safe string localizedIconName(string locale) const nothrow {
+    @safe string localizedIconName(string locale) const nothrow pure {
         return localizedValue("Icon", locale);
     }
     
@@ -385,7 +385,7 @@ final class DesktopEntry : IniLikeGroup
      * NoDisplay means "this application exists, but don't display it in the menus".
      * Returns: The value associated with "NoDisplay" key converted to bool using isTrue.
      */
-    @nogc @safe bool noDisplay() const nothrow {
+    @nogc @safe bool noDisplay() const nothrow pure {
         return isTrue(value("NoDisplay"));
     }
     
@@ -400,7 +400,7 @@ final class DesktopEntry : IniLikeGroup
      * It's strictly equivalent to the .desktop file not existing at all, as far as that user is concerned. 
      * Returns: The value associated with "Hidden" key converted to bool using isTrue.
      */
-    @nogc @safe bool hidden() const nothrow {
+    @nogc @safe bool hidden() const nothrow pure {
         return isTrue(value("Hidden"));
     }
     
@@ -414,7 +414,7 @@ final class DesktopEntry : IniLikeGroup
      * A boolean value specifying if D-Bus activation is supported for this application.
      * Returns: The value associated with "dbusActivable" key converted to bool using isTrue.
      */
-    @nogc @safe bool dbusActivable() const nothrow {
+    @nogc @safe bool dbusActivable() const nothrow pure {
         return isTrue(value("DBusActivatable"));
     }
     
@@ -427,7 +427,7 @@ final class DesktopEntry : IniLikeGroup
     /**
      * Returns: The value associated with "startupNotify" key converted to bool using isTrue.
      */
-    @nogc @safe bool startupNotify() const nothrow {
+    @nogc @safe bool startupNotify() const nothrow pure {
         return isTrue(value("StartupNotify"));
     }
     
@@ -441,7 +441,7 @@ final class DesktopEntry : IniLikeGroup
      * The working directory to run the program in.
      * Returns: The value associated with "Path" key.
      */
-    @nogc @safe string workingDirectory() const nothrow {
+    @nogc @safe string workingDirectory() const nothrow pure {
         return value("Path");
     }
     
@@ -477,7 +477,7 @@ final class DesktopEntry : IniLikeGroup
      * Whether the program runs in a terminal window.
      * Returns: The value associated with "Terminal" key converted to bool using isTrue.
      */
-    @nogc @safe bool terminal() const nothrow {
+    @nogc @safe bool terminal() const nothrow pure {
         return isTrue(value("Terminal"));
     }
     /// Sets "Terminal" field to true or false.
@@ -490,14 +490,14 @@ final class DesktopEntry : IniLikeGroup
      * Categories this program belongs to.
      * Returns: The range of multiple values associated with "Categories" key.
      */
-    @safe auto categories() const nothrow {
+    @safe auto categories() const nothrow pure {
         return DesktopFile.splitValues(value("Categories"));
     }
     
     /**
      * Sets the list of values for the "Categories" list.
      */
-    @safe void categories(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
+    void categories(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
         this["Categories"] = DesktopFile.joinValues(values);
     }
     
@@ -505,7 +505,7 @@ final class DesktopEntry : IniLikeGroup
      * A list of strings which may be used in addition to other metadata to describe this entry.
      * Returns: The range of multiple values associated with "Keywords" key.
      */
-    @safe auto keywords() const nothrow {
+    @safe auto keywords() const nothrow pure {
         return DesktopFile.splitValues(value("Keywords"));
     }
     
@@ -513,14 +513,14 @@ final class DesktopEntry : IniLikeGroup
      * A list of localied strings which may be used in addition to other metadata to describe this entry.
      * Returns: The range of multiple values associated with "Keywords" key in given locale.
      */
-    @safe auto localizedKeywords(string locale) const nothrow {
+    @safe auto localizedKeywords(string locale) const nothrow pure {
         return DesktopFile.splitValues(localizedValue("Keywords", locale));
     }
     
     /**
      * Sets the list of values for the "Keywords" list.
      */
-    @safe void keywords(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
+    void keywords(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
         this["Keywords"] = DesktopFile.joinValues(values);
     }
     
@@ -528,14 +528,14 @@ final class DesktopEntry : IniLikeGroup
      * The MIME type(s) supported by this application.
      * Returns: The range of multiple values associated with "MimeType" key.
      */
-    @safe auto mimeTypes() nothrow const {
+    @safe auto mimeTypes() nothrow const pure {
         return DesktopFile.splitValues(value("MimeType"));
     }
     
     /**
      * Sets the list of values for the "MimeType" list.
      */
-    @safe void mimeTypes(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
+    void mimeTypes(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
         this["MimeType"] = DesktopFile.joinValues(values);
     }
     
@@ -545,14 +545,14 @@ final class DesktopEntry : IniLikeGroup
      * Note: This only depends on "Actions" value, not on actually presented sections in desktop file.
      * See_Also: byAction, action
      */
-    @safe auto actions() nothrow const {
+    @safe auto actions() nothrow const pure {
         return DesktopFile.splitValues(value("Actions"));
     }
     
     /**
      * Sets the list of values for "Actions" list.
      */
-    @safe void actions(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
+    void actions(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
         this["Actions"] = DesktopFile.joinValues(values);
     }
     
@@ -560,12 +560,12 @@ final class DesktopEntry : IniLikeGroup
      * A list of strings identifying the desktop environments that should display a given desktop entry.
      * Returns: The range of multiple values associated with "OnlyShowIn" key.
      */
-    @safe auto onlyShowIn() const {
+    @safe auto onlyShowIn() nothrow const pure {
         return DesktopFile.splitValues(value("OnlyShowIn"));
     }
     
     ///setter
-    @safe void onlyShowIn(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
+    void onlyShowIn(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
         this["OnlyShowIn"] = DesktopFile.joinValues(values);
     }
     
@@ -573,12 +573,12 @@ final class DesktopEntry : IniLikeGroup
      * A list of strings identifying the desktop environments that should not display a given desktop entry.
      * Returns: The range of multiple values associated with "NotShowIn" key.
      */
-    @safe auto notShowIn() const {
+    @safe auto notShowIn() nothrow const pure {
         return DesktopFile.splitValues(value("NotShowIn"));
     }
     
     ///setter
-    @safe void notShowIn(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
+    void notShowIn(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
         this["NotShowIn"] = DesktopFile.joinValues(values);
     }
     
@@ -691,18 +691,18 @@ public:
      * Reads desktop file from file.
      * Throws:
      *  $(B ErrnoException) if file could not be opened.
-     *  $(B IniLikeException) if error occured while reading the file.
+     *  $(B IniLikeException) if error occured while reading the file or "Desktop Entry" group is missing.
      */
-    @safe this(string fileName, ReadOptions options = defaultReadOptions) {
+    @trusted this(string fileName, ReadOptions options = defaultReadOptions) {
         this(iniLikeFileReader(fileName), options, fileName);
     }
     
     /**
      * Reads desktop file from IniLikeReader, e.g. acquired from iniLikeFileReader or iniLikeStringReader.
      * Throws:
-     *  $(B IniLikeException) if error occured while parsing.
+     *  $(B IniLikeException) if error occured while parsing or "Desktop Entry" group is missing.
      */
-    @trusted this(IniLikeReader)(IniLikeReader reader, ReadOptions options = defaultReadOptions, string fileName = null)
+    this(IniLikeReader)(IniLikeReader reader, ReadOptions options = defaultReadOptions, string fileName = null)
     {   
         _options = options;
         super(reader, fileName);
@@ -713,9 +713,9 @@ public:
     /**
      * Reads desktop file from IniLikeReader, e.g. acquired from iniLikeFileReader or iniLikeStringReader.
      * Throws:
-     *  $(B IniLikeException) if error occured while parsing.
+     *  $(B IniLikeException) if error occured while parsing or "Desktop Entry" group is missing.
      */
-    @trusted this(IniLikeReader)(IniLikeReader reader, string fileName, ReadOptions options = defaultReadOptions)
+    this(IniLikeReader)(IniLikeReader reader, string fileName, ReadOptions options = defaultReadOptions)
     {
         this(reader, options, fileName);
     }
@@ -821,7 +821,7 @@ public:
      * Returns: Desktop file ID or empty string if file does not have an ID.
      * See_Also: desktopfile.paths.applicationsPaths, desktopfile.utils.desktopId
      */
-    @trusted string id(Range)(Range appPaths) const nothrow if (isInputRange!Range && is(ElementType!Range : string)) 
+    string id(Range)(Range appPaths) const nothrow if (isInputRange!Range && is(ElementType!Range : string)) 
     {
         return desktopId(fileName, appPaths);
     }
@@ -864,27 +864,27 @@ Type=Directory`;
     
     private static struct SplitValues
     {
-        @trusted this(string value) nothrow {
+        @trusted this(string value) nothrow pure {
             _value = value;
             next();
         }
         @nogc @trusted string front() const nothrow pure {
             return _current;
         }
-        @trusted void popFront() nothrow {
+        @trusted void popFront() nothrow pure {
             next();
         }
-        @trusted bool empty() const nothrow pure {
+        @nogc @trusted bool empty() const nothrow pure {
             return _value.empty && _current.empty;
         }
-        @trusted @property auto save() const nothrow pure {
+        @nogc @trusted @property auto save() const nothrow pure {
             SplitValues values;
             values._value = _value;
             values._current = _current;
             return values;
         }
     private:
-        void next() nothrow {
+        void next() nothrow pure {
             size_t i=0;
             for (; i<_value.length && ( (_value[i] != ';') || (i && _value[i-1] == '\\' && _value[i] == ';')); ++i) {
                 //pass
@@ -903,7 +903,7 @@ Type=Directory`;
      * Returns: The range of multiple nonempty values.
      * Note: Returned range unescapes ';' character automatically.
      */
-    @trusted static auto splitValues(string values) nothrow {
+    @trusted static auto splitValues(string values) nothrow pure {
         return SplitValues(values).filter!(s => !s.empty);
     }
     
@@ -931,7 +931,7 @@ Type=Directory`;
      * Returns: Values of range joined into one string with ';' after each value or empty string if range is empty.
      * Note: If some value of range contains ';' character it's automatically escaped.
      */
-    @trusted static string joinValues(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
+    static string joinValues(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
         auto result = values.filter!( s => !s.empty ).map!( s => s.replace(";", "\\;").escapeIfNeeded() ).joiner(";");
         if (result.empty) {
             return null;
@@ -1062,7 +1062,7 @@ Icon[ru]=folder_ru`;
     }
     
     /**
-     * Opens url defined in .desktop file using $(LINK2 http://portland.freedesktop.org/xdg-utils-1.0/xdg-open.html, xdg-open).
+     * Opens url defined in .desktop file using $(LINK2 https://portland.freedesktop.org/doc/xdg-open.html, xdg-open).
      * Note:
      *  This function does not check if the type of desktop file is Link. It relies only on "URL" value.
      * Throws:
