@@ -119,39 +119,39 @@ catch (IniLikeException e) { //Parsing error - file is not desktop file or has e
 
 ## Examples
 
-### [Desktop util](examples/desktoputil/source/app.d)
+### [Desktop util](examples/util/source/app.d)
 
 Utility that can parse, execute and rewrites .desktop files.
 
 This will start vlc with the first parameter set to $HOME/Music:
 
-    dub run :desktoputil -- exec /usr/share/applications/vlc.desktop $HOME/Music
+    dub run :util -- exec /usr/share/applications/vlc.desktop $HOME/Music
     
 This should start command line application in terminal emulator (will be detected automatically):
 
-    dub run :desktoputil -- exec /usr/share/applications/python2.7.desktop
+    dub run :util -- exec /usr/share/applications/python2.7.desktop
 
 Additional application actions are supported too:
 
-    dub run :desktoputil -- exec /usr/share/applications/steam.desktop --action=Settings
+    dub run :util -- exec /usr/share/applications/steam.desktop --action=Settings
     
 Open link with preferred application:
 
-    dub run :desktoputil -- link /usr/share/desktop-base/debian-homepage.desktop
+    dub run :util -- link /usr/share/desktop-base/debian-homepage.desktop
 
 Starts .desktop file defined executable or opens link:
 
-    dub run :desktoputil -- start /path/to/file.desktop
+    dub run :util -- start /path/to/file.desktop
     
 Parse and write .desktop file to new location (to testing purposes):
 
-    dub run :desktoputil -- write /usr/share/applications/vlc.desktop $HOME/Desktop/vlc.desktop
+    dub run :util -- write /usr/share/applications/vlc.desktop $HOME/Desktop/vlc.desktop
 
 Read basic information about desktop file:
 
-    dub run :desktoputil -- read /usr/share/applications/kde4/kate.desktop
+    dub run :util -- read /usr/share/applications/kde4/kate.desktop
  
-### [Desktop test](examples/desktoptest/source/app.d)
+### [Desktop test](examples/test/source/app.d)
 
 Parses all .desktop files in system's applications paths (usually /usr/local/share/applicatons and /usr/share/applications) and on the user's Desktop.
 Writes errors (if any) to stderr.
@@ -172,9 +172,9 @@ Example using cmd on Windows (KDE installed):
     set KDE_SHARE="%SYSTEMDRIVE%\ProgramData\KDE\share"
     dub run :test -- %KDE_SHARE%\applications %KDE_SHARE%\templates %KDE_SHARE%\desktop-directories %KDE_SHARE%\autostart
     
-### [Shoot desktop file](examples/shootdesktop/source/app.d)
+### [Shoot desktop file](examples/shoot/source/app.d)
 
 Uses the alternative way of starting desktop file. Instead of constructing DesktopFile object it just starts the application or opens link after read enough information from file.
 
-    dub run :shootdesktop -- $HOME/Desktop/vlc.desktop
-    dub run :shootdesktop -- /usr/share/applications/python2.7.desktop
+    dub run :shoot -- $HOME/Desktop/vlc.desktop
+    dub run :shoot -- /usr/share/applications/python2.7.desktop

@@ -1,5 +1,5 @@
 {
-    "name": "shootdesktop",
+    "name": "shoot",
     "description": "A minimal D application.",
     "copyright": "Copyright © 2015, freeslave",
     "authors": ["freeslave"],
@@ -7,6 +7,5 @@
         "desktopfile" : "*"
     },
     "targetPath" : "bin",
-    "targetType" : "executable",
-    "targetName" : "shootdesktop", 
+    "targetType" : "executable" 
 }
