@@ -1,6 +1,7 @@
 import std.stdio;
 import std.getopt;
 import std.process;
+import std.path;
 
 import desktopfile.file;
 import isfreedesktop;
@@ -18,13 +19,21 @@ import isfreedesktop;
 void main(string[] args)
 {
     if (args.length < 3) {
-        writefln("Usage: %s <read|exec|link|start|write> <desktop-file> <optional arguments>", args[0]);
+        writefln("Usage: %s <read|exec|open|start|write> <desktop-file> <optional arguments>", args[0]);
         return;
     }
     
     string command = args[1];
     string inFile = args[2];
     string locale = currentLocale();
+    
+    if (inFile == inFile.baseName && inFile.extension == ".desktop") {
+        inFile = findDesktopFile(inFile);
+        if (inFile is null) {
+            stderr.writeln("Could not find desktop file with such id: ", inFile);
+            return;
+        }
+    }
     
     if (command == "read") {
         auto df = new DesktopFile(inFile);
@@ -62,14 +71,14 @@ void main(string[] args)
             }
         } else {
             string[] urls = args[3..$];
-            writeln("Exec:", df.expandExecString(urls, locale));
+            writefln("Exec: %(%s %)", df.expandExecString(urls, locale));
             df.startApplication(urls, locale);
         }
         
         
-    } else if (command == "link") {
+    } else if (command == "open") {
         auto df = new DesktopFile(inFile);
-        writeln("Link:", df.url());
+        writeln("Link: ", df.url());
         df.startLink();
     } else if (command == "start") {
         auto df = new DesktopFile(inFile);

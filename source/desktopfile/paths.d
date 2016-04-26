@@ -62,8 +62,8 @@ static if (isFreedesktop)
     }
     
     /**
-     * Path where .desktop files can be stored without requiring of root privileges.
-     * This function is defined only on freedesktop systems to avoid confusion with other systems that have data paths not compatible with Desktop Entry Spec.
+     * Path where .desktop files can be stored by user.
+     * This function is defined only on freedesktop systems.
      * Note: it does not check if returned path exists and appears to be directory.
      */
     @safe string writableApplicationsPath() nothrow {

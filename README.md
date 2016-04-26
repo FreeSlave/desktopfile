@@ -123,9 +123,9 @@ catch (IniLikeException e) { //Parsing error - file is not desktop file or has e
 
 Utility that can parse, execute and rewrites .desktop files.
 
-This will start vlc with the first parameter set to $HOME/Music:
+This will open $HOME/.bashrc in geany text editor:
 
-    dub run :util -- exec /usr/share/applications/vlc.desktop $HOME/Music
+    dub run :util -- exec /usr/share/applications/geany.desktop $HOME/.bashrc
     
 This should start command line application in terminal emulator (will be detected automatically):
 
@@ -137,7 +137,7 @@ Additional application actions are supported too:
     
 Open link with preferred application:
 
-    dub run :util -- link /usr/share/desktop-base/debian-homepage.desktop
+    dub run :util -- open /usr/share/desktop-base/debian-homepage.desktop
 
 Starts .desktop file defined executable or opens link:
 
@@ -150,6 +150,11 @@ Parse and write .desktop file to new location (to testing purposes):
 Read basic information about desktop file:
 
     dub run :util -- read /usr/share/applications/kde4/kate.desktop
+    
+When passing base name of desktop file instead of path it's treated like desktop file id and desktop file is searched in system applications paths.
+
+    dub run :util -- exec python2.7.desktop
+    dub run :util -- exec kde4-kate.desktop
  
 ### [Desktop test](examples/test/source/app.d)
 

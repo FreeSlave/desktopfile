@@ -480,9 +480,9 @@ final class DesktopEntry : IniLikeGroup
     @nogc @safe bool terminal() const nothrow pure {
         return isTrue(value("Terminal"));
     }
-    /// Sets "Terminal" field to true or false.
+    ///setter
     @safe bool terminal(bool t) {
-        this["Terminal"] = t ? "true" : "false";
+        this["Terminal"] = boolToString(t);
         return t;
     }
     
@@ -498,7 +498,7 @@ final class DesktopEntry : IniLikeGroup
      * Sets the list of values for the "Categories" list.
      */
     void categories(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
-        this["Categories"] = DesktopFile.joinValues(values);
+        this["Categories"] = DesktopFile.joinValues(values).escapeIfNeeded();
     }
     
     /**
@@ -521,7 +521,7 @@ final class DesktopEntry : IniLikeGroup
      * Sets the list of values for the "Keywords" list.
      */
     void keywords(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
-        this["Keywords"] = DesktopFile.joinValues(values);
+        this["Keywords"] = DesktopFile.joinValues(values).escapeIfNeeded();
     }
     
     /**
@@ -536,7 +536,7 @@ final class DesktopEntry : IniLikeGroup
      * Sets the list of values for the "MimeType" list.
      */
     void mimeTypes(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
-        this["MimeType"] = DesktopFile.joinValues(values);
+        this["MimeType"] = DesktopFile.joinValues(values).escapeIfNeeded();
     }
     
     /**
@@ -553,7 +553,7 @@ final class DesktopEntry : IniLikeGroup
      * Sets the list of values for "Actions" list.
      */
     void actions(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
-        this["Actions"] = DesktopFile.joinValues(values);
+        this["Actions"] = DesktopFile.joinValues(values).escapeIfNeeded();
     }
     
     /**
@@ -566,7 +566,7 @@ final class DesktopEntry : IniLikeGroup
     
     ///setter
     void onlyShowIn(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
-        this["OnlyShowIn"] = DesktopFile.joinValues(values);
+        this["OnlyShowIn"] = DesktopFile.joinValues(values).escapeIfNeeded();
     }
     
     /**
@@ -579,7 +579,7 @@ final class DesktopEntry : IniLikeGroup
     
     ///setter
     void notShowIn(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
-        this["NotShowIn"] = DesktopFile.joinValues(values);
+        this["NotShowIn"] = DesktopFile.joinValues(values).escapeIfNeeded();
     }
     
 protected:
@@ -1126,7 +1126,6 @@ private:
 unittest 
 {
     import std.file;
-    //Test DesktopFile
     string desktopFileContents = 
 `[Desktop Entry]
 # Comment

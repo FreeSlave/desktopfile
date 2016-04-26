@@ -26,7 +26,7 @@ void main(string[] args)
             
             string[] dataPaths = standardPaths(StandardPath.data);
             
-            desktopDirs = applicationsPaths() ~ dataPaths.map!(s => buildPath(s, "desktop-directories")).array ~ dataPaths.map!(s => buildPath(s, "templates")).array ~ dataPaths.map!(s => buildPath(s, "autostart")).array ~ writablePath(StandardPath.desktop);
+            desktopDirs = applicationsPaths() ~ dataPaths.map!(s => buildPath(s, "desktop-directories")).array ~ dataPaths.map!(s => buildPath(s, "templates")).array ~ standardPaths(StandardPath.startup) ~ writablePath(StandardPath.desktop);
         }
         
         version(Windows) {

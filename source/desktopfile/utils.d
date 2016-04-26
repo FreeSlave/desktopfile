@@ -170,42 +170,57 @@ unittest
     string[] result;
     size_t i;
     
+    static string parseQuotedPart(ref size_t i, char delimeter, string value)
+    {
+        size_t start = ++i;
+        bool inQuotes = true;
+        bool wasSlash;
+        
+        while(i < value.length) {
+            if (value[i] == '\\' && value.length > i+1 && value[i+1] == '\\') {
+                i+=2;
+                wasSlash = true;
+                continue;
+            }
+            
+            if (value[i] == delimeter && (value[i-1] != '\\' || (value[i-1] == '\\' && wasSlash) )) {
+                inQuotes = false;
+                break;
+            }
+            wasSlash = false;
+            i++;
+        }
+        if (inQuotes) {
+            throw new DesktopExecException("Missing pair quote");
+        }
+        return value[start..i].unescapeQuotedArgument();
+    }
+    
+    string append;
+    bool wasInQuotes;
     while(i < value.length) {
         if (isWhite(value[i])) {
-            i++;
+            if (!wasInQuotes && append.length >= 2 && append[$-2] == '\\' && append[$-1] == '\\') {
+                append = append[0..$-2] ~ value[i];
+            } else {
+                if (append !is null) {
+                    result ~= append;
+                    append = null;
+                }
+            }
+            wasInQuotes = false;
         } else if (value[i] == '"' || value[i] == '\'') {
-            char delimeter = value[i];
-            size_t start = ++i;
-            bool inQuotes = true;
-            bool wasSlash;
-            
-            while(i < value.length) {
-                if (value[i] == '\\' && value.length > i+1 && value[i+1] == '\\') {
-                    i+=2;
-                    wasSlash = true;
-                    continue;
-                }
-                
-                if (value[i] == delimeter && (value[i-1] != '\\' || (value[i-1] == '\\' && wasSlash) )) {
-                    inQuotes = false;
-                    break;
-                }
-                wasSlash = false;
-                i++;
-            }
-            if (inQuotes) {
-                throw new DesktopExecException("Missing pair quote");
-            }
-            result ~= value[start..i].unescapeQuotedArgument();
-            i++;
-            
+            append ~= parseQuotedPart(i, value[i], value);
+            wasInQuotes = true;
         } else {
-            size_t start = i;
-            while(i < value.length && !isWhite(value[i])) {
-                i++;
-            }
-            result ~= value[start..i];
+            append ~= value[i];
+            wasInQuotes = false;
         }
+        i++;
+    }
+    
+    if (append !is null) {
+        result ~= append;
     }
     
     return result;
@@ -233,6 +248,12 @@ unittest
     assert(equal(unquoteExecString(`"\\\\" `), [`\\`]));
     
     assert(equal(unquoteExecString(`'quoted cmd' arg`), [`quoted cmd`, `arg`]));
+    
+    assert(equal(unquoteExecString(`test\\ "one""two"\\ more\\ \\ test `), [`test onetwo more  test`]));
+    
+    assert(equal(unquoteExecString(`env WINEPREFIX="/home/freeslave/.wine" wine C:\\\\windows\\\\command\\\\start.exe /Unix /home/freeslave/.wine/dosdevices/c:/windows/profiles/freeslave/Start\\ Menu/Programs/True\\ Remembrance/True\\ Remembrance.lnk`), [
+        "env", "WINEPREFIX=/home/freeslave/.wine", "wine", `C:\\\\windows\\\\command\\\\start.exe`, "/Unix", "/home/freeslave/.wine/dosdevices/c:/windows/profiles/freeslave/Start Menu/Programs/True Remembrance/True Remembrance.lnk"
+    ]));
     
     assertThrown!DesktopExecException(unquoteExecString(`cmd "quoted arg`));
 }
@@ -530,44 +551,35 @@ unittest
  * Detect command which will run program in terminal emulator.
  * On Freedesktop it looks for x-terminal-emulator first. If found ["/path/to/x-terminal-emulator", "-e"] is returned.
  * Otherwise it looks for xdg-terminal. If found ["/path/to/xdg-terminal"] is returned.
+ * Otherwise it tries to detect your desktop environment and find default terminal emulator for it.
  * If all guesses failed, it uses ["xterm", "-e"] as fallback.
  * Note: This function always returns empty array on non-freedesktop systems.
  */
 string[] getTerminalCommand() nothrow @trusted 
 {
     static if (isFreedesktop) {
-        static string checkExecutable(string filePath) nothrow {
-            import core.sys.posix.unistd;
-            try {
-                if (filePath.isFile && access(toStringz(filePath), X_OK) == 0) {
-                    return buildNormalizedPath(filePath);
-                } else {
+        static string getDefaultTerminal() nothrow
+        {
+            string xdgCurrentDesktop;
+            collectException(environment.get("XDG_DESKTOP_SESSION"), xdgCurrentDesktop);
+            switch(xdgCurrentDesktop) {
+                case "GNOME":
+                case "X-Cinnamon":
+                    return "gnome-terminal";
+                case "LXDE":
+                    return "lxterminal";
+                case "XFCE":
+                    return "xfce4-terminal";
+                case "MATE":
+                    return "mate-terminal";
+                case "KDE":
+                    return "konsole";
+                default:
                     return null;
-                }
-            }
-            catch(Exception e) {
-                return null;
             }
         }
         
-        static string findExecutable(string fileName) nothrow {
-            try {
-                foreach(string path; std.algorithm.splitter(environment.get("PATH"), ':')) {
-                    if (path.empty) {
-                        continue;
-                    }
-                    
-                    string candidate = checkExecutable(buildPath(absolutePath(path), fileName));
-                    if (candidate.length) {
-                        return candidate;
-                    }
-                }
-            } catch (Exception e) {
-                
-            }
-            return null;
-        }
-        
+        import findexecutable;
         string term = findExecutable("x-terminal-emulator");
         if (!term.empty) {
             return [term, "-e"];
@@ -575,6 +587,13 @@ string[] getTerminalCommand() nothrow @trusted
         term = findExecutable("xdg-terminal");
         if (!term.empty) {
             return [term];
+        }
+        term = getDefaultTerminal();
+        if (!term.empty) {
+            term = findExecutable(term);
+            if (!term.empty) {
+                return [term, "-e"];
+            }
         }
         return ["xterm", "-e"];
     } else {
@@ -884,16 +903,16 @@ unittest
 /**
  * See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html, Desktop File ID)
  * Params: 
- *  fileName = path of desktop file.
- *  appPaths = range of base application paths to check if this file belongs to one of them.
+ *  fileName = Desktop file.
+ *  appsPaths = Range of base application paths.
  * Returns: Desktop file ID or empty string if file does not have an ID.
  * See_Also: desktopfile.paths.applicationsPaths
  */
-string desktopId(Range)(string fileName, Range appPaths) nothrow if (isInputRange!Range && is(ElementType!Range : string))
+string desktopId(Range)(string fileName, Range appsPaths) if (isInputRange!Range && is(ElementType!Range : string))
 {
     try {
         string absolute = fileName.absolutePath;
-        foreach (path; appPaths) {
+        foreach (path; appsPaths) {
             auto pathSplit = pathSplitter(path);
             auto fileSplit = pathSplitter(absolute);
             
@@ -946,8 +965,8 @@ static if (isFreedesktop)
      * See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html, Desktop File ID)
      * Returns: Desktop file ID or empty string if file does not have an ID.
      * Params:
-     *  fileName = path of desktop file.
-     * Note: This function retrieves applications paths each time it's called and therefore can impact performance. To avoid this issue use overload with argument.
+     *  fileName = Desktop file.
+     * Note: This function retrieves applications paths each time it's called and therefore can impact performance. To avoid this issue use the overload with argument.
      * See_Also: desktopfile.paths.applicationsPaths
      */
     @trusted string desktopId(string fileName) nothrow
@@ -957,6 +976,60 @@ static if (isFreedesktop)
     }
 }
 
+/**
+ * Find desktop file by Desktop File ID.
+ * Desktop file ID can be ambiguous when it has hyphen symbol, so this function can try both variants.
+ * Params:
+ *  desktopId = Desktop file ID.
+ *  appsPaths = Range of base application paths.
+ * Returns: The first found existing desktop file, or null if could not find any.
+ * Note: This does not ensure that file is valid .desktop file.
+ * See_Also: desktopfile.paths.applicationsPaths
+ */
+string findDesktopFile(Range)(string desktopId, Range appsPaths) if (isInputRange!Range && is(ElementType!Range : string))
+{
+    if (desktopId != desktopId.baseName) {
+        return null;
+    }
+    
+    foreach(appsPath; appsPaths) {
+        auto filePath = buildPath(appsPath, desktopId);
+        bool fileExists = filePath.exists;
+        if (!fileExists && filePath.canFind('-')) {
+            filePath = buildPath(appsPath, desktopId.replace("-", "/"));
+            fileExists = filePath.exists;
+        }
+        if (fileExists) {
+            return filePath;
+        }
+    }
+    return null;
+}
+
+///
+unittest
+{
+    assert(findDesktopFile("not base/path.desktop", ["/usr/share/applications"]) is null);
+    assert(findDesktopFile("valid.desktop", (string[]).init) is null);
+}
+
+static if (isFreedesktop) 
+{
+    /**
+     * ditto
+     * Note: This function retrieves applications paths each time it's called and therefore can impact performance. To avoid this issue use the overload with argument.
+     * See_Also: desktopfile.paths.applicationsPaths
+     */
+    @trusted string findDesktopFile(string desktopId) nothrow
+    {
+        import desktopfile.paths;
+        try {
+            return findDesktopFile(desktopId, applicationsPaths());
+        } catch(Exception e) {
+            return null;
+        }
+    }
+}
 
 /**
  * Check if .desktop file is trusted. This is not actually part of Desktop File Specification but many file managers has this concept.
