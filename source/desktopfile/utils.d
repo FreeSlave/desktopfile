@@ -561,7 +561,7 @@ string[] getTerminalCommand() nothrow @trusted
         static string getDefaultTerminal() nothrow
         {
             string xdgCurrentDesktop;
-            collectException(environment.get("XDG_DESKTOP_SESSION"), xdgCurrentDesktop);
+            collectException(environment.get("XDG_CURRENT_DESKTOP"), xdgCurrentDesktop);
             switch(xdgCurrentDesktop) {
                 case "GNOME":
                 case "X-Cinnamon":
@@ -580,17 +580,21 @@ string[] getTerminalCommand() nothrow @trusted
         }
         
         import findexecutable;
-        string term = findExecutable("x-terminal-emulator");
+        
+        string[] paths;
+        collectException(binPaths().array, paths);
+        
+        string term = findExecutable("x-terminal-emulator", paths);
         if (!term.empty) {
             return [term, "-e"];
         }
-        term = findExecutable("xdg-terminal");
+        term = findExecutable("xdg-terminal", paths);
         if (!term.empty) {
             return [term];
         }
         term = getDefaultTerminal();
         if (!term.empty) {
-            term = findExecutable(term);
+            term = findExecutable(term, paths);
             if (!term.empty) {
                 return [term, "-e"];
             }
