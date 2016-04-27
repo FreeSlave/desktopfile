@@ -255,7 +255,8 @@ final class DesktopEntry : IniLikeGroup
     }
     
     /** 
-     * Returns: the value associated with "Exec" key.
+     * Exec command as it's defined in desktop file.
+     * Returns: the value associated with "Exec" key (in escaped form).
      * Note: To get arguments from exec string use expandExecString.
      * See_Also: expandExecString, startApplication, tryExecString
      */
@@ -297,7 +298,7 @@ final class DesktopEntry : IniLikeGroup
     
     /**
      * Value used to determine if the program is actually installed. If the path is not an absolute path, the file should be looked up in the $(B PATH) environment variable. If the file is not present or if it is not executable, the entry may be ignored (not be used in menus, for example).
-     * Returns: The value associated with "TryExec" key, possibly with quotes removed if path is quoted.
+     * Returns: The value associated with "TryExec" key.
      * See_Also: execString
      */
     @nogc @safe string tryExecString() const nothrow pure {
@@ -425,6 +426,7 @@ final class DesktopEntry : IniLikeGroup
     }
     
     /**
+     * A boolean value specifying if an application uses Startup Notification Protocol.
      * Returns: The value associated with "startupNotify" key converted to bool using isTrue.
      */
     @nogc @safe bool startupNotify() const nothrow pure {
@@ -580,6 +582,39 @@ final class DesktopEntry : IniLikeGroup
     ///setter
     void notShowIn(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
         this["NotShowIn"] = DesktopFile.joinValues(values).escapeIfNeeded();
+    }
+    
+    /**
+     * Check if desktop file should be shown in menu of specific desktop environment.
+     * Params:
+     *  desktopEnvironment = Name of desktop environment, usually detected by XDG_CURRENT_DESKTOP variable.
+     * See_Also: $(LINK2 https://specifications.freedesktop.org/menu-spec/latest/apb.html, Registered OnlyShowIn Environments)
+     */
+    @trusted bool showIn(string desktopEnvironment)
+    {
+        if (notShowIn().canFind(desktopEnvironment)) {
+            return false;
+        }
+        auto onlyIn = onlyShowIn();
+        return onlyIn.empty || onlyIn.canFind(desktopEnvironment);
+    }
+    
+    ///
+    unittest
+    {
+        auto df = new DesktopFile();
+        df.notShowIn = ["GNOME", "MATE"];
+        assert(df.showIn("KDE"));
+        assert(df.showIn("awesome"));
+        assert(df.showIn(""));
+        assert(!df.showIn("GNOME"));
+        df.onlyShowIn = ["LXDE", "XFCE"];
+        assert(df.showIn("LXDE"));
+        assert(df.showIn("XFCE"));
+        assert(!df.showIn(""));
+        assert(!df.showIn("awesome"));
+        assert(!df.showIn("KDE"));
+        assert(!df.showIn("MATE"));
     }
     
 protected:

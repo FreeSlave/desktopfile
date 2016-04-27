@@ -27,11 +27,14 @@ void main(string[] args)
     string inFile = args[2];
     string locale = currentLocale();
     
-    if (inFile == inFile.baseName && inFile.extension == ".desktop") {
-        inFile = findDesktopFile(inFile);
-        if (inFile is null) {
-            stderr.writeln("Could not find desktop file with such id: ", inFile);
-            return;
+    static if (isFreedesktop) {
+        if (inFile == inFile.baseName && inFile.extension == ".desktop") {
+            string desktopId = inFile;
+            inFile = findDesktopFile(desktopId);
+            if (inFile is null) {
+                stderr.writeln("Could not find desktop file with such id: ", desktopId);
+                return;
+            }
         }
     }
     
