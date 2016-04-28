@@ -155,7 +155,12 @@ When passing base name of desktop file instead of path it's treated like desktop
 
     dub run :util -- exec python2.7.desktop
     dub run :util -- exec kde4-kate.desktop
- 
+
+On non-freedesktop systems appPath should be passed and PATH variable prepared. Example using cmd on Windows (KDE installed):
+
+    set PATH=C:\ProgramData\KDE\bin
+    dub run :util -- --appPath=C:\ProgramData\KDE\share\applications exec kde4-gwenview.desktop
+
 ### [Desktop test](examples/test/source/app.d)
 
 Parses all .desktop files in system's applications paths (usually /usr/local/share/applicatons and /usr/share/applications) and on the user's Desktop.
@@ -183,3 +188,7 @@ Uses the alternative way of starting desktop file. Instead of constructing Deskt
 
     dub run :shoot -- $HOME/Desktop/vlc.desktop
     dub run :shoot -- /usr/share/applications/python2.7.desktop
+
+On Windows (KDE installed):
+
+    dub run :shoot -- C:\ProgramData\KDE\share\applications\kde4\gwenview.desktop

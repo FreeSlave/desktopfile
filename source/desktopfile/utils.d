@@ -31,6 +31,7 @@ package {
     
     static if( __VERSION__ < 2066 ) enum nogc = 1;
     
+    import findexecutable;
     import isfreedesktop;
 }
 
@@ -81,6 +82,12 @@ package @trusted File getNullStderr()
 
 package @trusted Pid execProcess(string[] args, string workingDirectory = null)
 {
+    version(Windows) {
+        if (args.length && args[0].baseName == args[0]) {
+            args[0] = findExecutable(args[0]);
+        }
+    }
+    
     static if( __VERSION__ < 2066 ) {
         return spawnProcess(args, getNullStdin(), getNullStdout(), getNullStderr(), null, Config.none);
     } else {
@@ -578,8 +585,6 @@ string[] getTerminalCommand() nothrow @trusted
                     return null;
             }
         }
-        
-        import findexecutable;
         
         string[] paths;
         collectException(binPaths().array, paths);

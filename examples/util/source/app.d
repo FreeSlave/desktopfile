@@ -4,6 +4,7 @@ import std.process;
 import std.path;
 
 import desktopfile.file;
+import findexecutable;
 import isfreedesktop;
 
 @safe string currentLocale() nothrow
@@ -18,6 +19,13 @@ import isfreedesktop;
 
 void main(string[] args)
 {
+    string action;
+    string[] appPaths;
+    getopt(args, 
+           "action", "Action to run", &action,
+           "appPath", "Path of applications directory", &appPaths
+          );
+    
     if (args.length < 3) {
         writefln("Usage: %s <read|exec|open|start|write> <desktop-file> <optional arguments>", args[0]);
         return;
@@ -27,14 +35,30 @@ void main(string[] args)
     string inFile = args[2];
     string locale = currentLocale();
     
-    static if (isFreedesktop) {
-        if (inFile == inFile.baseName && inFile.extension == ".desktop") {
-            string desktopId = inFile;
-            inFile = findDesktopFile(desktopId);
-            if (inFile is null) {
-                stderr.writeln("Could not find desktop file with such id: ", desktopId);
-                return;
+    if (appPaths.length == 0) {
+        static if (isFreedesktop) {
+            import desktopfile.paths;
+            appPaths = applicationsPaths();
+        }
+        version(Windows) {
+            try {
+                auto root = environment.get("SYSTEMDRIVE", "C:");
+                auto kdeAppDir = root ~ `\ProgramData\KDE\share\applications`;
+                if (kdeAppDir.isDir) {
+                    appPaths = [kdeAppDir];
+                }
+            } catch(Exception e) {
+                
             }
+        }
+    }
+    
+    if (inFile == inFile.baseName && inFile.extension == ".desktop") {
+        string desktopId = inFile;
+        inFile = findDesktopFile(desktopId, appPaths);
+        if (inFile is null) {
+            stderr.writeln("Could not find desktop file with such id: ", desktopId);
+            return;
         }
     }
     
@@ -63,8 +87,6 @@ void main(string[] args)
         }
     } else if (command == "exec") {
         auto df = new DesktopFile(inFile);
-        string action;
-        getopt(args, "action", "Action to run", &action);
         if (action.length) {
             auto desktopAction = df.action(action);
             if (desktopAction is null) {
@@ -74,11 +96,10 @@ void main(string[] args)
             }
         } else {
             string[] urls = args[3..$];
-            writefln("Exec: %(%s %)", df.expandExecString(urls, locale));
+            string[] appArgs = df.expandExecString(urls, locale);
+            writefln("Exec: %(%s %)", appArgs);
             df.startApplication(urls, locale);
         }
-        
-        
     } else if (command == "open") {
         auto df = new DesktopFile(inFile);
         writeln("Link: ", df.url());
