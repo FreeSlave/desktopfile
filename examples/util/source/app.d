@@ -78,7 +78,7 @@ void main(string[] args)
         writefln("MimeTypes: %(%s %)", df.mimeTypes());
         
         if (df.type() == DesktopFile.Type.Application) {
-            writeln("Exec: ", df.execString());
+            writeln("Exec: ", df.execValue());
             writeln("In terminal: ", df.terminal());
             writeln("Trusted: ", isTrusted(df.fileName));
         }
@@ -96,7 +96,7 @@ void main(string[] args)
             }
         } else {
             string[] urls = args[3..$];
-            string[] appArgs = df.expandExecString(urls, locale);
+            string[] appArgs = df.expandExecValue(urls, locale);
             writefln("Exec: %(%s %)", appArgs);
             df.startApplication(urls, locale);
         }

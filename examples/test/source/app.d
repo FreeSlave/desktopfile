@@ -57,11 +57,11 @@ void main(string[] args)
             }
             try {
                 auto df = new DesktopFile(entry, DesktopFile.ReadOptions.noOptions);
-                if (!df.execString().empty) {
-                    auto execArgs = df.expandExecString();
+                if (!df.execValue().empty) {
+                    auto execArgs = df.expandExecValue();
                 }
             }
-            catch(IniLikeException e) {
+            catch(IniLikeReadException e) {
                 stderr.writefln("Error reading %s: at %s: %s", entry, e.lineNumber, e.msg);
             }
             catch(DesktopExecException e) {

@@ -80,21 +80,6 @@ package @trusted File getNullStderr()
     }
 }
 
-package @trusted Pid execProcess(string[] args, string workingDirectory = null)
-{
-    version(Windows) {
-        if (args.length && args[0].baseName == args[0]) {
-            args[0] = findExecutable(args[0]);
-        }
-    }
-    
-    static if( __VERSION__ < 2066 ) {
-        return spawnProcess(args, getNullStdin(), getNullStdout(), getNullStderr(), null, Config.none);
-    } else {
-        return spawnProcess(args, getNullStdin(), getNullStdout(), getNullStderr(), null, Config.none, workingDirectory);
-    }
-}
-
 /**
  * Exception thrown when "Exec" value of DesktopFile or DesktopAction is invalid.
  */
@@ -105,9 +90,81 @@ class DesktopExecException : Exception
     }
 }
 
+/**
+ * Parameters for spawnApplication.
+ */
+struct SpawnParams
+{
+    /// Urls to open
+    const(string)[] urls;
+    
+    /// Icon to use in place of %i field code.
+    string iconName;
+    
+    /// Name to use in place of %c field code.
+    string displayName;
+    
+    /// File name to use in place of %k field code.
+    string fileName;
+    
+    /// Working directory of starting process.
+    string workingDirectory;
+    
+    /// Terminal command to prepend to exec arguments.
+    const(string)[] terminalCommand;
+    
+    /// Allow starting multiple instances of application if needed.
+    bool allowMultipleInstances = true;
+}
+
+private @trusted Pid execProcess(in string[] args, string workingDirectory = null)
+{    
+    static if( __VERSION__ < 2066 ) {
+        return spawnProcess(args, getNullStdin(), getNullStdout(), getNullStderr(), null, Config.none);
+    } else {
+        return spawnProcess(args, getNullStdin(), getNullStdout(), getNullStderr(), null, Config.none, workingDirectory);
+    }
+}
+
+/**
+ * Spawn application with given params.
+ * Params:
+ *  unquotedArgs = Unescaped unquoted arguments parsed from "Exec" value.
+ *  params = Field codes values and other properties to spawn application.
+ * Throws:
+ *  ProcessException if could not start process.
+ *  DesktopExecException if unquotedArgs is empty.
+ * See_Also: SpawnParams
+ */
+@trusted Pid spawnApplication(const(string)[] unquotedArgs, const SpawnParams params)
+{
+    if (!unquotedArgs.length) {
+        throw new DesktopExecException("No arguments. Missing or empty Exec value");
+    }
+    
+    version(Windows) {
+        if (unquotedArgs.length && unquotedArgs[0].baseName == unquotedArgs[0]) {
+            unquotedArgs[0] = findExecutable(unquotedArgs[0]);
+        }
+    }
+    
+    if (params.terminalCommand) {
+        unquotedArgs = params.terminalCommand ~ unquotedArgs;
+    }
+    
+    if (params.urls.length && params.allowMultipleInstances && needMultipleInstances(unquotedArgs)) {
+        Pid pid;
+        for(size_t i=0; i<params.urls.length; ++i) {
+            pid = execProcess(expandExecArgs(unquotedArgs, params.urls[i..i+1], params.iconName, params.displayName, params.fileName), params.workingDirectory);
+        }
+        return pid;
+    } else {
+        return execProcess(expandExecArgs(unquotedArgs, params.urls, params.iconName, params.displayName, params.fileName), params.workingDirectory);
+    }
+}
+
 private @safe bool needQuoting(string arg) nothrow pure
 {
-    import std.uni : isWhite;
     for (size_t i=0; i<arg.length; ++i)
     {
         switch(arg[i]) {
@@ -164,16 +221,16 @@ unittest
 }
 
 /**
- * Apply unquoting to Exec value making it into an array of escaped arguments. It automatically performs quote-related unescaping. Returned values are still escaped as by general rule. Read more: [specification](http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s06.html).
+ * Apply unquoting to Exec value making it into an array of escaped arguments. It automatically performs quote-related unescaping. Read more: [specification](http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s06.html).
+ * Params:
+ *  value = value of Exec key. Must be unescaped by unescapeValue before passing.
  * Throws:
  *  DesktopExecException if string can't be unquoted (e.g. no pair quote).
  * Note:
  *  Although Desktop Entry Specification says that arguments must be quoted by double quote, for compatibility reasons this implementation also recognizes single quotes.
  */
-@trusted auto unquoteExecString(string value) pure
-{
-    import std.uni : isWhite;
-    
+@trusted auto unquoteExec(string value) pure
+{   
     string[] result;
     size_t i;
     
@@ -206,9 +263,9 @@ unittest
     string append;
     bool wasInQuotes;
     while(i < value.length) {
-        if (isWhite(value[i])) {
-            if (!wasInQuotes && append.length >= 2 && append[$-2] == '\\' && append[$-1] == '\\') {
-                append = append[0..$-2] ~ value[i];
+        if (value[i] == ' ' || value[i] == '\t') {
+            if (!wasInQuotes && append.length >= 1 && append[$-1] == '\\') {
+                append = append[0..$-1] ~ value[i];
             } else {
                 if (append !is null) {
                     result ~= append;
@@ -236,77 +293,68 @@ unittest
 ///
 unittest 
 {
-    assert(equal(unquoteExecString(``), string[].init));
-    assert(equal(unquoteExecString(`   `), string[].init));
-    assert(equal(unquoteExecString(`"" "  "`), [``, `  `]));
+    assert(equal(unquoteExec(``), string[].init));
+    assert(equal(unquoteExec(`   `), string[].init));
+    assert(equal(unquoteExec(`"" "  "`), [``, `  `]));
     
-    assert(equal(unquoteExecString(`cmd arg1  arg2   arg3   `), [`cmd`, `arg1`, `arg2`, `arg3`]));
-    assert(equal(unquoteExecString(`"cmd" arg1 arg2  `), [`cmd`, `arg1`, `arg2`]));
+    assert(equal(unquoteExec(`cmd arg1  arg2   arg3   `), [`cmd`, `arg1`, `arg2`, `arg3`]));
+    assert(equal(unquoteExec(`"cmd" arg1 arg2  `), [`cmd`, `arg1`, `arg2`]));
     
-    assert(equal(unquoteExecString(`"quoted cmd"   arg1  "quoted arg"  `), [`quoted cmd`, `arg1`, `quoted arg`]));
-    assert(equal(unquoteExecString(`"quoted \"cmd\"" arg1 "quoted \"arg\""`), [`quoted "cmd"`, `arg1`, `quoted "arg"`]));
+    assert(equal(unquoteExec(`"quoted cmd"   arg1  "quoted arg"  `), [`quoted cmd`, `arg1`, `quoted arg`]));
+    assert(equal(unquoteExec(`"quoted \"cmd\"" arg1 "quoted \"arg\""`), [`quoted "cmd"`, `arg1`, `quoted "arg"`]));
     
-    assert(equal(unquoteExecString(`"\\\$" `), [`\$`]));
-    assert(equal(unquoteExecString(`"\\$" `), [`\$`]));
-    assert(equal(unquoteExecString(`"\$" `), [`$`]));
-    assert(equal(unquoteExecString(`"$"`), [`$`]));
+    assert(equal(unquoteExec(`"\\\$" `), [`\$`]));
+    assert(equal(unquoteExec(`"\\$" `), [`\$`]));
+    assert(equal(unquoteExec(`"\$" `), [`$`]));
+    assert(equal(unquoteExec(`"$"`), [`$`]));
     
-    assert(equal(unquoteExecString(`"\\" `), [`\`]));
-    assert(equal(unquoteExecString(`"\\\\" `), [`\\`]));
+    assert(equal(unquoteExec(`"\\" `), [`\`]));
+    assert(equal(unquoteExec(`"\\\\" `), [`\\`]));
     
-    assert(equal(unquoteExecString(`'quoted cmd' arg`), [`quoted cmd`, `arg`]));
+    assert(equal(unquoteExec(`'quoted cmd' arg`), [`quoted cmd`, `arg`]));
     
-    assert(equal(unquoteExecString(`test\\ "one""two"\\ more\\ \\ test `), [`test onetwo more  test`]));
+    assert(equal(unquoteExec(`test\ "one""two"\ more\ \ test `), [`test onetwo more  test`]));
     
-    assert(equal(unquoteExecString(`env WINEPREFIX="/home/freeslave/.wine" wine C:\\\\windows\\\\command\\\\start.exe /Unix /home/freeslave/.wine/dosdevices/c:/windows/profiles/freeslave/Start\\ Menu/Programs/True\\ Remembrance/True\\ Remembrance.lnk`), [
-        "env", "WINEPREFIX=/home/freeslave/.wine", "wine", `C:\\\\windows\\\\command\\\\start.exe`, "/Unix", "/home/freeslave/.wine/dosdevices/c:/windows/profiles/freeslave/Start Menu/Programs/True Remembrance/True Remembrance.lnk"
+    assert(equal(unquoteExec(`env WINEPREFIX="/home/freeslave/.wine" wine C:\\windows\\command\\start.exe /Unix /home/freeslave/.wine/dosdevices/c:/windows/profiles/freeslave/Start\ Menu/Programs/True\ Remembrance/True\ Remembrance.lnk`), [
+        "env", "WINEPREFIX=/home/freeslave/.wine", "wine", `C:\\windows\\command\\start.exe`, "/Unix", "/home/freeslave/.wine/dosdevices/c:/windows/profiles/freeslave/Start Menu/Programs/True Remembrance/True Remembrance.lnk"
     ]));
     
-    assertThrown!DesktopExecException(unquoteExecString(`cmd "quoted arg`));
+    assertThrown!DesktopExecException(unquoteExec(`cmd "quoted arg`));
 }
 
-
-/**
- * Convenient function used to unquote and unescape Exec value into an array of arguments.
- * Note:
- *  Parsed arguments still may contain field codes and double percent symbols that should be appropriately expanded before passing to spawnProcess.
- * Throws:
- *  DesktopExecException if string can't be unquoted.
- * See_Also:
- *  unquoteExecString, expandExecArgs
- */
-@trusted string[] parseExecString(string execString) pure
+private @trusted string urlToFilePath(string url) nothrow pure
 {
-    return execString.unquoteExecString().map!(s => unescapeValue(s)).array;
-}
-
-///
-unittest
-{
-    assert(equal(parseExecString(`"quoted cmd" new\nline "quoted\\\\arg" slash\\arg`), ["quoted cmd", "new\nline", `quoted\arg`, `slash\arg`]));
+    enum protocol = "file://";
+    if (url.length > protocol.length && url[0..protocol.length] == protocol) {
+        return url[protocol.length..$];
+    } else {
+        return url;
+    }
 }
 
 /**
- * Expand Exec arguments (usually returned by parseExecString) replacing field codes with given values, making the array suitable for passing to spawnProcess. Deprecated field codes are ignored.
+ * Expand Exec arguments (usually returned by unquoteExec) replacing field codes with given values, making the array suitable for passing to spawnProcess. Deprecated field codes are ignored.
  * Note:
  *  Returned array may be empty and should be checked before passing to spawnProcess.
  * Params:
- * execArgs = array of unquoted and unescaped arguments.
- *  urls = array of urls or file names that inserted in the place of %f, %F, %u or %U field codes. For %f and %u only the first element of array is used.
- *  iconName = icon name used to substitute %i field code by --icon iconName.
- *  displayName = name of application used that inserted in the place of %c field code.
- *  fileName = name of desktop file that inserted in the place of %k field code.
+ *  unquotedArgs = Array of unescaped and unquoted arguments.
+ *  urls = Array of urls or file names that inserted in the place of %f, %F, %u or %U field codes. 
+ *      For %f and %u only the first element of array is used.
+ *      For %f and %F every url started with 'file://' will be replaced with normal path.
+ *  iconName = Icon name used to substitute %i field code by --icon iconName.
+ *  displayName = Name of application used that inserted in the place of %c field code.
+ *  fileName = Name of desktop file that inserted in the place of %k field code.
  * Throws:
  *  DesktopExecException if command line contains unknown field code.
  * See_Also:
- *  parseExecString
+ *  unquoteExec
  */
-@trusted string[] expandExecArgs(in string[] execArgs, in string[] urls = null, string iconName = null, string displayName = null, string fileName = null) pure
+@trusted string[] expandExecArgs(in string[] unquotedArgs, in string[] urls = null, string iconName = null, string displayName = null, string fileName = null) pure
 {
     string[] toReturn;
-    foreach(token; execArgs) {
+    foreach(token; unquotedArgs) {
         if (token == "%F") {
-            toReturn ~= urls;
+            toReturn ~= urls.map!(url => urlToFilePath(url)).array;
         } else if (token == "%U") {
             toReturn ~= urls;
         } else if (token == "%i") {
@@ -335,7 +383,11 @@ unittest
                         case 'f': case 'u':
                         {
                             if (urls.length) {
-                                expand(token, expanded, restPos, i, urls.front);
+                                string arg = urls.front;
+                                if (token[i+1] == 'f') {
+                                    arg = urlToFilePath(arg);
+                                }
+                                expand(token, expanded, restPos, i, arg);
                             } else {
                                 ignore = true;
                                 break loop;
@@ -389,10 +441,15 @@ unittest
     ) == ["program path", "%f", "%i", "--file=one", "--icon", "folder", "one", "--myname=program", "--mylocation=location", "100%"]);
     
     assert(expandExecArgs(["program path", "many%%%%"]) == ["program path", "many%%"]);
+    assert(expandExecArgs(["program path", "%f"]) == ["program path"]);
     assert(expandExecArgs(["program path", "%f%%%f"], ["file"]) == ["program path", "file%file"]);
+    assert(expandExecArgs(["program path", "%f"], ["file:///usr/share"]) == ["program path", "/usr/share"]);
+    assert(expandExecArgs(["program path", "%u"], ["file:///usr/share"]) == ["program path", "file:///usr/share"]);
     assert(expandExecArgs(["program path"], ["one", "two"]) == ["program path"]);
     assert(expandExecArgs(["program path", "%f"], ["one", "two"]) == ["program path", "one"]);
     assert(expandExecArgs(["program path", "%F"], ["one", "two"]) == ["program path", "one", "two"]);
+    assert(expandExecArgs(["program path", "%F"], ["file://one", "file://two"]) == ["program path", "one", "two"]);
+    assert(expandExecArgs(["program path", "%U"], ["file://one", "file://two"]) == ["program path", "file://one", "file://two"]);
     
     assert(expandExecArgs(["program path", "--location=%k", "--myname=%c"]) == ["program path", "--location=", "--myname="]);
     assert(expandExecArgs(["program path", "%k", "%c"]) == ["program path", "", ""]);
@@ -402,28 +459,42 @@ unittest
 }
 
 /**
- * Unquote, unescape Exec string and expand field codes substituting them with appropriate values.
- * Throws:
- *  DesktopExecException if string can't be unquoted, unquoted command line is empty or it has unknown field code.
- * See_Also:
- *  expandExecArgs, parseExecString
+ * Check if application should be started multiple times to open multiple urls.
+ * Params:
+ *  execArgs = Array of unescaped and unquoted arguments.
+ * Returns: true if execArgs have only %f or %u and not %F or %U,. Otherwise false is returned.
  */
-@trusted string[] expandExecString(string execString, in string[] urls = null, string iconName = null, string displayName = null, string fileName = null) pure
+@nogc @trusted bool needMultipleInstances(in string[] execArgs) pure nothrow
 {
-    auto execArgs = parseExecString(execString);
-    if (execArgs.empty) {
-        throw new DesktopExecException("No arguments. Missing or empty Exec value");
+    bool need;
+    foreach(token; execArgs) {
+        if (token == "%F" || token == "%U") {
+            return false;
+        }
+        
+        if (!need) {
+            for(size_t i=0; i<token.length; ++i) {
+                if (token[i] == '%' && i<token.length-1) {
+                    if (token[i+1] == 'f' || token[i+1] == 'u') {
+                        need = true;
+                    }
+                }
+            }
+        }
     }
-    return expandExecArgs(execArgs, urls, iconName, displayName, fileName);
+    return need;
 }
 
 ///
 unittest
 {
-    assert(expandExecString(`"quoted program" %i -w %c --file=%k %U %D %u %f %F`, ["one", "two"], "folder", "Программа", "/example.desktop") == ["quoted program", "--icon", "folder", "-w", "Программа", "--file=/example.desktop", "one", "two", "one", "one", "one", "two"]);
-    
-    assertThrown!DesktopExecException(expandExecString(`program %f %y`)); //%y is unknown field code.
-    assertThrown!DesktopExecException(expandExecString(``));
+    assert(needMultipleInstances(["program", "%f"]));
+    assert(needMultipleInstances(["program", "%u"]));
+    assert(!needMultipleInstances(["program", "%i"]));
+    assert(!needMultipleInstances(["program", "%F"]));
+    assert(!needMultipleInstances(["program", "%U"]));
+    assert(!needMultipleInstances(["program", "%f", "%U"]));
+    assert(!needMultipleInstances(["program", "%F", "%u"]));
 }
 
 private @trusted string doublePercentSymbol(string value)
@@ -693,7 +764,7 @@ struct ShootOptions
      * Urls to pass to the program is desktop file points to application.
      * Empty by default.
      */
-    string[] urls;
+    const(string)[] urls;
     
     /**
      * Locale of environment.
@@ -702,24 +773,29 @@ struct ShootOptions
     string locale;
     
     /**
-     * Delegate that should be used to open url if desktop file is link.
+     * Delegate that will be used to open url if desktop file is link.
      * To set static function use std.functional.toDelegate.
      * If it's null shootDesktopFile will use xdg-open.
      */
     void delegate(string) opener = null;
     
     /**
-     * Delegate that should be used to get terminal command.
+     * Delegate that will be used to get terminal command if desktop file is application and needs to ran in terminal.
      * To set static function use std.functional.toDelegate.
      * If it's null, shootDesktopFile will use getTerminalCommand.
      * See_Also: getTerminalCommand
      */
     const(string)[] delegate() terminalDetector = null;
+    
+    /**
+     * Allow to run multiple instances of application if it does not support opening multiple urls in one instance.
+     */
+    bool allowMultipleInstances = true;
 }
 
 package void readNeededKeys(Group)(Group g, string locale, 
                             out string iconName, out string name, 
-                            out string execString, out string url, 
+                            out string execValue, out string url, 
                             out string workingDirectory, out bool terminal)
 {
     string bestLocale;
@@ -731,17 +807,17 @@ package void readNeededKeys(Group)(Group g, string locale,
         
         if (key.length) {
             switch(key) {
-                case "Exec": execString = value; break;
-                case "URL": url = value; break;
-                case "Icon": iconName = value; break;
-                case "Path": workingDirectory = value; break;
+                case "Exec": execValue = value.unescapeValue(); break;
+                case "URL": url = value.unescapeValue(); break;
+                case "Icon": iconName = value.unescapeValue(); break;
+                case "Path": workingDirectory = value.unescapeValue(); break;
                 case "Terminal": terminal = isTrue(value); break;
                 default: {
                     auto kl = separateFromLocale(key);
                     if (kl[0] == "Name") {
                         auto lv = chooseLocalizedValue(locale, kl[1], value, bestLocale, name);
                         bestLocale = lv[0];
-                        name = lv[1];
+                        name = lv[1].unescapeValue();
                     }
                 }
                 break;
@@ -755,11 +831,11 @@ unittest
     string contents = "[Desktop Entry]\nExec=whoami\nURL=http://example.org\nIcon=folder\nPath=/usr/bin\nTerminal=true\nName=Example\nName[ru]=Пример";
     auto reader = iniLikeStringReader(contents);
     
-    string iconName, name, execString, url, workingDirectory;
+    string iconName, name, execValue, url, workingDirectory;
     bool terminal;
-    readNeededKeys(reader.byGroup().front, "ru_RU", iconName, name , execString, url, workingDirectory, terminal);
+    readNeededKeys(reader.byGroup().front, "ru_RU", iconName, name , execValue, url, workingDirectory, terminal);
     assert(iconName == "folder");
-    assert(execString == "whoami");
+    assert(execValue == "whoami");
     assert(url == "http://example.org");
     assert(workingDirectory == "/usr/bin");
     assert(terminal);
@@ -783,26 +859,32 @@ void shootDesktopFile(IniLikeReader)(IniLikeReader reader, string fileName = nul
 {
     enforce(options.flags & (ShootOptions.Exec|ShootOptions.Link), "At least one of the options Exec or Link must be provided");
     
-    string iconName, name, execString, url, workingDirectory;
+    string iconName, name, execValue, url, workingDirectory;
     bool terminal;
     
     foreach(g; reader.byGroup) {
-        if (g.name == "Desktop Entry") {
-            readNeededKeys(g, options.locale, iconName, name , execString, url, workingDirectory, terminal);
+        if (g.groupName == "Desktop Entry") {
+            readNeededKeys(g, options.locale, iconName, name, execValue, url, workingDirectory, terminal);
             
             import std.functional : toDelegate;
             
-            if (execString.length && (options.flags & ShootOptions.Exec)) {
-                auto args = expandExecString(execString, options.urls, iconName, name, fileName);
+            if (execValue.length && (options.flags & ShootOptions.Exec)) {
+                auto unquotedArgs = unquoteExec(execValue);
+                
+                SpawnParams params;
+                params.urls = options.urls;
+                params.iconName = iconName;
+                params.displayName = name;
+                params.fileName = fileName;
+                params.workingDirectory = workingDirectory;
                 
                 if (terminal) {
                     if (options.terminalDetector == null) {
                         options.terminalDetector = toDelegate(&getTerminalCommand);
                     }
-                    args = options.terminalDetector() ~ args;
+                    params.terminalCommand = options.terminalDetector();
                 }
-                
-                execProcess(args, workingDirectory);
+                spawnApplication(unquotedArgs, params);
             } else if (url.length && (options.flags & ShootOptions.FollowLink) && url.extension == ".desktop" && url.exists) {
                 options.flags = options.flags & (~ShootOptions.FollowLink); //avoid recursion
                 shootDesktopFile(url, options);
@@ -812,7 +894,7 @@ void shootDesktopFile(IniLikeReader)(IniLikeReader reader, string fileName = nul
                 }
                 options.opener(url);
             } else {
-                if (execString.length) {
+                if (execValue.length) {
                     throw new Exception("Desktop file is an application, but flags don't include ShootOptions.Exec");
                 }
                 if (url.length) {

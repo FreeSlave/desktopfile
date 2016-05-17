@@ -15,17 +15,9 @@ module desktopfile.file;
 public import inilike.file;
 public import desktopfile.utils;
 
-private @trusted void validateKeyValueImpl(string key, string value) {
+private @trusted void validateKeyImpl(string groupName, string key, string value) {
     if (!isValidKey(key)) {
-        throw new IniLikeEntryException("key is invalid", key, value);
-    }
-}
-
-private @trusted string escapeIfNeeded(string value) pure {
-    if (value.needEscaping()) {
-        return value.replace("\r", `\r`).replace("\n", `\n`);
-    } else {
-        return value;
+        throw new IniLikeEntryException("key is invalid", groupName, key, value);
     }
 }
 
@@ -35,8 +27,8 @@ private @trusted string escapeIfNeeded(string value) pure {
 final class DesktopAction : IniLikeGroup
 {
 protected:
-    @trusted override void validateKeyValue(string key, string value) const {
-        validateKeyValueImpl(key, value);
+    @trusted override void validateKey(string key, string value) const {
+        validateKeyImpl(groupName(), key, value);
     }
 public:
     package @nogc @safe this(string groupName) nothrow {
@@ -47,8 +39,8 @@ public:
      * Label that will be shown to the user.
      * Returns: The value associated with "Name" key.
      */
-    @nogc @safe string displayName() const nothrow pure {
-        return value("Name");
+    @safe string displayName() const nothrow pure {
+        return readEntry("Name");
     }
     
     /**
@@ -56,15 +48,15 @@ public:
      * Returns: The value associated with "Name" key and given locale.
      */
     @safe string localizedDisplayName(string locale) const nothrow pure {
-        return localizedValue("Name", locale);
+        return readEntry("Name", locale);
     }
     
     /**
      * Icon name of action.
      * Returns: The value associated with "Icon" key.
      */
-    @nogc @safe string iconName() const nothrow pure {
-        return value("Icon");
+    @safe string iconName() const nothrow pure {
+        return readEntry("Icon");
     }
     
     /**
@@ -72,14 +64,14 @@ public:
      * See_Also: iconName
      */
     @safe string localizedIconName(string locale) const nothrow pure {
-        return localizedValue("Icon", locale);
+        return readEntry("Icon", locale);
     }
     
     /**
-     * Returns: The value associated with "Exec" key and given locale.
+     * Returns: The value associated with "Exec" key.
      */
-    @nogc @safe string execString() const nothrow pure {
-        return value("Exec");
+    @safe string execValue() const nothrow pure {
+        return readEntry("Exec");
     }
     
     /**
@@ -89,10 +81,16 @@ public:
      * Throws:
      *  ProcessException on failure to start the process.
      *  DesktopExecException if exec string is invalid.
-     * See_Also: execString
+     * See_Also: execValue
      */
     @safe Pid start(string locale = null) const {
-        return execProcess(expandExecString(execString, null, localizedIconName(locale), localizedDisplayName(locale)));
+        auto unquotedArgs = unquoteExec(execValue());
+        
+        SpawnParams params;
+        params.iconName = localizedIconName(locale);
+        params.displayName = localizedDisplayName(locale);
+        
+        return spawnApplication(unquotedArgs, params);
     }
 }
 
@@ -188,15 +186,15 @@ final class DesktopEntry : IniLikeGroup
      * Returns: The value associated with "Name" key.
      * See_Also: localizedDisplayName
      */
-    @nogc @safe string displayName() const nothrow pure {
-        return value("Name");
+    @safe string displayName() const nothrow pure {
+        return readEntry("Name");
     }
     
     /**
      * Set "Name" to name escaping the value if needed.
      */
     @safe string displayName(string name) {
-        return this["Name"] = escapeIfNeeded(name);
+        return writeEntry("Name", name);
     }
     
     /**
@@ -204,7 +202,7 @@ final class DesktopEntry : IniLikeGroup
      * See_Also: displayName
      */
     @safe string localizedDisplayName(string locale) const nothrow pure {
-        return localizedValue("Name", locale);
+        return readEntry("Name", locale);
     }
     
     /**
@@ -212,22 +210,22 @@ final class DesktopEntry : IniLikeGroup
      * Returns: The value associated with "GenericName" key.
      * See_Also: localizedGenericName
      */
-    @nogc @safe string genericName() const nothrow pure {
-        return value("GenericName");
+    @safe string genericName() const nothrow pure {
+        return readEntry("GenericName");
     }
     
     /**
      * Set "GenericName" to name escaping the value if needed.
      */
     @safe string genericName(string name) {
-        return this["GenericName"] = escapeIfNeeded(name);
+        return writeEntry("GenericName", name);
     }
     /**
      * Returns: Localized generic name
      * See_Also: genericName
      */
     @safe string localizedGenericName(string locale) const nothrow pure {
-        return localizedValue("GenericName", locale);
+        return readEntry("GenericName", locale);
     }
     
     /**
@@ -235,15 +233,15 @@ final class DesktopEntry : IniLikeGroup
      * Returns: The value associated with "Comment" key.
      * See_Also: localizedComment
      */
-    @nogc @safe string comment() const nothrow pure {
-        return value("Comment");
+    @safe string comment() const nothrow pure {
+        return readEntry("Comment");
     }
     
     /**
      * Set "Comment" to commentary escaping the value if needed.
      */
     @safe string comment(string commentary) {
-        return this["Comment"] = escapeIfNeeded(commentary);
+        return writeEntry("Comment", commentary);
     }
     
     /**
@@ -251,42 +249,39 @@ final class DesktopEntry : IniLikeGroup
      * See_Also: comment
      */
     @safe string localizedComment(string locale) const nothrow pure {
-        return localizedValue("Comment", locale);
+        return readEntry("Comment", locale);
     }
     
     /** 
-     * Exec command as it's defined in desktop file.
-     * Returns: the value associated with "Exec" key (in escaped form).
-     * Note: To get arguments from exec string use expandExecString.
-     * See_Also: expandExecString, startApplication, tryExecString
+     * Exec value of desktop file.
+     * Returns: the value associated with "Exec" key.
+     * See_Also: expandExecValue, startApplication, tryExecValue
      */
-    @nogc @safe string execString() const nothrow pure {
-        return value("Exec");
+    @safe string execValue() const nothrow pure {
+        return readEntry("Exec");
     }
     
     /**
-     * Setter for Exec value.
-     * Params:
-     *  exec = String to set as "Exec" value. Should be properly escaped and quoted.
+     * Set "Exec" to exec escaping the value if needed.
      * See_Also: desktopfile.utils.ExecBuilder.
      */
-    @safe string execString(string exec) {
-        return this["Exec"] = exec;
+    @safe string execValue(string exec) {
+        return writeEntry("Exec", exec);
     }
     
     /**
      * URL to access.
      * Returns: The value associated with "URL" key.
      */
-    @nogc @safe string url() const nothrow pure {
-        return value("URL");
+    @safe string url() const nothrow pure {
+        return readEntry("URL");
     }
     
     /**
      * Set "URL" to link escaping the value if needed.
      */
     @safe string url(string link) {
-        return this["URL"] = escapeIfNeeded(link);
+        return writeEntry("URL", link);
     }
     
     ///
@@ -299,34 +294,34 @@ final class DesktopEntry : IniLikeGroup
     /**
      * Value used to determine if the program is actually installed. If the path is not an absolute path, the file should be looked up in the $(B PATH) environment variable. If the file is not present or if it is not executable, the entry may be ignored (not be used in menus, for example).
      * Returns: The value associated with "TryExec" key.
-     * See_Also: execString
+     * See_Also: execValue
      */
-    @nogc @safe string tryExecString() const nothrow pure {
-        return value("TryExec");
+    @safe string tryExecValue() const nothrow pure {
+        return readEntry("TryExec");
     }
     
     /**
-     * Set TryExec value.
+     * Set TryExec value escaping it if needed..
      * Throws:
      *  IniLikeEntryException if tryExec is not abolute path nor base name.
      */
-    @safe string tryExecString(string tryExec) {
+    @safe string tryExecValue(string tryExec) {
         if (!tryExec.isAbsolute && tryExec.baseName != tryExec) {
-            throw new IniLikeEntryException("TryExec must be absolute path or base name", "TryExec", tryExec);
+            throw new IniLikeEntryException("TryExec must be absolute path or base name", groupName(), "TryExec", tryExec);
         }
-        return this["TryExec"] = escapeIfNeeded(tryExec);
+        return writeEntry("TryExec", tryExec);
     }
     
     ///
     unittest
     {
         auto df = new DesktopFile();
-        assertNotThrown(df.tryExecString = "base");
+        assertNotThrown(df.tryExecValue = "base");
         version(Posix) {
-            assertNotThrown(df.tryExecString = "/absolute/path");
+            assertNotThrown(df.tryExecValue = "/absolute/path");
         }
-        assertThrown(df.tryExecString = "not/absolute");
-        assertThrown(df.tryExecString = "./relative");
+        assertThrown(df.tryExecValue = "not/absolute");
+        assertThrown(df.tryExecValue = "./relative");
     }
     
     /**
@@ -336,8 +331,8 @@ final class DesktopEntry : IniLikeGroup
      *  It does not provide any lookup of actual icon file on the system if the name if not an absolute path.
      *  To find the path to icon file refer to $(LINK2 http://standards.freedesktop.org/icon-theme-spec/icon-theme-spec-latest.html, Icon Theme Specification) or consider using $(LINK2 https://github.com/MyLittleRobo/icontheme, icontheme library).
      */
-    @nogc @safe string iconName() const nothrow pure {
-        return value("Icon");
+    @safe string iconName() const nothrow pure {
+        return readEntry("Icon");
     }
     
     /**
@@ -347,9 +342,9 @@ final class DesktopEntry : IniLikeGroup
      */
     @safe string iconName(string icon) {
         if (!icon.isAbsolute && icon.baseName != icon) {
-            throw new IniLikeEntryException("Icon must be absolute path or base name", "Icon", icon);
+            throw new IniLikeEntryException("Icon must be absolute path or base name", groupName(), "Icon", icon);
         }
-        return this["Icon"] = escapeIfNeeded(icon);
+        return writeEntry("Icon", icon);
     }
     
     ///
@@ -369,17 +364,7 @@ final class DesktopEntry : IniLikeGroup
      * See_Also: iconName
      */
     @safe string localizedIconName(string locale) const nothrow pure {
-        return localizedValue("Icon", locale);
-    }
-    
-    private @nogc @safe static string boolToString(bool b) nothrow pure {
-        return b ? "true" : "false";
-    }
-    
-    unittest
-    {
-        assert(boolToString(false) == "false");
-        assert(boolToString(true) == "true");
+        return readEntry("Icon", locale);
     }
     
     /**
@@ -443,8 +428,8 @@ final class DesktopEntry : IniLikeGroup
      * The working directory to run the program in.
      * Returns: The value associated with "Path" key.
      */
-    @nogc @safe string workingDirectory() const nothrow pure {
-        return value("Path");
+    @safe string workingDirectory() const nothrow pure {
+        return readEntry("Path");
     }
     
     /**
@@ -454,14 +439,14 @@ final class DesktopEntry : IniLikeGroup
      */
     @safe string workingDirectory(string wd) {
         if (!wd.isValidPath) {
-            throw new IniLikeEntryException("Working directory must be valid path", "Path", wd);
+            throw new IniLikeEntryException("Working directory must be valid path", groupName(), "Path", wd);
         }
         version(Posix) {
             if (!wd.isAbsolute) {
-                throw new IniLikeEntryException("Working directory must be absolute path", "Path", wd);
+                throw new IniLikeEntryException("Working directory must be absolute path", groupName(), "Path", wd);
             }
         }
-        return this["Path"] = escapeIfNeeded(wd);
+        return writeEntry("Path", wd);
     }
     
     ///
@@ -493,14 +478,14 @@ final class DesktopEntry : IniLikeGroup
      * Returns: The range of multiple values associated with "Categories" key.
      */
     @safe auto categories() const nothrow pure {
-        return DesktopFile.splitValues(value("Categories"));
+        return DesktopFile.splitValues(readEntry("Categories"));
     }
     
     /**
      * Sets the list of values for the "Categories" list.
      */
-    void categories(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
-        this["Categories"] = DesktopFile.joinValues(values).escapeIfNeeded();
+    string categories(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
+        return writeEntry("Categories", DesktopFile.joinValues(values));
     }
     
     /**
@@ -508,7 +493,7 @@ final class DesktopEntry : IniLikeGroup
      * Returns: The range of multiple values associated with "Keywords" key.
      */
     @safe auto keywords() const nothrow pure {
-        return DesktopFile.splitValues(value("Keywords"));
+        return DesktopFile.splitValues(readEntry("Keywords"));
     }
     
     /**
@@ -516,14 +501,14 @@ final class DesktopEntry : IniLikeGroup
      * Returns: The range of multiple values associated with "Keywords" key in given locale.
      */
     @safe auto localizedKeywords(string locale) const nothrow pure {
-        return DesktopFile.splitValues(localizedValue("Keywords", locale));
+        return DesktopFile.splitValues(readEntry("Keywords", locale));
     }
     
     /**
      * Sets the list of values for the "Keywords" list.
      */
-    void keywords(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
-        this["Keywords"] = DesktopFile.joinValues(values).escapeIfNeeded();
+    string keywords(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
+        return writeEntry("Keywords", DesktopFile.joinValues(values));
     }
     
     /**
@@ -531,14 +516,14 @@ final class DesktopEntry : IniLikeGroup
      * Returns: The range of multiple values associated with "MimeType" key.
      */
     @safe auto mimeTypes() nothrow const pure {
-        return DesktopFile.splitValues(value("MimeType"));
+        return DesktopFile.splitValues(readEntry("MimeType"));
     }
     
     /**
      * Sets the list of values for the "MimeType" list.
      */
-    void mimeTypes(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
-        this["MimeType"] = DesktopFile.joinValues(values).escapeIfNeeded();
+    string mimeTypes(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
+        return writeEntry("MimeType", DesktopFile.joinValues(values));
     }
     
     /**
@@ -548,14 +533,14 @@ final class DesktopEntry : IniLikeGroup
      * See_Also: byAction, action
      */
     @safe auto actions() nothrow const pure {
-        return DesktopFile.splitValues(value("Actions"));
+        return DesktopFile.splitValues(readEntry("Actions"));
     }
     
     /**
      * Sets the list of values for "Actions" list.
      */
-    void actions(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
-        this["Actions"] = DesktopFile.joinValues(values).escapeIfNeeded();
+    string actions(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
+        return writeEntry("Actions", DesktopFile.joinValues(values));
     }
     
     /**
@@ -563,12 +548,12 @@ final class DesktopEntry : IniLikeGroup
      * Returns: The range of multiple values associated with "OnlyShowIn" key.
      */
     @safe auto onlyShowIn() nothrow const pure {
-        return DesktopFile.splitValues(value("OnlyShowIn"));
+        return DesktopFile.splitValues(readEntry("OnlyShowIn"));
     }
     
     ///setter
-    void onlyShowIn(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
-        this["OnlyShowIn"] = DesktopFile.joinValues(values).escapeIfNeeded();
+    string onlyShowIn(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
+        return writeEntry("OnlyShowIn", DesktopFile.joinValues(values));
     }
     
     /**
@@ -576,12 +561,12 @@ final class DesktopEntry : IniLikeGroup
      * Returns: The range of multiple values associated with "NotShowIn" key.
      */
     @safe auto notShowIn() nothrow const pure {
-        return DesktopFile.splitValues(value("NotShowIn"));
+        return DesktopFile.splitValues(readEntry("NotShowIn"));
     }
     
     ///setter
-    void notShowIn(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
-        this["NotShowIn"] = DesktopFile.joinValues(values).escapeIfNeeded();
+    string notShowIn(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
+        return writeEntry("NotShowIn", DesktopFile.joinValues(values));
     }
     
     /**
@@ -618,8 +603,8 @@ final class DesktopEntry : IniLikeGroup
     }
     
 protected:
-    @trusted override void validateKeyValue(string key, string value) const {
-        validateKeyValueImpl(key, value);
+    @trusted override void validateKey(string key, string value) const {
+        validateKeyImpl(groupName(), key, value);
     }
 }
 
@@ -663,7 +648,7 @@ protected:
     @trusted override void addCommentForGroup(string comment, IniLikeGroup currentGroup, string groupName)
     {
         if (currentGroup && (_options & ReadOptions.preserveComments)) {
-            currentGroup.addComment(comment);
+            currentGroup.appendComment(comment);
         }
     }
     
@@ -726,7 +711,7 @@ public:
      * Reads desktop file from file.
      * Throws:
      *  $(B ErrnoException) if file could not be opened.
-     *  $(B IniLikeException) if error occured while reading the file or "Desktop Entry" group is missing.
+     *  $(B IniLikeReadException) if error occured while reading the file or "Desktop Entry" group is missing.
      */
     @trusted this(string fileName, ReadOptions options = defaultReadOptions) {
         this(iniLikeFileReader(fileName), options, fileName);
@@ -735,20 +720,20 @@ public:
     /**
      * Reads desktop file from IniLikeReader, e.g. acquired from iniLikeFileReader or iniLikeStringReader.
      * Throws:
-     *  $(B IniLikeException) if error occured while parsing or "Desktop Entry" group is missing.
+     *  $(B IniLikeReadException) if error occured while parsing or "Desktop Entry" group is missing.
      */
     this(IniLikeReader)(IniLikeReader reader, ReadOptions options = defaultReadOptions, string fileName = null)
     {   
         _options = options;
         super(reader, fileName);
-        enforce(_desktopEntry !is null, new IniLikeException("No \"Desktop Entry\" group", 0));
+        enforce(_desktopEntry !is null, new IniLikeReadException("No \"Desktop Entry\" group", 0));
         _options = ReadOptions.ignoreUnknownGroups | ReadOptions.preserveComments;
     }
     
     /**
      * Reads desktop file from IniLikeReader, e.g. acquired from iniLikeFileReader or iniLikeStringReader.
      * Throws:
-     *  $(B IniLikeException) if error occured while parsing or "Desktop Entry" group is missing.
+     *  $(B IniLikeReadException) if error occured while parsing or "Desktop Entry" group is missing.
      */
     this(IniLikeReader)(IniLikeReader reader, string fileName, ReadOptions options = defaultReadOptions)
     {
@@ -777,10 +762,11 @@ public:
     /**
      * Removes group by name. You can't remove "Desktop Entry" group with this function.
      */
-    @safe override void removeGroup(string groupName) nothrow {
-        if (groupName != "Desktop Entry") {
-            super.removeGroup(groupName);
+    @safe override bool removeGroup(string groupName) nothrow {
+        if (groupName == "Desktop Entry") {
+            return false;
         }
+        return super.removeGroup(groupName);
     }
     
     ///
@@ -795,10 +781,11 @@ public:
         assert(df.desktopEntry() !is null);
     }
     
-    @trusted override void addLeadingComment(string line) nothrow {
+    @trusted override string appendLeadingComment(string line) nothrow {
         if (_options & ReadOptions.preserveComments) {
-            super.addLeadingComment(line);
+            return super.appendLeadingComment(line);
         }
+        return null;
     }
     
     /**
@@ -967,7 +954,7 @@ Type=Directory`;
      * Note: If some value of range contains ';' character it's automatically escaped.
      */
     static string joinValues(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
-        auto result = values.filter!( s => !s.empty ).map!( s => s.replace(";", "\\;").escapeIfNeeded() ).joiner(";");
+        auto result = values.filter!( s => !s.empty ).map!( s => s.replace(";", "\\;")).joiner(";");
         if (result.empty) {
             return null;
         } else {
@@ -1023,11 +1010,11 @@ Type=Directory`;
     /**
      * Expand "Exec" value into the array of command line arguments to use to start the program.
      * It applies unquoting and unescaping.
-     * See_Also: execString, desktopfile.utils.expandExecArgs, startApplication
+     * See_Also: execValue, desktopfile.utils.expandExecArgs, startApplication
      */
-    @safe string[] expandExecString(in string[] urls = null, string locale = null) const
+    @safe string[] expandExecValue(in string[] urls = null, string locale = null) const
     {   
-        return .expandExecString(execString(), urls, localizedIconName(locale), localizedDisplayName(locale), fileName());
+        return expandExecArgs(unquoteExec(execValue()), urls, locale);
     }
     
     ///
@@ -1041,8 +1028,13 @@ Exec="quoted program" %i -w %c -f %k %U %D %u %f %F
 Icon=folder
 Icon[ru]=folder_ru`;
         auto df = new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions, "/example.desktop");
-        assert(df.expandExecString(["one", "two"], "ru") == 
+        assert(df.expandExecValue(["one", "two"], "ru") == 
         ["quoted program", "--icon", "folder_ru", "-w", "Программа", "-f", "/example.desktop", "one", "two", "one", "one", "one", "two"]);
+    }
+    
+    private @safe string[] expandExecArgs(in string[] execArgs, in string[] urls = null, string locale = null) const
+    {
+        return .expandExecArgs(execArgs, urls, localizedIconName(locale), localizedDisplayName(locale), fileName());
     }
     
     /**
@@ -1059,16 +1051,24 @@ Icon[ru]=folder_ru`;
      * Throws:
      *  ProcessException on failure to start the process.
      *  DesktopExecException if exec string is invalid.
-     * See_Also: desktopfile.utils.getTerminalCommand, start, expandExecString
+     * See_Also: desktopfile.utils.getTerminalCommand, start, expandExecValue
      */
     @trusted Pid startApplication(in string[] urls = null, string locale = null, lazy const(string)[] terminalCommand = getTerminalCommand) const
     {
-        auto args = expandExecString(urls, locale);
+        auto unquotedArgs = unquoteExec(execValue());
+        
+        SpawnParams params;
+        params.urls = urls;
+        params.iconName = localizedIconName(locale);
+        params.displayName = localizedDisplayName(locale);
+        params.fileName = fileName;
+        params.workingDirectory = workingDirectory();
+        
         if (terminal()) {
-            auto termCmd = terminalCommand();
-            args = termCmd ~ args;
+            params.terminalCommand = terminalCommand();
         }
-        return execProcess(args, workingDirectory());
+        
+        return spawnApplication(unquotedArgs, params);
     }
     
     ///
@@ -1217,7 +1217,7 @@ Name=Notspecified Action`;
     assert(df.localizedComment("ru_RU") == "Double Commander - кроссплатформенный файловый менеджер.");
     assert(df.iconName() == "doublecmd");
     assert(df.localizedIconName("ru_RU") == "doublecmd_ru");
-    assert(df.tryExecString() == "doublecmd");
+    assert(df.tryExecValue() == "doublecmd");
     assert(!df.terminal());
     assert(!df.noDisplay());
     assert(!df.hidden());
@@ -1234,7 +1234,7 @@ Name=Notspecified Action`;
     assert(equal(df.notShowIn(), ["KDE"]));
     
     assert(equal(df.byAction().map!(desktopAction => 
-    tuple(desktopAction.displayName(), desktopAction.localizedDisplayName("ru"), desktopAction.iconName(), desktopAction.execString())), 
+    tuple(desktopAction.displayName(), desktopAction.localizedDisplayName("ru"), desktopAction.iconName(), desktopAction.execValue())), 
                  [tuple("Open directory", "Открыть папку", "open", "doublecmd %u"), tuple("Settings", "Настройки", "edit", "doublecmd settings")]));
     
     assert(df.action("NotPresented") is null);
@@ -1253,11 +1253,11 @@ Name=Notspecified Action`;
     df = new DesktopFile();
     df.terminal = true;
     df.type = DesktopFile.Type.Application;
-    df.categories = ["Development", "Compilers"];
+    df.categories = ["Development", "Compilers", "One;Two", "Three\\;Four", "New\nLine"];
     
     assert(df.terminal() == true);
     assert(df.type() == DesktopFile.Type.Application);
-    assert(equal(df.categories(), ["Development", "Compilers"]));
+    assert(equal(df.categories(), ["Development", "Compilers", "One;Two", "Three\\;Four","New\nLine"]));
     
     string contents = 
 `# First comment
@@ -1274,7 +1274,7 @@ Key=Value
     assert(equal(df.desktopEntry().byIniLine(), [IniLikeLine.fromKeyValue("Key", "Value")]));
     
     //after constructing can add comments
-    df.addLeadingComment("# Another comment");
+    df.appendLeadingComment("# Another comment");
     assert(equal(df.leadingComments(), ["# Another comment"]));
     // and add unknown groups
     assert(df.addGroup("Some unknown name") !is null);
@@ -1287,7 +1287,7 @@ Key=Value
 `[X-SomeGroup]
 Key=Value`;
 
-    auto thrown = collectException!IniLikeException(new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions));
+    auto thrown = collectException!IniLikeReadException(new DesktopFile(iniLikeStringReader(contents), DesktopFile.ReadOptions.noOptions));
     assert(thrown !is null);
     assert(thrown.lineNumber == 0);
     
@@ -1348,10 +1348,10 @@ Name=Name2`;
     df.genericName = "Program";
     assert(df.genericName() == "Program");
     df.comment = "Do\nthings";
-    assert(df.comment() == `Do\nthings`);
+    assert(df.comment() == "Do\nthings");
     
-    df.execString = "utilname";
-    assert(df.execString() == "utilname");
+    df.execValue = "utilname";
+    assert(df.execValue() == "utilname");
     
     df.noDisplay = true;
     assert(df.noDisplay());
