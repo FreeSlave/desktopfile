@@ -206,4 +206,5 @@ Running of multiple application instances if it does not support handling multip
 
 On Windows (KDE installed):
 
+    set PATH=C:\ProgramData\KDE\bin;%PATH%
     dub run :shoot -- C:\ProgramData\KDE\share\applications\kde4\gwenview.desktop

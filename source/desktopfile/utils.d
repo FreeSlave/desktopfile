@@ -144,7 +144,7 @@ private @trusted Pid execProcess(in string[] args, string workingDirectory = nul
     
     version(Windows) {
         if (unquotedArgs.length && unquotedArgs[0].baseName == unquotedArgs[0]) {
-            unquotedArgs[0] = findExecutable(unquotedArgs[0]);
+            unquotedArgs = findExecutable(unquotedArgs[0]) ~ unquotedArgs[1..$];
         }
     }
     
