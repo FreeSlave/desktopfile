@@ -15,7 +15,7 @@ module desktopfile.file;
 public import inilike.file;
 public import desktopfile.utils;
 
-private @trusted void validateKeyImpl(string groupName, string key, string value) {
+private @trusted void validateDesktopKeyImpl(string groupName, string key, string value) {
     if (!isValidDesktopFileKey(key)) {
         throw new IniLikeEntryException("key is invalid", groupName, key, value);
     }
@@ -28,7 +28,7 @@ final class DesktopAction : IniLikeGroup
 {
 protected:
     @trusted override void validateKey(string key, string value) const {
-        validateKeyImpl(groupName(), key, value);
+        validateDesktopKeyImpl(groupName(), key, value);
     }
 public:
     package @nogc @safe this(string groupName) nothrow {
@@ -604,7 +604,7 @@ final class DesktopEntry : IniLikeGroup
     
 protected:
     @trusted override void validateKey(string key, string value) const {
-        validateKeyImpl(groupName(), key, value);
+        validateDesktopKeyImpl(groupName(), key, value);
     }
 }
 
