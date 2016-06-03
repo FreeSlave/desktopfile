@@ -61,7 +61,7 @@ public:
     
     /**
      * Returns: Localized icon name
-     * See_Also: iconName
+     * See_Also: $(D iconName)
      */
     @safe string localizedIconName(string locale) const nothrow pure {
         return readEntry("Icon", locale);
@@ -81,7 +81,7 @@ public:
      * Throws:
      *  ProcessException on failure to start the process.
      *  DesktopExecException if exec string is invalid.
-     * See_Also: execValue
+     * See_Also: $(D execValue)
      */
     @safe Pid start(string locale = null) const {
         auto unquotedArgs = unquoteExec(execValue());
@@ -184,7 +184,7 @@ final class DesktopEntry : IniLikeGroup
     /**
      * Specific name of the application, for example "Qupzilla".
      * Returns: The value associated with "Name" key.
-     * See_Also: localizedDisplayName
+     * See_Also: $(D localizedDisplayName)
      */
     @safe string displayName() const nothrow pure {
         return readEntry("Name");
@@ -199,7 +199,7 @@ final class DesktopEntry : IniLikeGroup
     
     /**
      * Returns: Localized name.
-     * See_Also: displayName
+     * See_Also: $(D displayName)
      */
     @safe string localizedDisplayName(string locale) const nothrow pure {
         return readEntry("Name", locale);
@@ -208,7 +208,7 @@ final class DesktopEntry : IniLikeGroup
     /**
      * Generic name of the application, for example "Web Browser".
      * Returns: The value associated with "GenericName" key.
-     * See_Also: localizedGenericName
+     * See_Also: $(D localizedGenericName)
      */
     @safe string genericName() const nothrow pure {
         return readEntry("GenericName");
@@ -222,7 +222,7 @@ final class DesktopEntry : IniLikeGroup
     }
     /**
      * Returns: Localized generic name
-     * See_Also: genericName
+     * See_Also: $(D genericName)
      */
     @safe string localizedGenericName(string locale) const nothrow pure {
         return readEntry("GenericName", locale);
@@ -231,7 +231,7 @@ final class DesktopEntry : IniLikeGroup
     /**
      * Tooltip for the entry, for example "View sites on the Internet".
      * Returns: The value associated with "Comment" key.
-     * See_Also: localizedComment
+     * See_Also: $(D localizedComment)
      */
     @safe string comment() const nothrow pure {
         return readEntry("Comment");
@@ -246,7 +246,7 @@ final class DesktopEntry : IniLikeGroup
     
     /**
      * Returns: Localized comment
-     * See_Also: comment
+     * See_Also: $(D comment)
      */
     @safe string localizedComment(string locale) const nothrow pure {
         return readEntry("Comment", locale);
@@ -255,7 +255,7 @@ final class DesktopEntry : IniLikeGroup
     /** 
      * Exec value of desktop file.
      * Returns: the value associated with "Exec" key.
-     * See_Also: expandExecValue, startApplication, tryExecValue
+     * See_Also: $(D expandExecValue), $(D startApplication), $(D tryExecValue)
      */
     @safe string execValue() const nothrow pure {
         return readEntry("Exec");
@@ -263,7 +263,7 @@ final class DesktopEntry : IniLikeGroup
     
     /**
      * Set "Exec" to exec escaping the value if needed.
-     * See_Also: desktopfile.utils.ExecBuilder.
+     * See_Also: $(D desktopfile.utils.ExecBuilder).
      */
     @safe string execValue(string exec) {
         return writeEntry("Exec", exec);
@@ -294,7 +294,7 @@ final class DesktopEntry : IniLikeGroup
     /**
      * Value used to determine if the program is actually installed. If the path is not an absolute path, the file should be looked up in the $(B PATH) environment variable. If the file is not present or if it is not executable, the entry may be ignored (not be used in menus, for example).
      * Returns: The value associated with "TryExec" key.
-     * See_Also: execValue
+     * See_Also: $(D execValue)
      */
     @safe string tryExecValue() const nothrow pure {
         return readEntry("TryExec");
@@ -303,7 +303,7 @@ final class DesktopEntry : IniLikeGroup
     /**
      * Set TryExec value escaping it if needed..
      * Throws:
-     *  IniLikeEntryException if tryExec is not abolute path nor base name.
+     *  $(B IniLikeEntryException) if tryExec is not abolute path nor base name.
      */
     @safe string tryExecValue(string tryExec) {
         if (!tryExec.isAbsolute && tryExec.baseName != tryExec) {
@@ -338,7 +338,7 @@ final class DesktopEntry : IniLikeGroup
     /**
      * Set Icon value.
      * Throws:
-     *  IniLikeEntryException if icon is not abolute path nor base name.
+     *  $(B IniLikeEntryException) if icon is not abolute path nor base name.
      */
     @safe string iconName(string icon) {
         if (!icon.isAbsolute && icon.baseName != icon) {
@@ -361,7 +361,7 @@ final class DesktopEntry : IniLikeGroup
     
     /**
      * Returns: Localized icon name
-     * See_Also: iconName
+     * See_Also: $(D iconName)
      */
     @safe string localizedIconName(string locale) const nothrow pure {
         return readEntry("Icon", locale);
@@ -435,7 +435,7 @@ final class DesktopEntry : IniLikeGroup
     /**
      * Set Path value.
      * Throws:
-     *  IniLikeEntryException if wd is not valid path or wd is not abolute path.
+     *  $(D IniLikeEntryException) if wd is not valid path or wd is not abolute path.
      */
     @safe string workingDirectory(string wd) {
         if (!wd.isValidPath) {
@@ -530,7 +530,7 @@ final class DesktopEntry : IniLikeGroup
      * Actions supported by application.
      * Returns: Range of multiple values associated with "Actions" key.
      * Note: This only depends on "Actions" value, not on actually presented sections in desktop file.
-     * See_Also: byAction, action
+     * See_Also: $(D byAction), $(D action)
      */
     @safe auto actions() nothrow const pure {
         return DesktopFile.splitValues(readEntry("Actions"));
@@ -786,7 +786,7 @@ public:
     /**
      * Type of desktop entry.
      * Returns: Type of desktop entry.
-     * See_Also: DesktopEntry.type
+     * See_Also: $(D DesktopEntry.type)
      */
     @nogc @safe Type type() const nothrow {
         auto t = desktopEntry().type();
@@ -821,7 +821,7 @@ public:
         ///
         unittest
         {
-            import xdgpaths;
+            import desktopfile.paths;
             
             string contents = "[Desktop Entry]\nType=Directory";
             auto df = new DesktopFile(iniLikeStringReader(contents), "/home/user/data/applications/test/example.desktop");
@@ -836,7 +836,7 @@ public:
      * Params: 
      *  appPaths = range of base application paths to check if this file belongs to one of them.
      * Returns: Desktop file ID or empty string if file does not have an ID.
-     * See_Also: desktopfile.paths.applicationsPaths, desktopfile.utils.desktopId
+     * See_Also: $(D desktopfile.paths.applicationsPaths), $(D desktopfile.utils.desktopId)
      */
     string id(Range)(Range appPaths) const nothrow if (isInputRange!Range && is(ElementType!Range : string)) 
     {
@@ -968,7 +968,7 @@ Type=Directory`;
     /**
      * Get $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s10.html, additional application action) by name.
      * Returns: DesktopAction with given action name or null if not found or found section does not have a name.
-     * See_Also: actions, byAction
+     * See_Also: $(D actions), $(D byAction)
      */
     @trusted inout(DesktopAction) action(string actionName) inout {
         if (actions().canFind(actionName)) {
@@ -983,7 +983,7 @@ Type=Directory`;
     /**
      * Iterating over existing actions.
      * Returns: Range of DesktopAction.
-     * See_Also: actions, action
+     * See_Also: $(D actions), $(D action)
      */
     @safe auto byAction() const {
         return actions().map!(actionName => action(actionName)).filter!(desktopAction => desktopAction !is null);
@@ -1005,7 +1005,7 @@ Type=Directory`;
     /**
      * Expand "Exec" value into the array of command line arguments to use to start the program.
      * It applies unquoting and unescaping.
-     * See_Also: execValue, desktopfile.utils.expandExecArgs, startApplication
+     * See_Also: $(D execValue), $(D desktopfile.utils.expandExecArgs), $(D startApplication)
      */
     @safe string[] expandExecValue(in string[] urls = null, string locale = null) const
     {   
@@ -1045,8 +1045,8 @@ Icon[ru]=folder_ru`;
      *  Pid of started process.
      * Throws:
      *  ProcessException on failure to start the process.
-     *  DesktopExecException if exec string is invalid.
-     * See_Also: desktopfile.utils.getTerminalCommand, start, expandExecValue
+     *  $(D desktopfile.utils.DesktopExecException) if exec string is invalid.
+     * See_Also: $(D desktopfile.utils.getTerminalCommand), $(D start), $(D expandExecValue)
      */
     @trusted Pid startApplication(in string[] urls = null, string locale = null, lazy const(string)[] terminalCommand = getTerminalCommand) const
     {
@@ -1098,7 +1098,7 @@ Icon[ru]=folder_ru`;
      * Throws:
      *  ProcessException on failure to start the process.
      *  Exception if desktop file does not define URL or it's empty.
-     * See_Also: start
+     * See_Also: $(D start)
      */
     @trusted void startLink() const {
         string myurl = url();
@@ -1118,7 +1118,7 @@ Icon[ru]=folder_ru`;
      * Throws:
      *  ProcessException on failure to start the process.
      *  Exception if type is Unknown or Directory.
-     * See_Also: startApplication, startLink
+     * See_Also: $(D startApplication), $(D startLink)
      */
     @trusted void start() const
     {

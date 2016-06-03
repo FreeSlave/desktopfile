@@ -134,7 +134,7 @@ private @trusted Pid execProcess(in string[] args, string workingDirectory = nul
  * Throws:
  *  ProcessException if could not start process.
  *  DesktopExecException if unquotedArgs is empty.
- * See_Also: SpawnParams
+ * See_Also: $(D SpawnParams)
  */
 @trusted Pid spawnApplication(const(string)[] unquotedArgs, const SpawnParams params)
 {
@@ -225,7 +225,7 @@ unittest
  * Params:
  *  value = value of Exec key. Must be unescaped by unescapeValue before passing.
  * Throws:
- *  DesktopExecException if string can't be unquoted (e.g. no pair quote).
+ *  $(D DesktopExecException) if string can't be unquoted (e.g. no pair quote).
  * Note:
  *  Although Desktop Entry Specification says that arguments must be quoted by double quote, for compatibility reasons this implementation also recognizes single quotes.
  */
@@ -345,9 +345,8 @@ private @trusted string urlToFilePath(string url) nothrow pure
  *  displayName = Name of application used that inserted in the place of %c field code.
  *  fileName = Name of desktop file that inserted in the place of %k field code.
  * Throws:
- *  DesktopExecException if command line contains unknown field code.
- * See_Also:
- *  unquoteExec
+ *  $(D DesktopExecException) if command line contains unknown field code.
+ * See_Also: $(D unquoteExec)
  */
 @trusted string[] expandExecArgs(in string[] unquotedArgs, in string[] urls = null, string iconName = null, string displayName = null, string fileName = null) pure
 {
@@ -685,7 +684,7 @@ unittest
 {
     import isfreedesktop;
     static if (isFreedesktop) {
-        import xdgpaths;
+        import desktopfile.paths;
         
         auto pathGuard = EnvGuard("PATH");
         
@@ -699,7 +698,7 @@ unittest
             string tempPath = buildPath(tempDir(), "desktopfile-unittest-tempdir");
             
             if (!tempPath.exists) {
-                mkdir(tempPath);   
+                mkdir(tempPath);
             }
             scope(exit) rmdir(tempPath);
             
@@ -739,7 +738,7 @@ package void xdgOpen(string url)
 
 /**
  * Options to pass to shootDesktopFile.
- * See_Also: shootDesktopFile
+ * See_Also: $(D shootDesktopFile)
  */
 struct ShootOptions
 {
@@ -783,7 +782,7 @@ struct ShootOptions
      * Delegate that will be used to get terminal command if desktop file is application and needs to ran in terminal.
      * To set static function use std.functional.toDelegate.
      * If it's null, shootDesktopFile will use getTerminalCommand.
-     * See_Also: getTerminalCommand
+     * See_Also: $(D getTerminalCommand)
      */
     const(string)[] delegate() terminalDetector = null;
     
@@ -851,9 +850,9 @@ unittest
  * Use this function to execute desktop file fast, without creating of DesktopFile instance.
  * Throws:
  *  ProcessException on failure to start the process.
- *  DesktopExecException if exec string is invalid.
+ *  $(D DesktopExecException) if exec string is invalid.
  *  Exception on other errors.
- * See_Also: ShootOptions
+ * See_Also: $(D ShootOptions)
  */
 void shootDesktopFile(IniLikeReader)(IniLikeReader reader, string fileName = null, ShootOptions options = ShootOptions.init)
 {
@@ -997,7 +996,7 @@ unittest
  *  fileName = Desktop file.
  *  appsPaths = Range of base application paths.
  * Returns: Desktop file ID or empty string if file does not have an ID.
- * See_Also: desktopfile.paths.applicationsPaths
+ * See_Also: $(D desktopfile.paths.applicationsPaths)
  */
 string desktopId(Range)(string fileName, Range appsPaths) if (isInputRange!Range && is(ElementType!Range : string))
 {
@@ -1058,7 +1057,7 @@ static if (isFreedesktop)
      * Params:
      *  fileName = Desktop file.
      * Note: This function retrieves applications paths each time it's called and therefore can impact performance. To avoid this issue use the overload with argument.
-     * See_Also: desktopfile.paths.applicationsPaths
+     * See_Also: $(D desktopfile.paths.applicationsPaths)
      */
     @trusted string desktopId(string fileName) nothrow
     {
@@ -1075,7 +1074,7 @@ static if (isFreedesktop)
  *  appsPaths = Range of base application paths.
  * Returns: The first found existing desktop file, or null if could not find any.
  * Note: This does not ensure that file is valid .desktop file.
- * See_Also: desktopfile.paths.applicationsPaths
+ * See_Also: $(D desktopfile.paths.applicationsPaths)
  */
 string findDesktopFile(Range)(string desktopId, Range appsPaths) if (isInputRange!Range && is(ElementType!Range : string))
 {
@@ -1109,7 +1108,7 @@ static if (isFreedesktop)
     /**
      * ditto
      * Note: This function retrieves applications paths each time it's called and therefore can impact performance. To avoid this issue use the overload with argument.
-     * See_Also: desktopfile.paths.applicationsPaths
+     * See_Also: $(D desktopfile.paths.applicationsPaths)
      */
     @trusted string findDesktopFile(string desktopId) nothrow
     {

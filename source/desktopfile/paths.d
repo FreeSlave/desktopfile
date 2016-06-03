@@ -23,6 +23,29 @@ private {
     import std.range;
 }
 
+version(unittest) {
+    import std.process : environment;
+    
+    package struct EnvGuard
+    {
+        this(string env) {
+            envVar = env;
+            envValue = environment.get(env);
+        }
+        
+        ~this() {
+            if (envValue is null) {
+                environment.remove(envVar);
+            } else {
+                environment[envVar] = envValue;
+            }
+        }
+        
+        string envVar;
+        string envValue;
+    }
+}
+
 /**
  * Applications paths based on data paths. 
  * This function is available on all platforms, but requires dataPaths argument (e.g. C:\ProgramData\KDE\share on Windows)
