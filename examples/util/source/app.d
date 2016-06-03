@@ -108,7 +108,7 @@ void main(string[] args)
         auto df = new DesktopFile(inFile);
         df.start();
     } else if (command == "write") {
-        auto df = new DesktopFile(inFile, DesktopFile.ReadOptions.preserveComments);
+        auto df = new DesktopFile(inFile);
         if (args.length > 3) {
             string outFile = args[3];
             df.saveToFile(outFile);

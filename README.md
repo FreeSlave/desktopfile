@@ -33,7 +33,7 @@ Features that currently should be handled by user, but may be implemented in the
 * [D-Bus Activation](http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s07.html).
 * Startup Notification Protocol.
 * Copying files to local file system when %f or %F field code is used.
-* Ayatana Desktop Shortcuts used in Unity. This is not part of Desktop Entry and actually violates the specification.
+* Support for Ayatana Desktop Shortcuts used in Unity. This is not part of Desktop Entry and actually violates the specification.
 
 ## Generating documentation
 
@@ -148,7 +148,7 @@ Starts .desktop file defined executable or opens link:
 
     dub run :util -- start /path/to/file.desktop
     
-Parse and write .desktop file to new location (to testing purposes):
+Parse and write .desktop file to new location (for testing purposes):
 
     dub run :util -- write /usr/share/applications/vlc.desktop $HOME/Desktop/vlc.desktop
 
