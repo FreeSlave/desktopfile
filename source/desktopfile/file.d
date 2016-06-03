@@ -631,7 +631,7 @@ public:
         /**
          * Policy about reading Desktop Action groups.
          */
-        enum ActionGroupPolicy {
+        enum ActionGroupPolicy : ubyte {
             skip, ///Don't save Desktop Action groups.
             preserve ///Save Desktop Action groups.
         }
@@ -639,7 +639,7 @@ public:
         /**
          * Policy about reading extension groups (those start with 'X-').
          */
-        enum ExtensionGroupPolicy {
+        enum ExtensionGroupPolicy : ubyte {
             skip, ///Don't save extension groups.
             preserve ///Save extension groups.
         }
@@ -647,7 +647,7 @@ public:
         /**
          * Policy about reading groups with names which meaning is unknown, i.e. it's not extension nor Desktop Action.
          */
-        enum UnknownGroupPolicy {
+        enum UnknownGroupPolicy : ubyte {
             skip, ///Don't save unknown groups.
             preserve, ///Save unknown groups.
             throwError ///Throw error when unknown group is encountered.
@@ -673,19 +673,91 @@ public:
         ActionGroupPolicy actionGroupPolicy = ActionGroupPolicy.preserve;
     }
     
-private:
-    @trusted final bool isActionName(string groupName)
+    ///
+    unittest 
+    {
+        string contents = 
+`[Desktop Entry]
+Key=Value
+Actions=Action1;
+[Desktop Action Action1]
+Key=Value`;
+
+        alias DesktopFile.DesktopReadOptions DesktopReadOptions;
+        DesktopReadOptions readOptions;
+        readOptions.actionGroupPolicy = DesktopReadOptions.ActionGroupPolicy.skip;
+        auto df = new DesktopFile(iniLikeStringReader(contents), readOptions);
+        assert(df.action("Action1") is null);
+        
+        contents = 
+`[Desktop Entry]
+Key=Value
+Actions=Action1;
+[X-SomeGroup]
+Key=Value`;
+
+        df = new DesktopFile(iniLikeStringReader(contents));
+        assert(df.group("X-SomeGroup") !is null);
+        
+        readOptions = DesktopReadOptions.init;
+        readOptions.extensionGroupPolicy = DesktopReadOptions.ExtensionGroupPolicy.skip;
+        
+        df = new DesktopFile(iniLikeStringReader(contents), readOptions);
+        assert(df.group("X-SomeGroup") is null);
+        
+        contents = 
+`[Desktop Entry]
+Valid=Key
+$=Invalid`;
+
+        auto thrown = collectException!IniLikeReadException(new DesktopFile(iniLikeStringReader(contents)));
+        assert(thrown !is null);
+        assert(thrown.entryException !is null);
+        assert(thrown.entryException.key == "$");
+        assert(thrown.entryException.value == "Invalid");
+        
+        readOptions = DesktopReadOptions.init;
+        readOptions.invalidKeyPolicy = IniLikeGroup.InvalidKeyPolicy.skip;
+        assertNotThrown(new DesktopFile(iniLikeStringReader(contents), readOptions));
+        
+        readOptions.invalidKeyPolicy = IniLikeGroup.InvalidKeyPolicy.save;
+        df = new DesktopFile(iniLikeStringReader(contents), readOptions);
+        assert(df.value("$") == "Invalid");
+    
+        contents = 
+`[Desktop Entry]
+Name=Name
+[Unknown]
+Key=Value`;
+
+        readOptions = DesktopReadOptions.init;
+        readOptions.unknownGroupPolicy = DesktopReadOptions.UnknownGroupPolicy.throwError;
+        assertThrown(new DesktopFile(iniLikeStringReader(contents), readOptions));
+        
+        readOptions = DesktopReadOptions.init;
+        readOptions.unknownGroupPolicy = DesktopReadOptions.UnknownGroupPolicy.preserve;
+        assertNotThrown(df = new DesktopFile(iniLikeStringReader(contents), readOptions));
+        assert(df.group("Unknown") !is null);
+        
+        readOptions = DesktopReadOptions.init;
+        readOptions.unknownGroupPolicy = DesktopReadOptions.UnknownGroupPolicy.skip;
+        df = new DesktopFile(iniLikeStringReader(contents), readOptions);
+        assert(df.group("Unknown") is null);
+    }
+    
+protected:
+    ///Check if groupName is name of Desktop Action group.
+    @trusted static bool isActionName(string groupName)
     {
         return groupName.startsWith("Desktop Action ");
     }
     
-protected:
     @trusted override IniLikeGroup createGroupByName(string groupName) {
         if (groupName == "Desktop Entry") {
             _desktopEntry = new DesktopEntry();
             return _desktopEntry;
         } else if (groupName.startsWith("X-")) {
-            if (_options.extensionGroupPolicy == DesktopReadOptions.UnknownGroupPolicy.skip) {
+            if (_options.extensionGroupPolicy == DesktopReadOptions.ExtensionGroupPolicy.skip) {
                 return null;
             } else {
                 return createEmptyGroup(groupName);
@@ -1203,6 +1275,7 @@ Exec=doublecmd settings
 Name=Notspecified Action`;
     
     auto df = new DesktopFile(iniLikeStringReader(desktopFileContents), "doublecmd.desktop");
+    assert(df.desktopEntry().groupName() == "Desktop Entry");
     assert(df.fileName() == "doublecmd.desktop");
     assert(df.displayName() == "Double Commander");
     assert(df.localizedDisplayName("ru_RU") == "Двухпанельный коммандер");
@@ -1227,6 +1300,7 @@ Name=Notspecified Action`;
     assert(equal(df.mimeTypes(), ["inode/directory", "application/x-directory"]));
     assert(equal(df.onlyShowIn(), ["GNOME", "XFCE", "LXDE"]));
     assert(equal(df.notShowIn(), ["KDE"]));
+    assert(df.group("X-NoName") !is null);
     
     assert(equal(df.byAction().map!(desktopAction => 
     tuple(desktopAction.displayName(), desktopAction.localizedDisplayName("ru"), desktopAction.iconName(), desktopAction.execValue())), 
@@ -1244,15 +1318,6 @@ Name=Notspecified Action`;
     assert(!df.contains("Icon"));
     df["Icon"] = "files";
     assert(df.contains("Icon"));
-    
-    df = new DesktopFile();
-    df.terminal = true;
-    df.type = DesktopFile.Type.Application;
-    df.categories = ["Development", "Compilers", "One;Two", "Three\\;Four", "New\nLine"];
-    
-    assert(df.terminal() == true);
-    assert(df.type() == DesktopFile.Type.Application);
-    assert(equal(df.categories(), ["Development", "Compilers", "One;Two", "Three\\;Four","New\nLine"]));
     
     string contents = 
 `# First comment
@@ -1274,55 +1339,19 @@ Key=Value`;
     assert(thrown !is null);
     assert(thrown.lineNumber == 0);
     
-    contents = 
-`[Desktop Entry]
-Key=Value
-Actions=Action1;
-[Desktop Action Action1]
-Key=Value`;
-
-    alias DesktopFile.DesktopReadOptions DesktopReadOptions;
-    DesktopReadOptions readOptions;
-    readOptions.actionGroupPolicy = DesktopReadOptions.ActionGroupPolicy.skip;
-    df = new DesktopFile(iniLikeStringReader(contents), readOptions);
-    assert(df.action("Action1") is null);
-    
-    contents = 
-`[Desktop Entry]
-Valid=Key
-$=Invalid`;
-
-    thrown = collectException!IniLikeReadException(new DesktopFile(iniLikeStringReader(contents)));
-    assert(thrown !is null);
-    assert(thrown.entryException !is null);
-    assert(thrown.entryException.key == "$");
-    assert(thrown.entryException.value == "Invalid");
-    
-    readOptions = DesktopReadOptions.init;
-    readOptions.invalidKeyPolicy = IniLikeGroup.InvalidKeyPolicy.skip;
-    assertNotThrown(new DesktopFile(iniLikeStringReader(contents), readOptions));
-    
-    contents = 
-`[Desktop Entry]
-Name=Name
-[Unknown]
-Key=Value`;
-
-    readOptions = DesktopReadOptions.init;
-    readOptions.unknownGroupPolicy = DesktopReadOptions.UnknownGroupPolicy.throwError;
-    assertThrown(new DesktopFile(iniLikeStringReader(contents), readOptions));
-    
-    readOptions = DesktopReadOptions.init;
-    readOptions.unknownGroupPolicy = DesktopReadOptions.UnknownGroupPolicy.preserve;
-    assertNotThrown(df = new DesktopFile(iniLikeStringReader(contents), readOptions));
-    assert(df.group("Unknown") !is null);
-    
-    readOptions = DesktopReadOptions.init;
-    readOptions.unknownGroupPolicy = DesktopReadOptions.UnknownGroupPolicy.skip;
-    df = new DesktopFile(iniLikeStringReader(contents), readOptions);
-    assert(df.group("Unknown") is null);
-    
     df = new DesktopFile();
+    df.desktopEntry().writeEntry("$Invalid", "Valid value", IniLikeGroup.InvalidKeyPolicy.save);
+    assert(df.desktopEntry().value("$Invalid") == "Valid value");
+    df.desktopEntry().writeEntry("Another$Invalid", "Valid value", IniLikeGroup.InvalidKeyPolicy.skip);
+    assert(df.desktopEntry().value("Another$Invalid") is null);
+    df.terminal = true;
+    df.type = DesktopFile.Type.Application;
+    df.categories = ["Development", "Compilers", "One;Two", "Three\\;Four", "New\nLine"];
+    
+    assert(df.terminal() == true);
+    assert(df.type() == DesktopFile.Type.Application);
+    assert(equal(df.categories(), ["Development", "Compilers", "One;Two", "Three\\;Four","New\nLine"]));
+    
     df.displayName = "Program name";
     assert(df.displayName() == "Program name");
     df.genericName = "Program";
