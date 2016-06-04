@@ -3,7 +3,7 @@
 	"versions": {
 		"isfreedesktop": "0.1.0",
 		"findexecutable": "0.1.0",
-		"inilike": "1.0.0-beta",
+		"inilike": "1.0.0-beta2",
 		"xdgpaths": "0.2.1"
 	}
 }

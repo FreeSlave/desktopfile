@@ -620,6 +620,31 @@ public:
      */
     alias DesktopEntry.Type Type;
     
+    /**
+    * Policy about reading Desktop Action groups.
+    */
+    enum ActionGroupPolicy : ubyte {
+        skip, ///Don't save Desktop Action groups.
+        preserve ///Save Desktop Action groups.
+    }
+    
+    /**
+     * Policy about reading extension groups (those start with 'X-').
+     */
+    enum ExtensionGroupPolicy : ubyte {
+        skip, ///Don't save extension groups.
+        preserve ///Save extension groups.
+    }
+    
+    /**
+     * Policy about reading groups with names which meaning is unknown, i.e. it's not extension nor Desktop Action.
+     */
+    enum UnknownGroupPolicy : ubyte {
+        skip, ///Don't save unknown groups.
+        preserve, ///Save unknown groups.
+        throwError ///Throw error when unknown group is encountered.
+    }
+    
     ///Options to manage desktop file reading
     static struct DesktopReadOptions
     {
@@ -627,31 +652,6 @@ public:
         IniLikeFile.ReadOptions baseOptions;
         
         alias baseOptions this;
-        
-        /**
-         * Policy about reading Desktop Action groups.
-         */
-        enum ActionGroupPolicy : ubyte {
-            skip, ///Don't save Desktop Action groups.
-            preserve ///Save Desktop Action groups.
-        }
-        
-        /**
-         * Policy about reading extension groups (those start with 'X-').
-         */
-        enum ExtensionGroupPolicy : ubyte {
-            skip, ///Don't save extension groups.
-            preserve ///Save extension groups.
-        }
-        
-        /**
-         * Policy about reading groups with names which meaning is unknown, i.e. it's not extension nor Desktop Action.
-         */
-        enum UnknownGroupPolicy : ubyte {
-            skip, ///Don't save unknown groups.
-            preserve, ///Save unknown groups.
-            throwError ///Throw error when unknown group is encountered.
-        }
         
         /**
          * Set policy about unknown groups. By default they are skipped without errors.
@@ -671,6 +671,53 @@ public:
          * Note that all groups still need to be preserved if desktop file must be rewritten.
          */
         ActionGroupPolicy actionGroupPolicy = ActionGroupPolicy.preserve;
+        
+        ///Setting parameters in any order, leaving not mentioned ones in default state.
+        @nogc @safe this(Args...)(Args args) nothrow pure {
+            foreach(arg; args) {
+                alias Unqual!(typeof(arg)) ArgType;
+                static if (is(ArgType == DuplicateKeyPolicy)) {
+                    baseOptions.duplicateKeyPolicy = arg;
+                } else static if (is(ArgType == DuplicateGroupPolicy)) {
+                    baseOptions.duplicateGroupPolicy = arg;
+                } else static if (is(ArgType == Flag!"preserveComments")) {
+                    baseOptions.preserveComments = arg;
+                } else static if (is(ArgType == IniLikeGroup.InvalidKeyPolicy)) {
+                    baseOptions.invalidKeyPolicy = arg;
+                } else static if (is(ArgType == IniLikeFile.ReadOptions)) {
+                    baseOptions = arg;
+                } else static if (is(ArgType == UnknownGroupPolicy)) {
+                    unknownGroupPolicy = arg;
+                } else static if (is(ArgType == ExtensionGroupPolicy)) {
+                    extensionGroupPolicy = arg;
+                } else static if (is(ArgType == ActionGroupPolicy)) {
+                    actionGroupPolicy = arg;
+                } else {
+                    static assert(false, "Unknown argument type " ~ typeof(arg).stringof);
+                }
+            }
+        }
+        
+        ///
+        unittest
+        {
+            DesktopReadOptions options;
+            
+            options = DesktopReadOptions(
+                ExtensionGroupPolicy.skip,
+                UnknownGroupPolicy.preserve, 
+                ActionGroupPolicy.skip, 
+                DuplicateKeyPolicy.skip, 
+                DuplicateGroupPolicy.preserve, 
+                No.preserveComments
+            );
+            assert(options.unknownGroupPolicy == UnknownGroupPolicy.preserve);
+            assert(options.actionGroupPolicy == ActionGroupPolicy.skip);
+            assert(options.extensionGroupPolicy == ExtensionGroupPolicy.skip);
+            assert(options.duplicateGroupPolicy == DuplicateGroupPolicy.preserve);
+            assert(options.duplicateKeyPolicy == DuplicateKeyPolicy.skip);
+            assert(!options.preserveComments);
+        }
     }
     
     ///
@@ -684,9 +731,8 @@ Actions=Action1;
 Key=Value`;
 
         alias DesktopFile.DesktopReadOptions DesktopReadOptions;
-        DesktopReadOptions readOptions;
-        readOptions.actionGroupPolicy = DesktopReadOptions.ActionGroupPolicy.skip;
-        auto df = new DesktopFile(iniLikeStringReader(contents), readOptions);
+
+        auto df = new DesktopFile(iniLikeStringReader(contents), DesktopReadOptions(ActionGroupPolicy.skip));
         assert(df.action("Action1") is null);
         
         contents = 
@@ -699,10 +745,7 @@ Key=Value`;
         df = new DesktopFile(iniLikeStringReader(contents));
         assert(df.group("X-SomeGroup") !is null);
         
-        readOptions = DesktopReadOptions.init;
-        readOptions.extensionGroupPolicy = DesktopReadOptions.ExtensionGroupPolicy.skip;
-        
-        df = new DesktopFile(iniLikeStringReader(contents), readOptions);
+        df = new DesktopFile(iniLikeStringReader(contents), DesktopReadOptions(ExtensionGroupPolicy.skip));
         assert(df.group("X-SomeGroup") is null);
         
         contents = 
@@ -716,12 +759,9 @@ $=Invalid`;
         assert(thrown.entryException.key == "$");
         assert(thrown.entryException.value == "Invalid");
         
-        readOptions = DesktopReadOptions.init;
-        readOptions.invalidKeyPolicy = IniLikeGroup.InvalidKeyPolicy.skip;
-        assertNotThrown(new DesktopFile(iniLikeStringReader(contents), readOptions));
+        assertNotThrown(new DesktopFile(iniLikeStringReader(contents), DesktopReadOptions(IniLikeGroup.InvalidKeyPolicy.skip)));
         
-        readOptions.invalidKeyPolicy = IniLikeGroup.InvalidKeyPolicy.save;
-        df = new DesktopFile(iniLikeStringReader(contents), readOptions);
+        df = new DesktopFile(iniLikeStringReader(contents), DesktopReadOptions(IniLikeGroup.InvalidKeyPolicy.save));
         assert(df.value("$") == "Invalid");
     
         contents = 
@@ -730,18 +770,12 @@ Name=Name
 [Unknown]
 Key=Value`;
 
-        readOptions = DesktopReadOptions.init;
-        readOptions.unknownGroupPolicy = DesktopReadOptions.UnknownGroupPolicy.throwError;
-        assertThrown(new DesktopFile(iniLikeStringReader(contents), readOptions));
+        assertThrown(new DesktopFile(iniLikeStringReader(contents), DesktopReadOptions(UnknownGroupPolicy.throwError)));
         
-        readOptions = DesktopReadOptions.init;
-        readOptions.unknownGroupPolicy = DesktopReadOptions.UnknownGroupPolicy.preserve;
-        assertNotThrown(df = new DesktopFile(iniLikeStringReader(contents), readOptions));
+        assertNotThrown(df = new DesktopFile(iniLikeStringReader(contents), DesktopReadOptions(UnknownGroupPolicy.preserve)));
         assert(df.group("Unknown") !is null);
         
-        readOptions = DesktopReadOptions.init;
-        readOptions.unknownGroupPolicy = DesktopReadOptions.UnknownGroupPolicy.skip;
-        df = new DesktopFile(iniLikeStringReader(contents), readOptions);
+        df = new DesktopFile(iniLikeStringReader(contents), DesktopReadOptions(UnknownGroupPolicy.skip));
         assert(df.group("Unknown") is null);
     }
     
@@ -757,24 +791,24 @@ protected:
             _desktopEntry = new DesktopEntry();
             return _desktopEntry;
         } else if (groupName.startsWith("X-")) {
-            if (_options.extensionGroupPolicy == DesktopReadOptions.ExtensionGroupPolicy.skip) {
+            if (_options.extensionGroupPolicy == ExtensionGroupPolicy.skip) {
                 return null;
             } else {
                 return createEmptyGroup(groupName);
             }
         } else if (isActionName(groupName)) {
-            if (_options.actionGroupPolicy == DesktopReadOptions.ActionGroupPolicy.skip) {
+            if (_options.actionGroupPolicy == ActionGroupPolicy.skip) {
                 return null;
             } else {
                 return new DesktopAction(groupName);
             }
         } else {
             final switch(_options.unknownGroupPolicy) {
-                case DesktopReadOptions.UnknownGroupPolicy.skip:
+                case UnknownGroupPolicy.skip:
                     return null;
-                case DesktopReadOptions.UnknownGroupPolicy.preserve:
+                case UnknownGroupPolicy.preserve:
                     return createEmptyGroup(groupName);
-                case DesktopReadOptions.UnknownGroupPolicy.throwError:
+                case UnknownGroupPolicy.throwError:
                     throw new IniLikeException("Invalid group name: '" ~ groupName ~ "'. Must start with 'Desktop Action ' or 'X-'");
             }
         }
