@@ -777,6 +777,16 @@ Key=Value`;
         
         df = new DesktopFile(iniLikeStringReader(contents), DesktopReadOptions(UnknownGroupPolicy.skip));
         assert(df.group("Unknown") is null);
+        
+        contents = 
+`[Desktop Entry]
+Name=One
+[Desktop Entry]
+Name=Two`;
+
+        df = new DesktopFile(iniLikeStringReader(contents), DesktopReadOptions(DuplicateGroupPolicy.preserve));
+        assert(df.displayName() == "One");
+        assert(df.byGroup().map!(g => g["Name"]).equal(["One", "Two"]));
     }
     
 protected:
@@ -788,8 +798,7 @@ protected:
     
     @trusted override IniLikeGroup createGroupByName(string groupName) {
         if (groupName == "Desktop Entry") {
-            _desktopEntry = new DesktopEntry();
-            return _desktopEntry;
+            return new DesktopEntry();
         } else if (groupName.startsWith("X-")) {
             if (_options.extensionGroupPolicy == ExtensionGroupPolicy.skip) {
                 return null;
@@ -834,6 +843,7 @@ public:
     {   
         _options = options;
         super(reader, fileName, options.baseOptions);
+        _desktopEntry = cast(DesktopEntry)group("Desktop Entry");
         enforce(_desktopEntry !is null, new IniLikeReadException("No \"Desktop Entry\" group", 0));
     }
     
