@@ -524,7 +524,7 @@ struct ExecBuilder
      *  arg = Literal argument. Value will be escaped and quoted as needed.
      * Returns: this object for chained calls.
      */
-    @safe ExecBuilder argument(string arg) {
+    @safe ref ExecBuilder argument(string arg) {
         escapedArgs ~= arg.escapeValue().quoteIfNeeded().doublePercentSymbol();
         return this;
     }
@@ -533,7 +533,7 @@ struct ExecBuilder
      * Add "%i" field code.
      * Returns: this object for chained calls.
      */
-    @safe ExecBuilder icon() {
+    @safe ref ExecBuilder icon() {
         escapedArgs ~= "%i";
         return this;
     }
@@ -543,7 +543,7 @@ struct ExecBuilder
      * Add "%f" field code.
      * Returns: this object for chained calls.
      */
-    @safe ExecBuilder file(string preprend = null) {
+    @safe ref ExecBuilder file(string preprend = null) {
         return fieldCode(preprend, "%f");
     }
     
@@ -551,7 +551,7 @@ struct ExecBuilder
      * Add "%F" field code.
      * Returns: this object for chained calls.
      */
-    @safe ExecBuilder files() {
+    @safe ref ExecBuilder files() {
         escapedArgs ~= "%F";
         return this;
     }
@@ -560,7 +560,7 @@ struct ExecBuilder
      * Add "%u" field code.
      * Returns: this object for chained calls.
      */
-    @safe ExecBuilder url(string preprend = null) {
+    @safe ref ExecBuilder url(string preprend = null) {
         return fieldCode(preprend, "%u");
     }
     
@@ -568,7 +568,7 @@ struct ExecBuilder
      * Add "%U" field code.
      * Returns: this object for chained calls.
      */
-    @safe ExecBuilder urls() {
+    @safe ref ExecBuilder urls() {
         escapedArgs ~= "%U";
         return this;
     }
@@ -577,7 +577,7 @@ struct ExecBuilder
      * Add "%c" field code (name of application).
      * Returns: this object for chained calls.
      */
-    @safe ExecBuilder displayName(string preprend = null) {
+    @safe ref ExecBuilder displayName(string preprend = null) {
         return fieldCode(preprend, "%c");
     }
     
@@ -585,7 +585,7 @@ struct ExecBuilder
      * Add "%k" field code (location of desktop file).
      * Returns: this object for chained calls.
      */
-    @safe ExecBuilder location(string preprend = null) {
+    @safe ref ExecBuilder location(string preprend = null) {
         return fieldCode(preprend, "%k");
     }
     
@@ -601,7 +601,7 @@ struct ExecBuilder
     }
     
 private:
-    @safe ExecBuilder fieldCode(string prepend, string code)
+    @safe ref ExecBuilder fieldCode(string prepend, string code)
     {
         escapedArgs ~= prepend.doublePercentSymbol() ~ code;
         return this;
