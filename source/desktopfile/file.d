@@ -301,7 +301,7 @@ final class DesktopEntry : IniLikeGroup
     }
     
     /**
-     * Set TryExec value escaping it if needed..
+     * Set TryExec value escaping it if needed.
      * Throws:
      *  $(B IniLikeEntryException) if tryExec is not abolute path nor base name.
      */
@@ -398,7 +398,7 @@ final class DesktopEntry : IniLikeGroup
     
     /**
      * A boolean value specifying if D-Bus activation is supported for this application.
-     * Returns: The value associated with "dbusActivable" key converted to bool using isTrue.
+     * Returns: The value associated with "DBusActivable" key converted to bool using isTrue.
      */
     @nogc @safe bool dbusActivable() const nothrow pure {
         return isTrue(value("DBusActivatable"));
@@ -412,7 +412,7 @@ final class DesktopEntry : IniLikeGroup
     
     /**
      * A boolean value specifying if an application uses Startup Notification Protocol.
-     * Returns: The value associated with "startupNotify" key converted to bool using isTrue.
+     * Returns: The value associated with "StartupNotify" key converted to bool using isTrue.
      */
     @nogc @safe bool startupNotify() const nothrow pure {
         return isTrue(value("StartupNotify"));
@@ -546,6 +546,7 @@ final class DesktopEntry : IniLikeGroup
     /**
      * A list of strings identifying the desktop environments that should display a given desktop entry.
      * Returns: The range of multiple values associated with "OnlyShowIn" key.
+     * See_Also: $(D notShowIn), $(D showIn)
      */
     @safe auto onlyShowIn() nothrow const pure {
         return DesktopFile.splitValues(readEntry("OnlyShowIn"));
@@ -559,6 +560,7 @@ final class DesktopEntry : IniLikeGroup
     /**
      * A list of strings identifying the desktop environments that should not display a given desktop entry.
      * Returns: The range of multiple values associated with "NotShowIn" key.
+     * See_Also: $(D onlyShowIn), $(D showIn)
      */
     @safe auto notShowIn() nothrow const pure {
         return DesktopFile.splitValues(readEntry("NotShowIn"));
@@ -573,7 +575,7 @@ final class DesktopEntry : IniLikeGroup
      * Check if desktop file should be shown in menu of specific desktop environment.
      * Params:
      *  desktopEnvironment = Name of desktop environment, usually detected by XDG_CURRENT_DESKTOP variable.
-     * See_Also: $(LINK2 https://specifications.freedesktop.org/menu-spec/latest/apb.html, Registered OnlyShowIn Environments)
+     * See_Also: $(LINK2 https://specifications.freedesktop.org/menu-spec/latest/apb.html, Registered OnlyShowIn Environments), $(D notShowIn), $(D onlyShowIn)
      */
     @trusted bool showIn(string desktopEnvironment)
     {
@@ -610,7 +612,6 @@ protected:
 
 /**
  * Represents .desktop file.
- * 
  */
 final class DesktopFile : IniLikeFile
 {
@@ -928,7 +929,7 @@ public:
         * See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html, Desktop File ID)
         * Returns: Desktop file ID or empty string if file does not have an ID.
         * Note: This function retrieves applications paths each time it's called and therefore can impact performance. To avoid this issue use overload with argument.
-        * See_Also: desktopfile.paths.applicationsPaths, desktopfile.utils.desktopId
+        * See_Also: $(D desktopfile.paths.applicationsPaths),  $(D desktopfile.utils.desktopId)
         */
         @safe string id() const nothrow {
             return desktopId(fileName);
@@ -1035,6 +1036,7 @@ Type=Directory`;
      * Some keys can have multiple values, separated by semicolon. This function helps to parse such kind of strings into the range.
      * Returns: The range of multiple nonempty values.
      * Note: Returned range unescapes ';' character automatically.
+     * See_Also: $(D joinValues)
      */
     @trusted static auto splitValues(string values) nothrow pure {
         return SplitValues(values).filter!(s => !s.empty);
@@ -1063,6 +1065,7 @@ Type=Directory`;
      * Join range of multiple values into a string using semicolon as separator. Adds trailing semicolon.
      * Returns: Values of range joined into one string with ';' after each value or empty string if range is empty.
      * Note: If some value of range contains ';' character it's automatically escaped.
+     * See_Also: $(D splitValues)
      */
     static string joinValues(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
         auto result = values.filter!( s => !s.empty ).map!( s => s.replace(";", "\\;")).joiner(";");
@@ -1083,7 +1086,7 @@ Type=Directory`;
     
     /**
      * Get $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s10.html, additional application action) by name.
-     * Returns: DesktopAction with given action name or null if not found or found section does not have a name.
+     * Returns: $(D DesktopAction) with given action name or null if not found or found section does not have a name.
      * See_Also: $(D actions), $(D byAction)
      */
     @trusted inout(DesktopAction) action(string actionName) inout {

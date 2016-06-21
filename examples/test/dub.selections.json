@@ -1,10 +1,10 @@
 {
 	"fileVersion": 1,
 	"versions": {
-		"standardpaths": "0.5.0",
+		"standardpaths": "0.6.0",
 		"isfreedesktop": "0.1.0",
 		"findexecutable": "0.1.0",
 		"inilike": "1.0.0-beta2",
-		"xdgpaths": "0.2.1"
+		"xdgpaths": "0.2.2"
 	}
 }
