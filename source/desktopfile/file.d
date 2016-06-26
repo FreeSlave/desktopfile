@@ -46,6 +46,7 @@ public:
     /**
      * Label that will be shown to the user in given locale.
      * Returns: The value associated with "Name" key and given locale.
+     * See_Also: $(D displayName)
      */
     @safe string localizedDisplayName(string locale) const nothrow pure {
         return readEntry("Name", locale);
@@ -80,7 +81,7 @@ public:
      *  Pid of started process.
      * Throws:
      *  ProcessException on failure to start the process.
-     *  DesktopExecException if exec string is invalid.
+     *  $(D desktopfile.utils.DesktopExecException) if exec string is invalid.
      * See_Also: $(D execValue)
      */
     @safe Pid start(string locale = null) const {
@@ -146,7 +147,7 @@ final class DesktopEntry : IniLikeGroup
     
     /**
      * Sets "Type" field to type
-     * Note: Setting the Unknown type removes type field.
+     * Note: Setting the Type.Unknown removes type field.
      */
     @safe Type type(Type t) {
         final switch(t) {
@@ -677,15 +678,7 @@ public:
         @nogc @safe this(Args...)(Args args) nothrow pure {
             foreach(arg; args) {
                 alias Unqual!(typeof(arg)) ArgType;
-                static if (is(ArgType == DuplicateKeyPolicy)) {
-                    baseOptions.duplicateKeyPolicy = arg;
-                } else static if (is(ArgType == DuplicateGroupPolicy)) {
-                    baseOptions.duplicateGroupPolicy = arg;
-                } else static if (is(ArgType == Flag!"preserveComments")) {
-                    baseOptions.preserveComments = arg;
-                } else static if (is(ArgType == IniLikeGroup.InvalidKeyPolicy)) {
-                    baseOptions.invalidKeyPolicy = arg;
-                } else static if (is(ArgType == IniLikeFile.ReadOptions)) {
+                static if (is(ArgType == IniLikeFile.ReadOptions)) {
                     baseOptions = arg;
                 } else static if (is(ArgType == UnknownGroupPolicy)) {
                     unknownGroupPolicy = arg;
@@ -694,7 +687,7 @@ public:
                 } else static if (is(ArgType == ActionGroupPolicy)) {
                     actionGroupPolicy = arg;
                 } else {
-                    static assert(false, "Unknown argument type " ~ typeof(arg).stringof);
+                    baseOptions.assign(arg);
                 }
             }
         }
