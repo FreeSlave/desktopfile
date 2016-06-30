@@ -458,30 +458,95 @@ unittest
 }
 
 /**
- * Check if application should be started multiple times to open multiple urls.
+ * Flag set of parameter kinds supported by application. 
+ * Having more than one flag means that Exec command is ambiguous.
+ * See_Also: $(D paramSupport)
+ */
+enum ParamSupport
+{
+    /**
+     * Application does not support parameters.
+     */
+    none = 0,
+    
+    /**
+     * Application can open single file at time.
+     */
+    file = 1,
+    /**
+     * Application can open multiple files at time.
+     */
+    files = 2,
+    /**
+     * Application understands URL syntax and can open single link at time.
+     */
+    url = 4,
+    /**
+     * Application supports URL syntax and can open multiple links at time.
+     */
+    urls = 8
+}
+
+/**
+ * Evaluate ParamSupport flags for application Exec command.
  * Params:
  *  execArgs = Array of unescaped and unquoted arguments.
- * Returns: true if execArgs have only %f or %u and not %F or %U,. Otherwise false is returned.
+ * See_Also: $(D unquoteExec), $(D needMultipleInstances)
  */
-@nogc @trusted bool needMultipleInstances(in string[] execArgs) pure nothrow
+@nogc @safe ParamSupport paramSupport(in string[] execArgs) pure nothrow
 {
-    bool need;
+    auto support = ParamSupport.none;
     foreach(token; execArgs) {
-        if (token == "%F" || token == "%U") {
-            return false;
-        }
-        
-        if (!need) {
+        if (token == "%F") {
+            support |= ParamSupport.files;
+        } else if (token == "%U") {
+            support |= ParamSupport.urls;
+        } else if (!(support & (ParamSupport.file | ParamSupport.url))) {
             for(size_t i=0; i<token.length; ++i) {
                 if (token[i] == '%' && i<token.length-1) {
-                    if (token[i+1] == 'f' || token[i+1] == 'u') {
-                        need = true;
+                    if (token[i+1] == '%') {
+                        i++;
+                    } else if (token[i+1] == 'f') {
+                        support |= ParamSupport.file;
+                        i++;
+                    } else if (token[i+1] == 'u') {
+                        support |= ParamSupport.url;
+                        i++;
                     }
                 }
             }
         }
     }
-    return need;
+    return support;
+}
+
+///
+unittest
+{
+    assert(paramSupport(["program", "%f"]) == ParamSupport.file);
+    assert(paramSupport(["program", "%%f"]) == ParamSupport.none);
+    assert(paramSupport(["program", "%%%f"]) == ParamSupport.file);
+    assert(paramSupport(["program", "%u"]) == ParamSupport.url);
+    assert(paramSupport(["program", "%i"]) == ParamSupport.none);
+    assert(paramSupport(["program", "%u%f"]) == (ParamSupport.url | ParamSupport.file ));
+    assert(paramSupport(["program", "%F"]) == ParamSupport.files);
+    assert(paramSupport(["program", "%U"]) == ParamSupport.urls);
+    assert(paramSupport(["program", "%f", "%U"]) == (ParamSupport.file|ParamSupport.urls));
+    assert(paramSupport(["program", "%F", "%u"]) == (ParamSupport.files|ParamSupport.url));
+}
+
+/**
+ * Check if application should be started multiple times to open multiple urls.
+ * Params:
+ *  execArgs = Array of unescaped and unquoted arguments.
+ * Returns: true if execArgs have only %f or %u and not %F or %U. Otherwise false is returned.
+ * See_Also: $(D unquoteExec), $(D paramSupport)
+ */
+@nogc @safe bool needMultipleInstances(in string[] execArgs) pure nothrow
+{
+    auto support = paramSupport(execArgs);
+    const bool noNeed = support == ParamSupport.none || (support & (ParamSupport.urls|ParamSupport.files)) != 0;
+    return !noNeed;
 }
 
 ///
