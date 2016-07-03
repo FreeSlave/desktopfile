@@ -22,7 +22,7 @@ private @trusted void validateDesktopKeyImpl(string groupName, string key, strin
 }
 
 /**
- * Subclass of IniLikeGroup for easy access to desktop action.
+ * Subclass of $(D inilike.file.IniLikeGroup) for easy access to desktop action.
  */
 final class DesktopAction : IniLikeGroup
 {
@@ -96,7 +96,7 @@ public:
 }
 
 /**
- * Subclass of IniLikeGroup for easy accessing of Desktop Entry properties.
+ * Subclass of $(D inilike.file.IniLikeGroup) for easy accessing of Desktop Entry properties.
  */
 final class DesktopEntry : IniLikeGroup
 {
@@ -147,7 +147,7 @@ final class DesktopEntry : IniLikeGroup
     
     /**
      * Sets "Type" field to type
-     * Note: Setting the Type.Unknown removes type field.
+     * Note: Setting the $(D Type.Unknown) removes type field.
      */
     @safe Type type(Type t) {
         final switch(t) {
@@ -293,7 +293,9 @@ final class DesktopEntry : IniLikeGroup
     }
     
     /**
-     * Value used to determine if the program is actually installed. If the path is not an absolute path, the file should be looked up in the $(B PATH) environment variable. If the file is not present or if it is not executable, the entry may be ignored (not be used in menus, for example).
+     * Value used to determine if the program is actually installed. 
+     * 
+     * If the path is not an absolute path, the file should be looked up in the $(B PATH) environment variable. If the file is not present or if it is not executable, the entry may be ignored (not be used in menus, for example).
      * Returns: The value associated with "TryExec" key.
      * See_Also: $(D execValue)
      */
@@ -575,7 +577,7 @@ final class DesktopEntry : IniLikeGroup
     /**
      * Check if desktop file should be shown in menu of specific desktop environment.
      * Params:
-     *  desktopEnvironment = Name of desktop environment, usually detected by XDG_CURRENT_DESKTOP variable.
+     *  desktopEnvironment = Name of desktop environment, usually detected by $(B XDG_CURRENT_DESKTOP) variable.
      * See_Also: $(LINK2 https://specifications.freedesktop.org/menu-spec/latest/apb.html, Registered OnlyShowIn Environments), $(D notShowIn), $(D onlyShowIn)
      */
     @trusted bool showIn(string desktopEnvironment)
@@ -650,7 +652,7 @@ public:
     ///Options to manage desktop file reading
     static struct DesktopReadOptions
     {
-        ///Base $(B ReadOptions) of $(B IniLikeFile).
+        ///Base $(D inilike.file.IniLikeFile.ReadOptions).
         IniLikeFile.ReadOptions baseOptions;
         
         alias baseOptions this;
@@ -822,7 +824,7 @@ public:
      * Reads desktop file from file.
      * Throws:
      *  $(B ErrnoException) if file could not be opened.
-     *  $(B IniLikeReadException) if error occured while reading the file or "Desktop Entry" group is missing.
+     *  $(D inilike.file.IniLikeReadException) if error occured while reading the file or "Desktop Entry" group is missing.
      */
     @trusted this(string fileName, DesktopReadOptions options = DesktopReadOptions.init) {
         this(iniLikeFileReader(fileName), options, fileName);
@@ -831,7 +833,7 @@ public:
     /**
      * Reads desktop file from IniLikeReader, e.g. acquired from iniLikeFileReader or iniLikeStringReader.
      * Throws:
-     *  $(B IniLikeReadException) if error occured while parsing or "Desktop Entry" group is missing.
+     *  $(D inilike.file.IniLikeReadException) if error occured while parsing or "Desktop Entry" group is missing.
      */
     this(IniLikeReader)(IniLikeReader reader, DesktopReadOptions options = DesktopReadOptions.init, string fileName = null)
     {   
@@ -844,7 +846,7 @@ public:
     /**
      * Reads desktop file from IniLikeReader, e.g. acquired from iniLikeFileReader or iniLikeStringReader.
      * Throws:
-     *  $(B IniLikeReadException) if error occured while parsing or "Desktop Entry" group is missing.
+     *  $(D inilike.file.IniLikeReadException) if error occured while parsing or "Desktop Entry" group is missing.
      */
     this(IniLikeReader)(IniLikeReader reader, string fileName, DesktopReadOptions options = DesktopReadOptions.init)
     {
@@ -1146,6 +1148,7 @@ Icon[ru]=folder_ru`;
     
     /**
      * Starts the application associated with this .desktop file using urls as command line params.
+     * 
      * If the program should be run in terminal it tries to find system defined terminal emulator to run in.
      * Params:
      *  urls = urls application will start with.
@@ -1198,7 +1201,7 @@ Icon[ru]=folder_ru`;
         }
     }
     
-    ///ditto, but uses the only url.
+    ///Starts the application associated with this .desktop file using url as command line params.
     @trusted Pid startApplication(string url, string locale = null, lazy const(string)[] terminalCommand = getTerminalCommand) const {
         return startApplication([url], locale, terminalCommand);
     }
@@ -1229,7 +1232,7 @@ Icon[ru]=folder_ru`;
      * Starts application or open link depending on desktop entry type.
      * Throws:
      *  ProcessException on failure to start the process.
-     *  Exception if type is Unknown or Directory.
+     *  Exception if type is $(D DesktopEntry.Type.Unknown) or $(D DesktopEntry.Type.Directory).
      * See_Also: $(D startApplication), $(D startLink)
      */
     @trusted void start() const

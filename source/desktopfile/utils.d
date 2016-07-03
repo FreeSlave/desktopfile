@@ -221,13 +221,14 @@ unittest
 }
 
 /**
- * Apply unquoting to Exec value making it into an array of escaped arguments. It automatically performs quote-related unescaping. Read more: [specification](http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s06.html).
+ * Apply unquoting to Exec value making it into an array of escaped arguments. It automatically performs quote-related unescaping.
  * Params:
  *  value = value of Exec key. Must be unescaped by unescapeValue before passing.
  * Throws:
  *  $(D DesktopExecException) if string can't be unquoted (e.g. no pair quote).
  * Note:
  *  Although Desktop Entry Specification says that arguments must be quoted by double quote, for compatibility reasons this implementation also recognizes single quotes.
+ * See_Also: $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s06.html, specification)
  */
 @trusted auto unquoteExec(string value) pure
 {   
@@ -333,7 +334,7 @@ private @trusted string urlToFilePath(string url) nothrow pure
 }
 
 /**
- * Expand Exec arguments (usually returned by unquoteExec) replacing field codes with given values, making the array suitable for passing to spawnProcess. Deprecated field codes are ignored.
+ * Expand Exec arguments (usually returned by $(D unquoteExec)) replacing field codes with given values, making the array suitable for passing to spawnProcess. Deprecated field codes are ignored.
  * Note:
  *  Returned array may be empty and should be checked before passing to spawnProcess.
  * Params:
@@ -691,6 +692,7 @@ unittest
 
 /**
  * Detect command which will run program in terminal emulator.
+ * 
  * On Freedesktop it looks for x-terminal-emulator first. If found ["/path/to/x-terminal-emulator", "-e"] is returned.
  * Otherwise it looks for xdg-terminal. If found ["/path/to/xdg-terminal"] is returned.
  * Otherwise it tries to detect your desktop environment and find default terminal emulator for it.
@@ -1187,9 +1189,11 @@ static if (isFreedesktop)
 }
 
 /**
- * Check if .desktop file is trusted. This is not actually part of Desktop File Specification but many file managers has this concept.
- * The trusted .desktop file is a file the current user has executable access to or the owner of which is root.
- * This function should be applicable only to desktop files of Application type.
+ * Check if .desktop file is trusted. 
+ * 
+ * This is not actually part of Desktop File Specification but many desktop envrionments have this concept.
+ * The trusted .desktop file is a file the current user has executable access on or the owner of which is root.
+ * This function should be applicable only to desktop files of $(D DesktopEntry.Type.Application) type.
  * Note: Always returns true on non-posix systems.
  */
 @trusted bool isTrusted(string appFileName) nothrow
