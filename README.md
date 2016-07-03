@@ -37,20 +37,6 @@ Features that currently should be handled by user, but may be implemented in the
 * Copying files to local file system when %f or %F field code is used.
 * Support for Ayatana Desktop Shortcuts used in Unity. This is not part of Desktop Entry and actually violates the specification.
 
-## Generating documentation
-
-Ddoc:
-
-    dub build --build=docs
-    
-Ddox:
-
-    dub build --build=ddox
-
-## Running tests
-
-    dub test
-    
 ## Brief
 
 ```d
