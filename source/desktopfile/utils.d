@@ -261,15 +261,15 @@ unittest
         return value[start..i].unescapeQuotedArgument();
     }
     
-    string append;
+    char[] append;
     bool wasInQuotes;
     while(i < value.length) {
         if (value[i] == ' ' || value[i] == '\t') {
             if (!wasInQuotes && append.length >= 1 && append[$-1] == '\\') {
-                append = append[0..$-1] ~ value[i];
+                append[$-1] = value[i];
             } else {
                 if (append !is null) {
-                    result ~= append;
+                    result ~= append.assumeUnique;
                     append = null;
                 }
             }
@@ -285,7 +285,7 @@ unittest
     }
     
     if (append !is null) {
-        result ~= append;
+        result ~= append.assumeUnique;
     }
     
     return result;

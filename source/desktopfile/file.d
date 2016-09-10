@@ -1123,7 +1123,7 @@ Type=Directory`;
      */
     @safe string[] expandExecValue(in string[] urls = null, string locale = null) const
     {   
-        return expandExecArgs(unquoteExec(execValue()), urls, locale);
+        return expandExecArgs(unquoteExec(execValue()), urls, localizedIconName(locale), localizedDisplayName(locale), fileName());
     }
     
     ///
@@ -1139,11 +1139,6 @@ Icon[ru]=folder_ru`;
         auto df = new DesktopFile(iniLikeStringReader(contents), "/example.desktop");
         assert(df.expandExecValue(["one", "two"], "ru") == 
         ["quoted program", "--icon", "folder_ru", "-w", "Программа", "-f", "/example.desktop", "one", "two", "one", "one", "one", "two"]);
-    }
-    
-    private @safe string[] expandExecArgs(in string[] execArgs, in string[] urls = null, string locale = null) const
-    {
-        return .expandExecArgs(execArgs, urls, localizedIconName(locale), localizedDisplayName(locale), fileName());
     }
     
     /**
