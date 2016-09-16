@@ -77,14 +77,12 @@ public:
     
     /**
      * Start this action.
-     * Returns:
-     *  Pid of started process.
      * Throws:
      *  ProcessException on failure to start the process.
      *  $(D desktopfile.utils.DesktopExecException) if exec string is invalid.
      * See_Also: $(D execValue)
      */
-    @safe Pid start(string locale = null) const {
+    @safe void start(string locale = null) const {
         auto unquotedArgs = unquoteExec(execValue());
         
         SpawnParams params;
@@ -1151,14 +1149,12 @@ Icon[ru]=folder_ru`;
      *  terminalCommand = preferable terminal emulator command. If not set then terminal is determined via getTerminalCommand.
      * Note:
      *  This function does not check if the type of desktop file is Application. It relies only on "Exec" value.
-     * Returns:
-     *  Pid of started process.
      * Throws:
      *  ProcessException on failure to start the process.
      *  $(D desktopfile.utils.DesktopExecException) if exec string is invalid.
      * See_Also: $(D desktopfile.utils.getTerminalCommand), $(D start), $(D expandExecValue)
      */
-    @trusted Pid startApplication(in string[] urls = null, string locale = null, lazy const(string)[] terminalCommand = getTerminalCommand) const
+    @trusted void startApplication(in string[] urls = null, string locale = null, lazy const(string)[] terminalCommand = getTerminalCommand) const
     {
         auto unquotedArgs = unquoteExec(execValue());
         
@@ -1197,7 +1193,7 @@ Icon[ru]=folder_ru`;
     }
     
     ///Starts the application associated with this .desktop file using url as command line params.
-    @trusted Pid startApplication(string url, string locale = null, lazy const(string)[] terminalCommand = getTerminalCommand) const {
+    @trusted void startApplication(string url, string locale = null, lazy const(string)[] terminalCommand = getTerminalCommand) const {
         return startApplication([url], locale, terminalCommand);
     }
     

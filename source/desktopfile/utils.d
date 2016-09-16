@@ -32,6 +32,7 @@ package {
     static if( __VERSION__ < 2066 ) enum nogc = 1;
     
     import findexecutable;
+    import detached;
     import isfreedesktop;
 }
 
@@ -117,13 +118,9 @@ struct SpawnParams
     bool allowMultipleInstances = true;
 }
 
-private @trusted Pid execProcess(in string[] args, string workingDirectory = null)
-{    
-    static if( __VERSION__ < 2066 ) {
-        return spawnProcess(args, getNullStdin(), getNullStdout(), getNullStderr(), null, Config.none);
-    } else {
-        return spawnProcess(args, getNullStdin(), getNullStdout(), getNullStderr(), null, Config.none, workingDirectory);
-    }
+private @trusted void execProcess(in string[] args, string workingDirectory = null)
+{
+    spawnProcessDetached(args, getNullStdin(), getNullStdout(), getNullStderr(), null, Config.none, workingDirectory);
 }
 
 /**
@@ -136,16 +133,10 @@ private @trusted Pid execProcess(in string[] args, string workingDirectory = nul
  *  DesktopExecException if unquotedArgs is empty.
  * See_Also: $(D SpawnParams)
  */
-@trusted Pid spawnApplication(const(string)[] unquotedArgs, const SpawnParams params)
+@trusted void spawnApplication(const(string)[] unquotedArgs, const SpawnParams params)
 {
     if (!unquotedArgs.length) {
         throw new DesktopExecException("No arguments. Missing or empty Exec value");
-    }
-    
-    version(Windows) {
-        if (unquotedArgs.length && unquotedArgs[0].baseName == unquotedArgs[0]) {
-            unquotedArgs = findExecutable(unquotedArgs[0]) ~ unquotedArgs[1..$];
-        }
     }
     
     if (params.terminalCommand) {
@@ -153,11 +144,9 @@ private @trusted Pid execProcess(in string[] args, string workingDirectory = nul
     }
     
     if (params.urls.length && params.allowMultipleInstances && needMultipleInstances(unquotedArgs)) {
-        Pid pid;
         for(size_t i=0; i<params.urls.length; ++i) {
-            pid = execProcess(expandExecArgs(unquotedArgs, params.urls[i..i+1], params.iconName, params.displayName, params.fileName), params.workingDirectory);
+            execProcess(expandExecArgs(unquotedArgs, params.urls[i..i+1], params.iconName, params.displayName, params.fileName), params.workingDirectory);
         }
-        return pid;
     } else {
         return execProcess(expandExecArgs(unquotedArgs, params.urls, params.iconName, params.displayName, params.fileName), params.workingDirectory);
     }
@@ -334,9 +323,10 @@ private @trusted string urlToFilePath(string url) nothrow pure
 }
 
 /**
- * Expand Exec arguments (usually returned by $(D unquoteExec)) replacing field codes with given values, making the array suitable for passing to spawnProcess. Deprecated field codes are ignored.
+ * Expand Exec arguments (usually returned by $(D unquoteExec)) replacing field codes with given values, making the array suitable for passing to spawnProcess or spawnProcessDetached. 
+ * Deprecated field codes are ignored.
  * Note:
- *  Returned array may be empty and should be checked before passing to spawnProcess.
+ *  Returned array may be empty and must be checked before passing to spawning the process.
  * Params:
  *  unquotedArgs = Array of unescaped and unquoted arguments.
  *  urls = Array of urls or file names that inserted in the place of %f, %F, %u or %U field codes. 
@@ -800,7 +790,7 @@ unittest
 
 package void xdgOpen(string url)
 {
-    spawnProcess(["xdg-open", url], getNullStdin(), getNullStdout(), getNullStderr());
+    execProcess(["xdg-open", url]);
 }
 
 /**

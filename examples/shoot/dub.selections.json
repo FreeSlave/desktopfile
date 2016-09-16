@@ -1,9 +1,10 @@
 {
 	"fileVersion": 1,
 	"versions": {
+		"detached": "0.1.1",
+		"findexecutable" : "0.1.0",
+		"inilike": "1.0.0",
 		"isfreedesktop": "0.1.0",
-		"findexecutable": "0.1.0",
-		"inilike": "1.0.0-beta3",
 		"xdgpaths": "0.2.2"
 	}
 }

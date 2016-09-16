@@ -5,9 +5,9 @@
     "copyright": "Copyright © 2015-2016, Roman Chistokhodov",
     "authors": ["Roman Chistokhodov"],
     "dependencies": {
-        "inilike": "~>1.0.0-beta3",
+        "inilike": "~>1.0.0",
         "xdgpaths" : "~>0.2.2",
-        "findexecutable" : "~>0.1.0"
+        "detached" : "~>0.1.1"
     },
     "targetName" : "desktopfile",
     "targetPath" : "lib", 
