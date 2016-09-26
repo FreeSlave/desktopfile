@@ -1,7 +1,7 @@
 /**
  * Class representation of desktop file.
  * Authors: 
- *  $(LINK2 https://github.com/MyLittleRobo, Roman Chistokhodov)
+ *  $(LINK2 https://github.com/FreeSlave, Roman Chistokhodov)
  * Copyright:
  *  Roman Chistokhodov, 2015-2016
  * License: 
@@ -330,7 +330,7 @@ final class DesktopEntry : IniLikeGroup
      * Returns: The value associated with "Icon" key.
      * Note: This function returns Icon as it's defined in .desktop file. 
      *  It does not provide any lookup of actual icon file on the system if the name if not an absolute path.
-     *  To find the path to icon file refer to $(LINK2 http://standards.freedesktop.org/icon-theme-spec/icon-theme-spec-latest.html, Icon Theme Specification) or consider using $(LINK2 https://github.com/MyLittleRobo/icontheme, icontheme library).
+     *  To find the path to icon file refer to $(LINK2 http://standards.freedesktop.org/icon-theme-spec/icon-theme-spec-latest.html, Icon Theme Specification) or consider using $(LINK2 https://github.com/FreeSlave/icontheme, icontheme library).
      */
     @safe string iconName() const nothrow pure {
         return readEntry("Icon");

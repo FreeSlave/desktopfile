@@ -2,7 +2,7 @@
 
 D library for working with *.desktop* files. Desktop entries in Freedesktop world are akin to shortcuts from Windows world (.lnk files).
 
-[![Build Status](https://travis-ci.org/MyLittleRobo/desktopfile.svg?branch=master)](https://travis-ci.org/MyLittleRobo/desktopfile) [![Coverage Status](https://coveralls.io/repos/MyLittleRobo/desktopfile/badge.svg?branch=master&service=github)](https://coveralls.io/github/MyLittleRobo/desktopfile?branch=master)
+[![Build Status](https://travis-ci.org/FreeSlave/desktopfile.svg?branch=master)](https://travis-ci.org/FreeSlave/desktopfile) [![Coverage Status](https://coveralls.io/repos/FreeSlave/desktopfile/badge.svg?branch=master&service=github)](https://coveralls.io/github/FreeSlave/desktopfile?branch=master)
 
 [Online documentation](https://mylittlerobo.github.io/d-freedesktop/docs/desktopfile.html)
 
