@@ -4,7 +4,7 @@ D library for working with *.desktop* files. Desktop entries in Freedesktop worl
 
 [![Build Status](https://travis-ci.org/FreeSlave/desktopfile.svg?branch=master)](https://travis-ci.org/FreeSlave/desktopfile) [![Coverage Status](https://coveralls.io/repos/FreeSlave/desktopfile/badge.svg?branch=master&service=github)](https://coveralls.io/github/FreeSlave/desktopfile?branch=master)
 
-[Online documentation](https://mylittlerobo.github.io/d-freedesktop/docs/desktopfile.html)
+[Online documentation](https://freeslave.github.io/d-freedesktop/docs/desktopfile.html)
 
 Most desktop environments on GNU/Linux and BSD flavors follow [Desktop Entry Specification](https://www.freedesktop.org/wiki/Specifications/desktop-entry-spec/) today.
 The goal of **desktopfile** library is to provide implementation of this specification in D programming language.
