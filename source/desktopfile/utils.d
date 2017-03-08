@@ -96,7 +96,7 @@ class DesktopExecException : Exception
  */
 struct SpawnParams
 {
-    /// Urls to open
+    /// Urls of file paths to open
     const(string)[] urls;
     
     /// Icon to use in place of %i field code.
@@ -129,8 +129,8 @@ private @trusted void execProcess(in string[] args, string workingDirectory = nu
  *  unquotedArgs = Unescaped unquoted arguments parsed from "Exec" value.
  *  params = Field codes values and other properties to spawn application.
  * Throws:
- *  ProcessException if could not start process.
- *  DesktopExecException if unquotedArgs is empty.
+ *  $(B ProcessException) if could not start process.
+ *  $(D DesktopExecException) if unquotedArgs is empty.
  * See_Also: $(D SpawnParams)
  */
 @trusted void spawnApplication(const(string)[] unquotedArgs, const SpawnParams params)
@@ -154,6 +154,10 @@ private @trusted void execProcess(in string[] args, string workingDirectory = nu
 
 private @safe bool needQuoting(string arg) nothrow pure
 {
+    if (arg.length == 0) {
+        return true;
+    }
+    
     for (size_t i=0; i<arg.length; ++i)
     {
         switch(arg[i]) {
@@ -171,6 +175,7 @@ private @safe bool needQuoting(string arg) nothrow pure
 
 unittest
 {
+    assert(needQuoting(""));
     assert(needQuoting("hello\tworld"));
     assert(needQuoting("hello world"));
     assert(needQuoting("world?"));
@@ -194,33 +199,20 @@ private @trusted string escapeQuotedArgument(string value) pure {
     return value.replace("`", "\\`").replace("\\", `\\`).replace("$", `\$`).replace("\"", `\"`);
 }
 
-private @trusted string quoteIfNeeded(string value, char quote = '"') pure {
-    if (value.needQuoting) {
-        return quote ~ value.escapeQuotedArgument() ~ quote;
-    }
-    return value;
-}
-
-unittest
-{
-    assert(quoteIfNeeded("hello $world") == `"hello \$world"`);
-    assert(quoteIfNeeded("hello \"world\"") == `"hello \"world\""`);
-    assert(quoteIfNeeded("hello world") == `"hello world"`);
-    assert(quoteIfNeeded("hello") == "hello");
-}
-
 /**
  * Apply unquoting to Exec value making it into an array of escaped arguments. It automatically performs quote-related unescaping.
  * Params:
- *  value = value of Exec key. Must be unescaped by unescapeValue before passing.
+ *  value = value of Exec key. Must be unescaped by $(D unescapeValue) before passing (general escape rule is not the same as quote escape rule).
  * Throws:
  *  $(D DesktopExecException) if string can't be unquoted (e.g. no pair quote).
  * Note:
  *  Although Desktop Entry Specification says that arguments must be quoted by double quote, for compatibility reasons this implementation also recognizes single quotes.
- * See_Also: $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s06.html, specification)
+ * See_Also: 
+ *  $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s06.html, specification)
  */
-@trusted auto unquoteExec(string value) pure
+@trusted auto unquoteExec(string unescapedValue) pure
 {   
+    auto value = unescapedValue;
     string[] result;
     size_t i;
     
@@ -228,21 +220,17 @@ unittest
     {
         size_t start = ++i;
         bool inQuotes = true;
-        bool wasSlash;
         
-        while(i < value.length) {
+        while(i < value.length && inQuotes) {
             if (value[i] == '\\' && value.length > i+1 && value[i+1] == '\\') {
                 i+=2;
-                wasSlash = true;
                 continue;
             }
             
-            if (value[i] == delimeter && (value[i-1] != '\\' || (value[i-1] == '\\' && wasSlash) )) {
-                inQuotes = false;
-                break;
+            inQuotes = !(value[i] == delimeter && (value[i-1] != '\\' || (i>=2 && value[i-1] == '\\' && value[i-2] == '\\') ));
+            if (inQuotes) {
+                i++;
             }
-            wasSlash = false;
-            i++;
         }
         if (inQuotes) {
             throw new DesktopExecException("Missing pair quote");
@@ -285,6 +273,7 @@ unittest
 {
     assert(equal(unquoteExec(``), string[].init));
     assert(equal(unquoteExec(`   `), string[].init));
+    assert(equal(unquoteExec(`""`), [``]));
     assert(equal(unquoteExec(`"" "  "`), [``, `  `]));
     
     assert(equal(unquoteExec(`cmd arg1  arg2   arg3   `), [`cmd`, `arg1`, `arg2`, `arg3`]));
@@ -304,12 +293,14 @@ unittest
     assert(equal(unquoteExec(`'quoted cmd' arg`), [`quoted cmd`, `arg`]));
     
     assert(equal(unquoteExec(`test\ "one""two"\ more\ \ test `), [`test onetwo more  test`]));
+    assert(equal(unquoteExec(`"one"two"three"`), [`onetwothree`]));
     
     assert(equal(unquoteExec(`env WINEPREFIX="/home/freeslave/.wine" wine C:\\windows\\command\\start.exe /Unix /home/freeslave/.wine/dosdevices/c:/windows/profiles/freeslave/Start\ Menu/Programs/True\ Remembrance/True\ Remembrance.lnk`), [
         "env", "WINEPREFIX=/home/freeslave/.wine", "wine", `C:\\windows\\command\\start.exe`, "/Unix", "/home/freeslave/.wine/dosdevices/c:/windows/profiles/freeslave/Start Menu/Programs/True Remembrance/True Remembrance.lnk"
     ]));
     
     assertThrown!DesktopExecException(unquoteExec(`cmd "quoted arg`));
+    assertThrown!DesktopExecException(unquoteExec(`"`));
 }
 
 private @trusted string urlToFilePath(string url) nothrow pure
@@ -461,19 +452,19 @@ enum ParamSupport
     none = 0,
     
     /**
-     * Application can open single file at time.
+     * Application can open single file at once.
      */
     file = 1,
     /**
-     * Application can open multiple files at time.
+     * Application can open multiple files at once.
      */
     files = 2,
     /**
-     * Application understands URL syntax and can open single link at time.
+     * Application understands URL syntax and can open single link at once.
      */
     url = 4,
     /**
-     * Application supports URL syntax and can open multiple links at time.
+     * Application supports URL syntax and can open multiple links at once.
      */
     urls = 8
 }
@@ -557,8 +548,17 @@ private @trusted string doublePercentSymbol(string value)
     return value.replace("%", "%%");
 }
 
+private struct ExecToken
+{
+    string token;
+    bool needQuotes;
+}
+
 /**
  * Helper struct to build Exec string for desktop file.
+ * Note: 
+ *  While Desktop Entry Specification says that field codes must not be inside quoted argument, 
+ *  ExecBuilder does not consider it as error and may create quoted argument if field code is prepended by the string that needs quotation.
  */
 struct ExecBuilder
 {
@@ -571,7 +571,7 @@ struct ExecBuilder
      */
     @safe this(string executable) {
         enforce(executable.isAbsolute || executable.baseName == executable, "Program part of Exec must be absolute path or base name");
-        escapedArgs ~= executable.escapeValue().quoteIfNeeded();
+        execTokens ~= ExecToken(executable, executable.needQuoting());
     }
     
     /**
@@ -580,8 +580,8 @@ struct ExecBuilder
      *  arg = Literal argument. Value will be escaped and quoted as needed.
      * Returns: this object for chained calls.
      */
-    @safe ref ExecBuilder argument(string arg) {
-        escapedArgs ~= arg.escapeValue().quoteIfNeeded().doublePercentSymbol();
+    @safe ref ExecBuilder argument(string arg, Flag!"forceQuoting" forceQuoting = No.forceQuoting) {
+        execTokens ~= ExecToken(arg.doublePercentSymbol(), arg.needQuoting() || forceQuoting);
         return this;
     }
     
@@ -590,7 +590,7 @@ struct ExecBuilder
      * Returns: this object for chained calls.
      */
     @safe ref ExecBuilder icon() {
-        escapedArgs ~= "%i";
+        execTokens ~= ExecToken("%i", false);
         return this;
     }
     
@@ -599,8 +599,8 @@ struct ExecBuilder
      * Add "%f" field code.
      * Returns: this object for chained calls.
      */
-    @safe ref ExecBuilder file(string preprend = null) {
-        return fieldCode(preprend, "%f");
+    @safe ref ExecBuilder file(string prepend = null) {
+        return fieldCode(prepend, "%f");
     }
     
     /**
@@ -608,7 +608,7 @@ struct ExecBuilder
      * Returns: this object for chained calls.
      */
     @safe ref ExecBuilder files() {
-        escapedArgs ~= "%F";
+        execTokens ~= ExecToken("%F");
         return this;
     }
     
@@ -616,8 +616,8 @@ struct ExecBuilder
      * Add "%u" field code.
      * Returns: this object for chained calls.
      */
-    @safe ref ExecBuilder url(string preprend = null) {
-        return fieldCode(preprend, "%u");
+    @safe ref ExecBuilder url(string prepend = null) {
+        return fieldCode(prepend, "%u");
     }
     
     /**
@@ -625,7 +625,7 @@ struct ExecBuilder
      * Returns: this object for chained calls.
      */
     @safe ref ExecBuilder urls() {
-        escapedArgs ~= "%U";
+        execTokens ~= ExecToken("%U");
         return this;
     }
     
@@ -633,37 +633,34 @@ struct ExecBuilder
      * Add "%c" field code (name of application).
      * Returns: this object for chained calls.
      */
-    @safe ref ExecBuilder displayName(string preprend = null) {
-        return fieldCode(preprend, "%c");
+    @safe ref ExecBuilder displayName(string prepend = null) {
+        return fieldCode(prepend, "%c");
     }
     
     /**
      * Add "%k" field code (location of desktop file).
      * Returns: this object for chained calls.
      */
-    @safe ref ExecBuilder location(string preprend = null) {
-        return fieldCode(preprend, "%k");
+    @safe ref ExecBuilder location(string prepend = null) {
+        return fieldCode(prepend, "%k");
     }
     
     /**
-     * Get resulting string that can be set to Exec field of Desktop Entry.
+     * Get resulting string that can be set to Exec field of Desktop Entry. The returned string is escaped.
      */
     @trusted string result() const {
-        static if( __VERSION__ < 2066 ) {
-            return escapedArgs.map!(s => s).join(" ");
-        } else {
-            return escapedArgs.join(" ");
-        }
+        return execTokens.map!(t => (t.needQuotes ? ('"' ~ t.token.escapeQuotedArgument() ~ '"') : t.token)).join(" ").escapeValue();
     }
     
 private:
     @safe ref ExecBuilder fieldCode(string prepend, string code)
     {
-        escapedArgs ~= prepend.doublePercentSymbol() ~ code;
+        string token = prepend.doublePercentSymbol() ~ code;
+        execTokens ~= ExecToken(token, token.needQuoting());
         return this;
     }
     
-    string[] escapedArgs;
+    ExecToken[] execTokens;
 }
 
 ///
@@ -675,7 +672,9 @@ unittest
             .argument("slash\\")
             .argument("100%")
             .location("--location=")
-            .urls().url().file("--file=").files().result() == `"quoted program" %i -w %c "\$value" "slash\\\\" 100%% --location=%k %U %u --file=%f %F`);
+            .urls().url().file("--file=").files().result() == `"quoted program" %i -w %c "\\$value" "slash\\\\" 100%% --location=%k %U %u --file=%f %F`);
+    
+    assert(ExecBuilder("program").argument("").url("my url ").result() == `program "" "my url %u"`);
     
     assertThrown(ExecBuilder("./relative/path"));
 }
