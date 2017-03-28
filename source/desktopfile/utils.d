@@ -202,7 +202,7 @@ private @trusted string escapeQuotedArgument(string value) pure {
 /**
  * Apply unquoting to Exec value making it into an array of escaped arguments. It automatically performs quote-related unescaping.
  * Params:
- *  value = value of Exec key. Must be unescaped by $(D unescapeValue) before passing (general escape rule is not the same as quote escape rule).
+ *  unescapedValue = value of Exec key. Must be unescaped by $(D unescapeValue) before passing (general escape rule is not the same as quote escape rule).
  * Throws:
  *  $(D DesktopExecException) if string can't be unquoted (e.g. no pair quote).
  * Note:
@@ -578,6 +578,7 @@ struct ExecBuilder
      * Add literal argument which is not field code.
      * Params:
      *  arg = Literal argument. Value will be escaped and quoted as needed.
+     *  forceQuoting = Whether to force argument quotation.
      * Returns: this object for chained calls.
      */
     @safe ref ExecBuilder argument(string arg, Flag!"forceQuoting" forceQuoting = No.forceQuoting) {
