@@ -21,20 +21,20 @@ void main(string[] args)
 {
     string action;
     string[] appPaths;
-    getopt(args, 
+    getopt(args,
            "action", "Action to run", &action,
            "appPath", "Path of applications directory", &appPaths
           );
-    
+
     if (args.length < 3) {
         writefln("Usage: %s <read|exec|open|start|write> <desktop-file> <optional arguments>", args[0]);
         return;
     }
-    
+
     string command = args[1];
     string inFile = args[2];
     string locale = currentLocale();
-    
+
     if (appPaths.length == 0) {
         static if (isFreedesktop) {
             import desktopfile.paths;
@@ -48,11 +48,11 @@ void main(string[] args)
                     appPaths = [kdeAppDir];
                 }
             } catch(Exception e) {
-                
+
             }
         }
     }
-    
+
     if (inFile == inFile.baseName && inFile.extension == ".desktop") {
         string desktopId = inFile;
         inFile = findDesktopFile(desktopId, appPaths);
@@ -61,10 +61,10 @@ void main(string[] args)
             return;
         }
     }
-    
+
     if (command == "read") {
         auto df = new DesktopFile(inFile);
-        
+
         writefln("Name: %s. Localized: %s", df.displayName(), df.localizedDisplayName(locale));
         writefln("GenericName: %s. Localized: %s", df.genericName(), df.localizedGenericName(locale));
         writefln("Comment: %s. Localized: %s", df.comment(), df.localizedComment(locale));
@@ -76,7 +76,7 @@ void main(string[] args)
         writefln("Actions: %(%s %)", df.actions());
         writefln("Categories: %(%s %)", df.categories());
         writefln("MimeTypes: %(%s %)", df.mimeTypes());
-        
+
         if (df.type() == DesktopFile.Type.Application) {
             writeln("Exec: ", df.execValue());
             writeln("In terminal: ", df.terminal());

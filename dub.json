@@ -5,13 +5,13 @@
     "copyright": "Copyright © 2015-2016, Roman Chistokhodov",
     "authors": ["Roman Chistokhodov"],
     "dependencies": {
-        "inilike": "~>1.0.0",
-        "xdgpaths" : "~>0.2.2",
-        "detached" : "~>0.1.1"
+        "inilike": "~>1.0.3",
+        "xdgpaths" : "~>0.2.4",
+        "detached" : "~>0.1.7"
     },
     "targetName" : "desktopfile",
-    "targetPath" : "lib", 
+    "targetPath" : "lib",
     "targetType" : "library",
-    
+    "versions" : ["desktopfileFileTest"],
     "subPackages" : ["./examples/test", "./examples/util", "./examples/shoot"]
 }

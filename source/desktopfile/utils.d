@@ -1,12 +1,12 @@
 /**
  * Utility functions for reading and executing desktop files.
- * Authors: 
+ * Authors:
  *  $(LINK2 https://github.com/FreeSlave, Roman Chistokhodov)
  * Copyright:
  *  Roman Chistokhodov, 2015-2016
- * License: 
+ * License:
  *  $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
- * See_Also: 
+ * See_Also:
  *  $(LINK2 https://www.freedesktop.org/wiki/Specifications/desktop-entry-spec/, Desktop Entry Specification)
  */
 
@@ -28,9 +28,9 @@ package {
     import std.string;
     import std.traits;
     import std.typecons;
-    
+
     static if( __VERSION__ < 2066 ) enum nogc = 1;
-    
+
     import findexecutable;
     import detached;
     import isfreedesktop;
@@ -43,7 +43,7 @@ package @trusted File getNullStdin()
         try {
             toReturn = File("/dev/null", "rb");
         } catch(Exception e) {
-            
+
         }
         return toReturn;
     } else {
@@ -58,7 +58,7 @@ package @trusted File getNullStdout()
         try {
             toReturn = File("/dev/null", "wb");
         } catch(Exception e) {
-            
+
         }
         return toReturn;
     } else {
@@ -73,7 +73,7 @@ package @trusted File getNullStderr()
         try {
             toReturn = File("/dev/null", "wb");
         } catch(Exception e) {
-            
+
         }
         return toReturn;
     } else {
@@ -98,22 +98,22 @@ struct SpawnParams
 {
     /// Urls of file paths to open
     const(string)[] urls;
-    
+
     /// Icon to use in place of %i field code.
     string iconName;
-    
+
     /// Name to use in place of %c field code.
     string displayName;
-    
+
     /// File name to use in place of %k field code.
     string fileName;
-    
+
     /// Working directory of starting process.
     string workingDirectory;
-    
+
     /// Terminal command to prepend to exec arguments.
     const(string)[] terminalCommand;
-    
+
     /// Allow starting multiple instances of application if needed.
     bool allowMultipleInstances = true;
 }
@@ -138,11 +138,11 @@ private @trusted void execProcess(in string[] args, string workingDirectory = nu
     if (!unquotedArgs.length) {
         throw new DesktopExecException("No arguments. Missing or empty Exec value");
     }
-    
+
     if (params.terminalCommand) {
         unquotedArgs = params.terminalCommand ~ unquotedArgs;
     }
-    
+
     if (params.urls.length && params.allowMultipleInstances && needMultipleInstances(unquotedArgs)) {
         for(size_t i=0; i<params.urls.length; ++i) {
             execProcess(expandExecArgs(unquotedArgs, params.urls[i..i+1], params.iconName, params.displayName, params.fileName), params.workingDirectory);
@@ -157,13 +157,13 @@ private @safe bool needQuoting(string arg) nothrow pure
     if (arg.length == 0) {
         return true;
     }
-    
+
     for (size_t i=0; i<arg.length; ++i)
     {
         switch(arg[i]) {
-            case ' ':   case '\t':  case '\n':  case '\r':  case '"': 
+            case ' ':   case '\t':  case '\n':  case '\r':  case '"':
             case '\\':  case '\'':  case '>':   case '<':   case '~':
-            case '|':   case '&':   case ';':   case '$':   case '*': 
+            case '|':   case '&':   case ';':   case '$':   case '*':
             case '?':   case '#':   case '(':   case ')':   case '`':
                 return true;
             default:
@@ -207,26 +207,26 @@ private @trusted string escapeQuotedArgument(string value) pure {
  *  $(D DesktopExecException) if string can't be unquoted (e.g. no pair quote).
  * Note:
  *  Although Desktop Entry Specification says that arguments must be quoted by double quote, for compatibility reasons this implementation also recognizes single quotes.
- * See_Also: 
+ * See_Also:
  *  $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s06.html, specification)
  */
 @trusted auto unquoteExec(string unescapedValue) pure
-{   
+{
     auto value = unescapedValue;
     string[] result;
     size_t i;
-    
+
     static string parseQuotedPart(ref size_t i, char delimeter, string value)
     {
         size_t start = ++i;
         bool inQuotes = true;
-        
+
         while(i < value.length && inQuotes) {
             if (value[i] == '\\' && value.length > i+1 && value[i+1] == '\\') {
                 i+=2;
                 continue;
             }
-            
+
             inQuotes = !(value[i] == delimeter && (value[i-1] != '\\' || (i>=2 && value[i-1] == '\\' && value[i-2] == '\\') ));
             if (inQuotes) {
                 i++;
@@ -237,7 +237,7 @@ private @trusted string escapeQuotedArgument(string value) pure {
         }
         return value[start..i].unescapeQuotedArgument();
     }
-    
+
     char[] append;
     bool wasInQuotes;
     while(i < value.length) {
@@ -260,45 +260,45 @@ private @trusted string escapeQuotedArgument(string value) pure {
         }
         i++;
     }
-    
+
     if (append !is null) {
         result ~= append.assumeUnique;
     }
-    
+
     return result;
 }
 
 ///
-unittest 
+unittest
 {
     assert(equal(unquoteExec(``), string[].init));
     assert(equal(unquoteExec(`   `), string[].init));
     assert(equal(unquoteExec(`""`), [``]));
     assert(equal(unquoteExec(`"" "  "`), [``, `  `]));
-    
+
     assert(equal(unquoteExec(`cmd arg1  arg2   arg3   `), [`cmd`, `arg1`, `arg2`, `arg3`]));
     assert(equal(unquoteExec(`"cmd" arg1 arg2  `), [`cmd`, `arg1`, `arg2`]));
-    
+
     assert(equal(unquoteExec(`"quoted cmd"   arg1  "quoted arg"  `), [`quoted cmd`, `arg1`, `quoted arg`]));
     assert(equal(unquoteExec(`"quoted \"cmd\"" arg1 "quoted \"arg\""`), [`quoted "cmd"`, `arg1`, `quoted "arg"`]));
-    
+
     assert(equal(unquoteExec(`"\\\$" `), [`\$`]));
     assert(equal(unquoteExec(`"\\$" `), [`\$`]));
     assert(equal(unquoteExec(`"\$" `), [`$`]));
     assert(equal(unquoteExec(`"$"`), [`$`]));
-    
+
     assert(equal(unquoteExec(`"\\" `), [`\`]));
     assert(equal(unquoteExec(`"\\\\" `), [`\\`]));
-    
+
     assert(equal(unquoteExec(`'quoted cmd' arg`), [`quoted cmd`, `arg`]));
-    
+
     assert(equal(unquoteExec(`test\ "one""two"\ more\ \ test `), [`test onetwo more  test`]));
     assert(equal(unquoteExec(`"one"two"three"`), [`onetwothree`]));
-    
+
     assert(equal(unquoteExec(`env WINEPREFIX="/home/freeslave/.wine" wine C:\\windows\\command\\start.exe /Unix /home/freeslave/.wine/dosdevices/c:/windows/profiles/freeslave/Start\ Menu/Programs/True\ Remembrance/True\ Remembrance.lnk`), [
         "env", "WINEPREFIX=/home/freeslave/.wine", "wine", `C:\\windows\\command\\start.exe`, "/Unix", "/home/freeslave/.wine/dosdevices/c:/windows/profiles/freeslave/Start Menu/Programs/True Remembrance/True Remembrance.lnk"
     ]));
-    
+
     assertThrown!DesktopExecException(unquoteExec(`cmd "quoted arg`));
     assertThrown!DesktopExecException(unquoteExec(`"`));
 }
@@ -314,13 +314,13 @@ private @trusted string urlToFilePath(string url) nothrow pure
 }
 
 /**
- * Expand Exec arguments (usually returned by $(D unquoteExec)) replacing field codes with given values, making the array suitable for passing to spawnProcess or spawnProcessDetached. 
+ * Expand Exec arguments (usually returned by $(D unquoteExec)) replacing field codes with given values, making the array suitable for passing to spawnProcess or spawnProcessDetached.
  * Deprecated field codes are ignored.
  * Note:
  *  Returned array may be empty and must be checked before passing to spawning the process.
  * Params:
  *  unquotedArgs = Array of unescaped and unquoted arguments.
- *  urls = Array of urls or file names that inserted in the place of %f, %F, %u or %U field codes. 
+ *  urls = Array of urls or file names that inserted in the place of %f, %F, %u or %U field codes.
  *      For %f and %u only the first element of array is used.
  *      For %f and %F every url started with 'file://' will be replaced with normal path.
  *  iconName = Icon name used to substitute %i field code by --icon iconName.
@@ -354,7 +354,7 @@ private @trusted string urlToFilePath(string url) nothrow pure
                 restPos = i+2;
                 i++;
             }
-            
+
             string expanded;
             size_t restPos = 0;
             bool ignore;
@@ -402,13 +402,13 @@ private @trusted string urlToFilePath(string url) nothrow pure
                     }
                 }
             }
-            
+
             if (!ignore) {
                 toReturn ~= expanded ~ token[restPos..$];
             }
         }
     }
-    
+
     return toReturn;
 }
 
@@ -416,11 +416,11 @@ private @trusted string urlToFilePath(string url) nothrow pure
 unittest
 {
     assert(expandExecArgs(
-        ["program path", "%%f", "%%i", "%D", "--deprecated=%d", "%n", "%N", "%m", "%v", "--file=%f", "%i", "%F", "--myname=%c", "--mylocation=%k", "100%%"], 
-        ["one"], 
+        ["program path", "%%f", "%%i", "%D", "--deprecated=%d", "%n", "%N", "%m", "%v", "--file=%f", "%i", "%F", "--myname=%c", "--mylocation=%k", "100%%"],
+        ["one"],
         "folder", "program", "location"
     ) == ["program path", "%f", "%i", "--file=one", "--icon", "folder", "one", "--myname=program", "--mylocation=location", "100%"]);
-    
+
     assert(expandExecArgs(["program path", "many%%%%"]) == ["program path", "many%%"]);
     assert(expandExecArgs(["program path", "%f"]) == ["program path"]);
     assert(expandExecArgs(["program path", "%f%%%f"], ["file"]) == ["program path", "file%file"]);
@@ -431,7 +431,7 @@ unittest
     assert(expandExecArgs(["program path", "%F"], ["one", "two"]) == ["program path", "one", "two"]);
     assert(expandExecArgs(["program path", "%F"], ["file://one", "file://two"]) == ["program path", "one", "two"]);
     assert(expandExecArgs(["program path", "%U"], ["file://one", "file://two"]) == ["program path", "file://one", "file://two"]);
-    
+
     assert(expandExecArgs(["program path", "--location=%k", "--myname=%c"]) == ["program path", "--location=", "--myname="]);
     assert(expandExecArgs(["program path", "%k", "%c"]) == ["program path", "", ""]);
     assertThrown!DesktopExecException(expandExecArgs(["program name", "%y"]));
@@ -440,7 +440,7 @@ unittest
 }
 
 /**
- * Flag set of parameter kinds supported by application. 
+ * Flag set of parameter kinds supported by application.
  * Having more than one flag means that Exec command is ambiguous.
  * See_Also: $(D paramSupport)
  */
@@ -450,7 +450,7 @@ enum ParamSupport
      * Application does not support parameters.
      */
     none = 0,
-    
+
     /**
      * Application can open single file at once.
      */
@@ -556,8 +556,8 @@ private struct ExecToken
 
 /**
  * Helper struct to build Exec string for desktop file.
- * Note: 
- *  While Desktop Entry Specification says that field codes must not be inside quoted argument, 
+ * Note:
+ *  While Desktop Entry Specification says that field codes must not be inside quoted argument,
  *  ExecBuilder does not consider it as error and may create quoted argument if field code is prepended by the string that needs quotation.
  */
 struct ExecBuilder
@@ -573,7 +573,7 @@ struct ExecBuilder
         enforce(executable.isAbsolute || executable.baseName == executable, "Program part of Exec must be absolute path or base name");
         execTokens ~= ExecToken(executable, executable.needQuoting());
     }
-    
+
     /**
      * Add literal argument which is not field code.
      * Params:
@@ -585,7 +585,7 @@ struct ExecBuilder
         execTokens ~= ExecToken(arg.doublePercentSymbol(), arg.needQuoting() || forceQuoting);
         return this;
     }
-    
+
     /**
      * Add "%i" field code.
      * Returns: this object for chained calls.
@@ -594,8 +594,8 @@ struct ExecBuilder
         execTokens ~= ExecToken("%i", false);
         return this;
     }
-    
-    
+
+
     /**
      * Add "%f" field code.
      * Returns: this object for chained calls.
@@ -603,7 +603,7 @@ struct ExecBuilder
     @safe ref ExecBuilder file(string prepend = null) {
         return fieldCode(prepend, "%f");
     }
-    
+
     /**
      * Add "%F" field code.
      * Returns: this object for chained calls.
@@ -612,7 +612,7 @@ struct ExecBuilder
         execTokens ~= ExecToken("%F");
         return this;
     }
-    
+
     /**
      * Add "%u" field code.
      * Returns: this object for chained calls.
@@ -620,7 +620,7 @@ struct ExecBuilder
     @safe ref ExecBuilder url(string prepend = null) {
         return fieldCode(prepend, "%u");
     }
-    
+
     /**
      * Add "%U" field code.
      * Returns: this object for chained calls.
@@ -629,7 +629,7 @@ struct ExecBuilder
         execTokens ~= ExecToken("%U");
         return this;
     }
-    
+
     /**
      * Add "%c" field code (name of application).
      * Returns: this object for chained calls.
@@ -637,7 +637,7 @@ struct ExecBuilder
     @safe ref ExecBuilder displayName(string prepend = null) {
         return fieldCode(prepend, "%c");
     }
-    
+
     /**
      * Add "%k" field code (location of desktop file).
      * Returns: this object for chained calls.
@@ -645,14 +645,14 @@ struct ExecBuilder
     @safe ref ExecBuilder location(string prepend = null) {
         return fieldCode(prepend, "%k");
     }
-    
+
     /**
      * Get resulting string that can be set to Exec field of Desktop Entry. The returned string is escaped.
      */
     @trusted string result() const {
         return execTokens.map!(t => (t.needQuotes ? ('"' ~ t.token.escapeQuotedArgument() ~ '"') : t.token)).join(" ").escapeValue();
     }
-    
+
 private:
     @safe ref ExecBuilder fieldCode(string prepend, string code)
     {
@@ -660,7 +660,7 @@ private:
         execTokens ~= ExecToken(token, token.needQuoting());
         return this;
     }
-    
+
     ExecToken[] execTokens;
 }
 
@@ -674,22 +674,22 @@ unittest
             .argument("100%")
             .location("--location=")
             .urls().url().file("--file=").files().result() == `"quoted program" %i -w %c "\\$value" "slash\\\\" 100%% --location=%k %U %u --file=%f %F`);
-    
+
     assert(ExecBuilder("program").argument("").url("my url ").result() == `program "" "my url %u"`);
-    
+
     assertThrown(ExecBuilder("./relative/path"));
 }
 
 /**
  * Detect command which will run program in terminal emulator.
- * 
+ *
  * On Freedesktop it looks for x-terminal-emulator first. If found ["/path/to/x-terminal-emulator", "-e"] is returned.
  * Otherwise it looks for xdg-terminal. If found ["/path/to/xdg-terminal"] is returned.
  * Otherwise it tries to detect your desktop environment and find default terminal emulator for it.
  * If all guesses failed, it uses ["xterm", "-e"] as fallback.
  * Note: This function always returns empty array on non-freedesktop systems.
  */
-string[] getTerminalCommand() nothrow @trusted 
+string[] getTerminalCommand() nothrow @trusted
 {
     static if (isFreedesktop) {
         static string getDefaultTerminal() nothrow
@@ -712,10 +712,10 @@ string[] getTerminalCommand() nothrow @trusted
                     return null;
             }
         }
-        
+
         string[] paths;
         collectException(binPaths().array, paths);
-        
+
         string term = findExecutable("x-terminal-emulator", paths);
         if (!term.empty) {
             return [term, "-e"];
@@ -742,46 +742,44 @@ unittest
     import isfreedesktop;
     static if (isFreedesktop) {
         import desktopfile.paths;
-        
-        auto pathGuard = EnvGuard("PATH");
-        
+
         try {
             static void changeMod(string fileName, uint mode)
             {
                 import core.sys.posix.sys.stat;
                 enforce(chmod(fileName.toStringz, cast(mode_t)mode) == 0);
             }
-            
+
             string tempPath = buildPath(tempDir(), "desktopfile-unittest-tempdir");
-            
+
             if (!tempPath.exists) {
                 mkdir(tempPath);
             }
             scope(exit) rmdir(tempPath);
-            
-            environment["PATH"] = tempPath;
-            
+
+            auto pathGuard = EnvGuard("PATH", tempPath);
+
             string tempXTerminalEmulatorFile = buildPath(tempPath, "x-terminal-emulator");
             string tempXdgTerminalFile = buildPath(tempPath, "xdg-terminal");
-            
+
             File(tempXdgTerminalFile, "w");
             scope(exit) remove(tempXdgTerminalFile);
             changeMod(tempXdgTerminalFile, octal!755);
             enforce(getTerminalCommand() == [buildPath(tempPath, "xdg-terminal")]);
-            
+
             changeMod(tempXdgTerminalFile, octal!644);
             enforce(getTerminalCommand() == ["xterm", "-e"]);
-            
+
             File(tempXTerminalEmulatorFile, "w");
             scope(exit) remove(tempXTerminalEmulatorFile);
             changeMod(tempXTerminalEmulatorFile, octal!755);
             enforce(getTerminalCommand() == [buildPath(tempPath, "x-terminal-emulator"), "-e"]);
-            
+
             environment["PATH"] = ":";
             enforce(getTerminalCommand() == ["xterm", "-e"]);
-            
+
         } catch(Exception e) {
-            
+
         }
     } else {
         assert(getTerminalCommand().empty);
@@ -809,32 +807,32 @@ struct ShootOptions
         FollowLink = 4, /// If desktop file is link and url points to another desktop file shootDesktopFile will be called on this url with the same options.
         All = Exec|Link|FollowLink /// All flags described above.
     }
-    
+
     /**
      * Flags
      * By default is set to use all flags.
      */
     auto flags = All;
-    
+
     /**
      * Urls to pass to the program is desktop file points to application.
      * Empty by default.
      */
     const(string)[] urls;
-    
+
     /**
      * Locale of environment.
      * Empty by default.
      */
     string locale;
-    
+
     /**
      * Delegate that will be used to open url if desktop file is link.
      * To set static function use std.functional.toDelegate.
      * If it's null shootDesktopFile will use xdg-open.
      */
     void delegate(string) opener = null;
-    
+
     /**
      * Delegate that will be used to get terminal command if desktop file is application and needs to ran in terminal.
      * To set static function use std.functional.toDelegate.
@@ -842,25 +840,25 @@ struct ShootOptions
      * See_Also: $(D getTerminalCommand)
      */
     const(string)[] delegate() terminalDetector = null;
-    
+
     /**
      * Allow to run multiple instances of application if it does not support opening multiple urls in one instance.
      */
     bool allowMultipleInstances = true;
 }
 
-package void readNeededKeys(Group)(Group g, string locale, 
-                            out string iconName, out string name, 
-                            out string execValue, out string url, 
+package void readNeededKeys(Group)(Group g, string locale,
+                            out string iconName, out string name,
+                            out string execValue, out string url,
                             out string workingDirectory, out bool terminal)
 {
     string bestLocale;
     foreach(e; g.byEntry) {
         auto t = parseKeyValue(e);
-        
+
         string key = t[0];
         string value = t[1];
-        
+
         if (key.length) {
             switch(key) {
                 case "Exec": execValue = value.unescapeValue(); break;
@@ -886,7 +884,7 @@ unittest
 {
     string contents = "[Desktop Entry]\nExec=whoami\nURL=http://example.org\nIcon=folder\nPath=/usr/bin\nTerminal=true\nName=Example\nName[ru]=Пример";
     auto reader = iniLikeStringReader(contents);
-    
+
     string iconName, name, execValue, url, workingDirectory;
     bool terminal;
     readNeededKeys(reader.byGroup().front, "ru_RU", iconName, name , execValue, url, workingDirectory, terminal);
@@ -914,26 +912,26 @@ unittest
 void shootDesktopFile(IniLikeReader)(IniLikeReader reader, string fileName = null, ShootOptions options = ShootOptions.init)
 {
     enforce(options.flags & (ShootOptions.Exec|ShootOptions.Link), "At least one of the options Exec or Link must be provided");
-    
+
     string iconName, name, execValue, url, workingDirectory;
     bool terminal;
-    
+
     foreach(g; reader.byGroup) {
         if (g.groupName == "Desktop Entry") {
             readNeededKeys(g, options.locale, iconName, name, execValue, url, workingDirectory, terminal);
-            
+
             import std.functional : toDelegate;
-            
+
             if (execValue.length && (options.flags & ShootOptions.Exec)) {
                 auto unquotedArgs = unquoteExec(execValue);
-                
+
                 SpawnParams params;
                 params.urls = options.urls;
                 params.iconName = iconName;
                 params.displayName = name;
                 params.fileName = fileName;
                 params.workingDirectory = workingDirectory;
-                
+
                 if (terminal) {
                     if (options.terminalDetector == null) {
                         options.terminalDetector = toDelegate(&getTerminalCommand);
@@ -958,11 +956,11 @@ void shootDesktopFile(IniLikeReader)(IniLikeReader reader, string fileName = nul
                 }
                 throw new Exception("Desktop file is neither application nor link");
             }
-            
+
             return;
         }
     }
-    
+
     throw new Exception("File does not have Desktop Entry group");
 }
 
@@ -971,15 +969,15 @@ unittest
 {
     string contents;
     ShootOptions options;
-    
+
     contents = "[Desktop Entry]\nURL=testurl";
     options.flags = ShootOptions.FollowLink;
     assertThrown(shootDesktopFile(iniLikeStringReader(contents), null, options));
-    
+
     contents = "[Group]\nKey=Value";
     options = ShootOptions.init;
     assertThrown(shootDesktopFile(iniLikeStringReader(contents), null, options));
-    
+
     contents = "[Desktop Entry]\nURL=testurl";
     options = ShootOptions.init;
     bool wasCalled;
@@ -987,22 +985,22 @@ unittest
         assert(url == "testurl");
         wasCalled = true;
     };
-    
+
     shootDesktopFile(iniLikeStringReader(contents), null, options);
     assert(wasCalled);
-    
+
     contents = "[Desktop Entry]";
     options = ShootOptions.init;
     assertThrown(shootDesktopFile(iniLikeStringReader(contents), null, options));
-    
+
     contents = "[Desktop Entry]\nURL=testurl";
     options.flags = ShootOptions.Exec;
     assertThrown(shootDesktopFile(iniLikeStringReader(contents), null, options));
-    
+
     contents = "[Desktop Entry]\nExec=whoami";
     options.flags = ShootOptions.Link;
     assertThrown(shootDesktopFile(iniLikeStringReader(contents), null, options));
-    
+
     static if (isFreedesktop) {
         try {
             contents = "[Desktop Entry]\nExec=whoami\nTerminal=true";
@@ -1011,34 +1009,34 @@ unittest
             options.terminalDetector = delegate string[] () {wasCalled = true; return null;};
             shootDesktopFile(iniLikeStringReader(contents), null, options);
             assert(wasCalled);
-            
+
             string tempPath = buildPath(tempDir(), "desktopfile-unittest-tempdir");
             if (!tempPath.exists) {
                 mkdir(tempPath);
             }
             scope(exit) rmdir(tempPath);
-            
+
             string tempDesktopFile = buildPath(tempPath, "followtest.desktop");
             auto f = File(tempDesktopFile, "w");
             scope(exit) remove(tempDesktopFile);
             f.rawWrite("[Desktop Entry]\nURL=testurl");
             f.flush();
-            
+
             contents = "[Desktop Entry]\nURL=" ~ tempDesktopFile;
             options.flags = ShootOptions.Link | ShootOptions.FollowLink;
             options.opener = delegate void (string url) {
                 assert(url == "testurl");
                 wasCalled = true;
             };
-            
+
             shootDesktopFile(iniLikeStringReader(contents), null, options);
             assert(wasCalled);
         } catch(Exception e) {
-            
+
         }
     }
-    
-    
+
+
 }
 
 /// ditto, but automatically create IniLikeReader from the file.
@@ -1049,7 +1047,7 @@ unittest
 
 /**
  * See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html, Desktop File ID)
- * Params: 
+ * Params:
  *  fileName = Desktop file.
  *  appsPaths = Range of base application paths.
  * Returns: Desktop file ID or empty string if file does not have an ID.
@@ -1062,12 +1060,12 @@ string desktopId(Range)(string fileName, Range appsPaths) if (isInputRange!Range
         foreach (path; appsPaths) {
             auto pathSplit = pathSplitter(path);
             auto fileSplit = pathSplitter(absolute);
-            
+
             while (!pathSplit.empty && !fileSplit.empty && pathSplit.front == fileSplit.front) {
                 pathSplit.popFront();
                 fileSplit.popFront();
             }
-            
+
             if (pathSplit.empty) {
                 static if( __VERSION__ < 2066 ) {
                     return to!string(fileSplit.map!(s => to!string(s)).join("-"));
@@ -1077,7 +1075,7 @@ string desktopId(Range)(string fileName, Range appsPaths) if (isInputRange!Range
             }
         }
     } catch(Exception e) {
-        
+
     }
     return null;
 }
@@ -1087,7 +1085,7 @@ unittest
 {
     string[] appPaths;
     string filePath, nestedFilePath, wrongFilePath;
-    
+
     version(Windows) {
         appPaths = [`C:\ProgramData\KDE\share\applications`, `C:\Users\username\.kde\share\applications`];
         filePath = `C:\ProgramData\KDE\share\applications\example.desktop`;
@@ -1099,7 +1097,7 @@ unittest
         nestedFilePath = "/usr/share/applications/kde/example.desktop";
         wrongFilePath = "/etc/desktop/example.desktop";
     }
-    
+
     assert(desktopId(nestedFilePath, appPaths) == "kde-example.desktop");
     assert(desktopId(filePath, appPaths) == "example.desktop");
     assert(desktopId(wrongFilePath, appPaths).empty);
@@ -1108,7 +1106,7 @@ unittest
 
 static if (isFreedesktop)
 {
-    /** 
+    /**
      * See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html, Desktop File ID)
      * Returns: Desktop file ID or empty string if file does not have an ID.
      * Params:
@@ -1138,7 +1136,7 @@ string findDesktopFile(Range)(string desktopId, Range appsPaths) if (isInputRang
     if (desktopId != desktopId.baseName) {
         return null;
     }
-    
+
     foreach(appsPath; appsPaths) {
         auto filePath = buildPath(appsPath, desktopId);
         bool fileExists = filePath.exists;
@@ -1160,7 +1158,7 @@ unittest
     assert(findDesktopFile("valid.desktop", (string[]).init) is null);
 }
 
-static if (isFreedesktop) 
+static if (isFreedesktop)
 {
     /**
      * ditto
@@ -1179,8 +1177,8 @@ static if (isFreedesktop)
 }
 
 /**
- * Check if .desktop file is trusted. 
- * 
+ * Check if .desktop file is trusted.
+ *
  * This is not actually part of Desktop File Specification but many desktop envrionments have this concept.
  * The trusted .desktop file is a file the current user has executable access on or the owner of which is root.
  * This function should be applicable only to desktop files of $(D DesktopEntry.Type.Application) type.
@@ -1191,13 +1189,13 @@ static if (isFreedesktop)
     version(Posix) {
         import core.sys.posix.sys.stat;
         import core.sys.posix.unistd;
-        
+
         try { // try for outdated compilers
             auto namez = toStringz(appFileName);
             if (access(namez, X_OK) == 0) {
                 return true;
             }
-            
+
             stat_t statbuf;
             auto result = stat(namez, &statbuf);
             return (result == 0 && statbuf.st_uid == 0);

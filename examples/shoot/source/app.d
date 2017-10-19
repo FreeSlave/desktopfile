@@ -8,14 +8,14 @@ int main(string[] args)
     bool onlyExec;
     bool notFollow;
     string[] appPaths;
-    
+
     getopt(
-        args, 
+        args,
         "onlyExec", "Only start applications, don't open links", &onlyExec,
         "notFollow", "Don't follow desktop files", &notFollow,
         "appPath", "Path of applications directory", &appPaths);
-        
-    
+
+
     string inFile;
     if (args.length > 1) {
         inFile = args[1];
@@ -23,7 +23,7 @@ int main(string[] args)
         stderr.writeln("Must provide path to desktop file");
         return 1;
     }
-    
+
     if (appPaths.length == 0) {
         static if (isFreedesktop) {
             import desktopfile.paths;
@@ -37,11 +37,11 @@ int main(string[] args)
                     appPaths = [kdeAppDir];
                 }
             } catch(Exception e) {
-                
+
             }
         }
     }
-    
+
     if (inFile == inFile.baseName && inFile.extension == ".desktop") {
         string desktopId = inFile;
         inFile = findDesktopFile(desktopId, appPaths);
@@ -50,19 +50,19 @@ int main(string[] args)
             return 1;
         }
     }
-    
+
     ShootOptions options;
-    
+
     options.urls = args[2..$];
-    
+
     if (onlyExec) {
         options.flags = options.flags & ~ShootOptions.Link;
     }
-    
+
     if (notFollow) {
         options.flags = options.flags & ~ ShootOptions.FollowLink;
     }
-    
+
     try {
         shootDesktopFile(inFile, options);
     }
@@ -70,6 +70,6 @@ int main(string[] args)
         stderr.writeln(e.msg);
         return 1;
     }
-    
+
     return 0;
 }

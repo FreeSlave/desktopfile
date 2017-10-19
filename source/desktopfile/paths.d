@@ -1,13 +1,13 @@
 /**
  * Getting applications paths where desktop files are stored.
- * 
- * Authors: 
+ *
+ * Authors:
  *  $(LINK2 https://github.com/FreeSlave, Roman Chistokhodov)
  * Copyright:
- *  Roman Chistokhodov, 2015-2016
- * License: 
+ *  Roman Chistokhodov, 2015-2017
+ * License:
  *  $(LINK2 http://www.boost.org/LICENSE_1_0.txt, Boost License 1.0).
- * See_Also: 
+ * See_Also:
  *  $(LINK2 https://www.freedesktop.org/wiki/Specifications/desktop-entry-spec/, Desktop Entry Specification)
  */
 
@@ -16,7 +16,7 @@ module desktopfile.paths;
 private {
     import isfreedesktop;
     import xdgpaths;
-    
+
     import std.algorithm;
     import std.array;
     import std.path;
@@ -25,14 +25,15 @@ private {
 
 version(unittest) {
     import std.process : environment;
-    
+
     package struct EnvGuard
     {
-        this(string env) {
+        this(string env, string newValue) {
             envVar = env;
             envValue = environment.get(env);
+            environment[env] = newValue;
         }
-        
+
         ~this() {
             if (envValue is null) {
                 environment.remove(envVar);
@@ -40,14 +41,14 @@ version(unittest) {
                 environment[envVar] = envValue;
             }
         }
-        
+
         string envVar;
         string envValue;
     }
 }
 
 /**
- * Applications paths based on data paths. 
+ * Applications paths based on data paths.
  * This function is available on all platforms, but requires dataPaths argument (e.g. C:\ProgramData\KDE\share on Windows)
  * Returns: Array of paths, based on dataPaths with "applications" directory appended.
  */
@@ -70,20 +71,17 @@ static if (isFreedesktop)
     @trusted string[] applicationsPaths() nothrow {
         return xdgAllDataDirs("applications");
     }
-    
+
     ///
     unittest
     {
         import std.process : environment;
-        auto dataHomeGuard = EnvGuard("XDG_DATA_HOME");
-        auto dataDirsGuard = EnvGuard("XDG_DATA_DIRS");
-        
-        environment["XDG_DATA_HOME"] = "/home/user/data";
-        environment["XDG_DATA_DIRS"] = "/usr/local/data:/usr/data";
-        
+        auto dataHomeGuard = EnvGuard("XDG_DATA_HOME", "/home/user/data");
+        auto dataDirsGuard = EnvGuard("XDG_DATA_DIRS", "/usr/local/data:/usr/data");
+
         assert(applicationsPaths() == ["/home/user/data/applications", "/usr/local/data/applications", "/usr/data/applications"]);
     }
-    
+
     /**
      * Path where .desktop files can be stored by user.
      * This function is defined only on freedesktop systems.
@@ -92,13 +90,12 @@ static if (isFreedesktop)
     @safe string writableApplicationsPath() nothrow {
         return xdgDataHome("applications");
     }
-    
+
     ///
     unittest
     {
         import std.process : environment;
-        auto dataHomeGuard = EnvGuard("XDG_DATA_HOME");
-        environment["XDG_DATA_HOME"] = "/home/user/data";
+        auto dataHomeGuard = EnvGuard("XDG_DATA_HOME", "/home/user/data");
         assert(writableApplicationsPath() == "/home/user/data/applications");
     }
 }
