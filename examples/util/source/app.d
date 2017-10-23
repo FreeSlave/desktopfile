@@ -68,7 +68,7 @@ void main(string[] args)
         writefln("Name: %s. Localized: %s", df.displayName(), df.localizedDisplayName(locale));
         writefln("GenericName: %s. Localized: %s", df.genericName(), df.localizedGenericName(locale));
         writefln("Comment: %s. Localized: %s", df.comment(), df.localizedComment(locale));
-        writeln("Type: ", df.value("Type"));
+        writeln("Type: ", df.desktopEntry().escapedValue("Type"));
         writeln("Icon: ", df.iconName());
         static if (isFreedesktop) {
             writeln("Desktop ID: ", df.id());

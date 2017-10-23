@@ -37,48 +37,48 @@ public:
 
     /**
      * Label that will be shown to the user.
-     * Returns: The value associated with "Name" key.
+     * Returns: The unescaped value associated with "Name" key.
      */
     @safe string displayName() const nothrow pure {
-        return readEntry("Name");
+        return unescapedValue("Name");
     }
 
     /**
      * Label that will be shown to the user in given locale.
-     * Returns: The value associated with "Name" key and given locale.
+     * Returns: The unescaped value associated with "Name" key and given locale.
      * See_Also: $(D displayName)
      */
     @safe string localizedDisplayName(string locale) const nothrow pure {
-        return readEntry("Name", locale);
+        return unescapedValue("Name", locale);
     }
 
     /**
      * Icon name of action.
-     * Returns: The value associated with "Icon" key.
+     * Returns: The unescaped value associated with "Icon" key.
      */
     @safe string iconName() const nothrow pure {
-        return readEntry("Icon");
+        return unescapedValue("Icon");
     }
 
     /**
-     * Returns: Localized icon name
+     * Returns: Localized icon name.
      * See_Also: $(D iconName)
      */
     @safe string localizedIconName(string locale) const nothrow pure {
-        return readEntry("Icon", locale);
+        return unescapedValue("Icon", locale);
     }
 
     /**
-     * Returns: The value associated with "Exec" key.
+     * Returns: The unescaped value associated with "Exec" key.
      */
     @safe string execValue() const nothrow pure {
-        return readEntry("Exec");
+        return unescapedValue("Exec");
     }
 
     /**
      * Start this action.
      * Throws:
-     *  ProcessException on failure to start the process.
+     *  $(B ProcessException) on failure to start the process.
      *  $(D desktopfile.utils.DesktopExecException) if exec string is invalid.
      * See_Also: $(D execValue)
      */
@@ -116,7 +116,7 @@ final class DesktopEntry : IniLikeGroup
      * Returns: Type of desktop entry.
      */
     @nogc @safe Type type() const nothrow pure {
-        string t = value("Type");
+        string t = escapedValue("Type");
         if (t.length) {
             if (t == "Application") {
                 return Type.Application;
@@ -136,10 +136,10 @@ final class DesktopEntry : IniLikeGroup
         auto desktopFile = new DesktopFile(iniLikeStringReader(contents));
         assert(desktopFile.type == Type.Application);
 
-        desktopFile.desktopEntry["Type"] = "Link";
+        desktopFile.desktopEntry.setEscapedValue("Type", "Link");
         assert(desktopFile.type == Type.Link);
 
-        desktopFile.desktopEntry["Type"] = "Directory";
+        desktopFile.desktopEntry.setEscapedValue("Type", "Directory");
         assert(desktopFile.type == Type.Directory);
     }
 
@@ -150,13 +150,13 @@ final class DesktopEntry : IniLikeGroup
     @safe Type type(Type t) {
         final switch(t) {
             case Type.Application:
-                this["Type"] = "Application";
+                setEscapedValue("Type", "Application");
                 break;
             case Type.Link:
-                this["Type"] = "Link";
+                setEscapedValue("Type", "Link");
                 break;
             case Type.Directory:
-                this["Type"] = "Directory";
+                setEscapedValue("Type", "Directory");
                 break;
             case Type.Unknown:
                 this.removeEntry("Type");
@@ -170,30 +170,30 @@ final class DesktopEntry : IniLikeGroup
     {
         auto desktopFile = new DesktopFile();
         desktopFile.type = Type.Application;
-        assert(desktopFile.desktopEntry.value("Type") == "Application");
+        assert(desktopFile.desktopEntry.escapedValue("Type") == "Application");
         desktopFile.type = Type.Link;
-        assert(desktopFile.desktopEntry.value("Type") == "Link");
+        assert(desktopFile.desktopEntry.escapedValue("Type") == "Link");
         desktopFile.type = Type.Directory;
-        assert(desktopFile.desktopEntry.value("Type") == "Directory");
+        assert(desktopFile.desktopEntry.escapedValue("Type") == "Directory");
 
         desktopFile.type = Type.Unknown;
-        assert(desktopFile.desktopEntry.value("Type").empty);
+        assert(desktopFile.desktopEntry.escapedValue("Type").empty);
     }
 
     /**
      * Specific name of the application, for example "Qupzilla".
-     * Returns: The value associated with "Name" key.
+     * Returns: The unescaped value associated with "Name" key.
      * See_Also: $(D localizedDisplayName)
      */
     @safe string displayName() const nothrow pure {
-        return readEntry("Name");
+        return unescapedValue("Name");
     }
 
     /**
      * Set "Name" to name escaping the value if needed.
      */
     @safe string displayName(string name) {
-        return writeEntry("Name", name);
+        return setUnescapedValue("Name", name);
     }
 
     /**
@@ -201,46 +201,46 @@ final class DesktopEntry : IniLikeGroup
      * See_Also: $(D displayName)
      */
     @safe string localizedDisplayName(string locale) const nothrow pure {
-        return readEntry("Name", locale);
+        return unescapedValue("Name", locale);
     }
 
     /**
      * Generic name of the application, for example "Web Browser".
-     * Returns: The value associated with "GenericName" key.
+     * Returns: The unescaped value associated with "GenericName" key.
      * See_Also: $(D localizedGenericName)
      */
     @safe string genericName() const nothrow pure {
-        return readEntry("GenericName");
+        return unescapedValue("GenericName");
     }
 
     /**
      * Set "GenericName" to name escaping the value if needed.
      */
     @safe string genericName(string name) {
-        return writeEntry("GenericName", name);
+        return setUnescapedValue("GenericName", name);
     }
     /**
      * Returns: Localized generic name
      * See_Also: $(D genericName)
      */
     @safe string localizedGenericName(string locale) const nothrow pure {
-        return readEntry("GenericName", locale);
+        return unescapedValue("GenericName", locale);
     }
 
     /**
      * Tooltip for the entry, for example "View sites on the Internet".
-     * Returns: The value associated with "Comment" key.
+     * Returns: The unescaped value associated with "Comment" key.
      * See_Also: $(D localizedComment)
      */
     @safe string comment() const nothrow pure {
-        return readEntry("Comment");
+        return unescapedValue("Comment");
     }
 
     /**
      * Set "Comment" to commentary escaping the value if needed.
      */
     @safe string comment(string commentary) {
-        return writeEntry("Comment", commentary);
+        return setUnescapedValue("Comment", commentary);
     }
 
     /**
@@ -248,16 +248,16 @@ final class DesktopEntry : IniLikeGroup
      * See_Also: $(D comment)
      */
     @safe string localizedComment(string locale) const nothrow pure {
-        return readEntry("Comment", locale);
+        return unescapedValue("Comment", locale);
     }
 
     /**
      * Exec value of desktop file.
-     * Returns: the value associated with "Exec" key.
+     * Returns: The unescaped value associated with "Exec" key.
      * See_Also: $(D expandExecValue), $(D startApplication), $(D tryExecValue)
      */
     @safe string execValue() const nothrow pure {
-        return readEntry("Exec");
+        return unescapedValue("Exec");
     }
 
     /**
@@ -265,22 +265,22 @@ final class DesktopEntry : IniLikeGroup
      * See_Also: $(D desktopfile.utils.ExecBuilder).
      */
     @safe string execValue(string exec) {
-        return writeEntry("Exec", exec);
+        return setUnescapedValue("Exec", exec);
     }
 
     /**
      * URL to access.
-     * Returns: The value associated with "URL" key.
+     * Returns: The unescaped value associated with "URL" key.
      */
     @safe string url() const nothrow pure {
-        return readEntry("URL");
+        return unescapedValue("URL");
     }
 
     /**
      * Set "URL" to link escaping the value if needed.
      */
     @safe string url(string link) {
-        return writeEntry("URL", link);
+        return setUnescapedValue("URL", link);
     }
 
     ///
@@ -294,11 +294,11 @@ final class DesktopEntry : IniLikeGroup
      * Value used to determine if the program is actually installed.
      *
      * If the path is not an absolute path, the file should be looked up in the $(B PATH) environment variable. If the file is not present or if it is not executable, the entry may be ignored (not be used in menus, for example).
-     * Returns: The value associated with "TryExec" key.
+     * Returns: The unescaped value associated with "TryExec" key.
      * See_Also: $(D execValue)
      */
     @safe string tryExecValue() const nothrow pure {
-        return readEntry("TryExec");
+        return unescapedValue("TryExec");
     }
 
     /**
@@ -310,7 +310,7 @@ final class DesktopEntry : IniLikeGroup
         if (!tryExec.isAbsolute && tryExec.baseName != tryExec) {
             throw new IniLikeEntryException("TryExec must be absolute path or base name", groupName(), "TryExec", tryExec);
         }
-        return writeEntry("TryExec", tryExec);
+        return setUnescapedValue("TryExec", tryExec);
     }
 
     ///
@@ -327,13 +327,13 @@ final class DesktopEntry : IniLikeGroup
 
     /**
      * Icon to display in file manager, menus, etc.
-     * Returns: The value associated with "Icon" key.
+     * Returns: The unescaped value associated with "Icon" key.
      * Note: This function returns Icon as it's defined in .desktop file.
      *  It does not provide any lookup of actual icon file on the system if the name if not an absolute path.
      *  To find the path to icon file refer to $(LINK2 http://standards.freedesktop.org/icon-theme-spec/icon-theme-spec-latest.html, Icon Theme Specification) or consider using $(LINK2 https://github.com/FreeSlave/icontheme, icontheme library).
      */
     @safe string iconName() const nothrow pure {
-        return readEntry("Icon");
+        return unescapedValue("Icon");
     }
 
     /**
@@ -345,7 +345,7 @@ final class DesktopEntry : IniLikeGroup
         if (!icon.isAbsolute && icon.baseName != icon) {
             throw new IniLikeEntryException("Icon must be absolute path or base name", groupName(), "Icon", icon);
         }
-        return writeEntry("Icon", icon);
+        return setUnescapedValue("Icon", icon);
     }
 
     ///
@@ -365,72 +365,72 @@ final class DesktopEntry : IniLikeGroup
      * See_Also: $(D iconName)
      */
     @safe string localizedIconName(string locale) const nothrow pure {
-        return readEntry("Icon", locale);
+        return unescapedValue("Icon", locale);
     }
 
     /**
      * NoDisplay means "this application exists, but don't display it in the menus".
-     * Returns: The value associated with "NoDisplay" key converted to bool using isTrue.
+     * Returns: The value associated with "NoDisplay" key converted to bool using $(D inilike.common.isTrue).
      */
     @nogc @safe bool noDisplay() const nothrow pure {
-        return isTrue(value("NoDisplay"));
+        return isTrue(escapedValue("NoDisplay"));
     }
 
     ///setter
     @safe bool noDisplay(bool notDisplay) {
-        this["NoDisplay"] = boolToString(notDisplay);
+        setEscapedValue("NoDisplay", boolToString(notDisplay));
         return notDisplay;
     }
 
     /**
      * Hidden means the user deleted (at his level) something that was present (at an upper level, e.g. in the system dirs).
      * It's strictly equivalent to the .desktop file not existing at all, as far as that user is concerned.
-     * Returns: The value associated with "Hidden" key converted to bool using isTrue.
+     * Returns: The value associated with "Hidden" key converted to bool using $(D inilike.common.isTrue).
      */
     @nogc @safe bool hidden() const nothrow pure {
-        return isTrue(value("Hidden"));
+        return isTrue(escapedValue("Hidden"));
     }
 
     ///setter
     @safe bool hidden(bool hide) {
-        this["Hidden"] = boolToString(hide);
+        setEscapedValue("Hidden", boolToString(hide));
         return hide;
     }
 
     /**
      * A boolean value specifying if D-Bus activation is supported for this application.
-     * Returns: The value associated with "DBusActivable" key converted to bool using isTrue.
+     * Returns: The value associated with "DBusActivable" key converted to bool using $(D inilike.common.isTrue).
      */
     @nogc @safe bool dbusActivable() const nothrow pure {
-        return isTrue(value("DBusActivatable"));
+        return isTrue(escapedValue("DBusActivatable"));
     }
 
     ///setter
     @safe bool dbusActivable(bool activable) {
-        this["DBusActivatable"] = boolToString(activable);
+        setEscapedValue("DBusActivatable", boolToString(activable));
         return activable;
     }
 
     /**
      * A boolean value specifying if an application uses Startup Notification Protocol.
-     * Returns: The value associated with "StartupNotify" key converted to bool using isTrue.
+     * Returns: The value associated with "StartupNotify" key converted to bool using $(D inilike.common.isTrue).
      */
     @nogc @safe bool startupNotify() const nothrow pure {
-        return isTrue(value("StartupNotify"));
+        return isTrue(escapedValue("StartupNotify"));
     }
 
     ///setter
     @safe bool startupNotify(bool notify) {
-        this["StartupNotify"] = boolToString(notify);
+        setEscapedValue("StartupNotify", boolToString(notify));
         return notify;
     }
 
     /**
      * The working directory to run the program in.
-     * Returns: The value associated with "Path" key.
+     * Returns: The unescaped value associated with "Path" key.
      */
     @safe string workingDirectory() const nothrow pure {
-        return readEntry("Path");
+        return unescapedValue("Path");
     }
 
     /**
@@ -447,7 +447,7 @@ final class DesktopEntry : IniLikeGroup
                 throw new IniLikeEntryException("Working directory must be absolute path", groupName(), "Path", wd);
             }
         }
-        return writeEntry("Path", wd);
+        return setUnescapedValue("Path", wd);
     }
 
     ///
@@ -463,14 +463,14 @@ final class DesktopEntry : IniLikeGroup
 
     /**
      * Whether the program runs in a terminal window.
-     * Returns: The value associated with "Terminal" key converted to bool using isTrue.
+     * Returns: The value associated with "Terminal" key converted to bool using $(D inilike.common.isTrue).
      */
     @nogc @safe bool terminal() const nothrow pure {
-        return isTrue(value("Terminal"));
+        return isTrue(escapedValue("Terminal"));
     }
     ///setter
     @safe bool terminal(bool t) {
-        this["Terminal"] = boolToString(t);
+        setEscapedValue("Terminal", boolToString(t));
         return t;
     }
 
@@ -479,14 +479,14 @@ final class DesktopEntry : IniLikeGroup
      * Returns: The range of multiple values associated with "Categories" key.
      */
     @safe auto categories() const nothrow pure {
-        return DesktopFile.splitValues(readEntry("Categories"));
+        return DesktopFile.splitValues(unescapedValue("Categories"));
     }
 
     /**
      * Sets the list of values for the "Categories" list.
      */
     string categories(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
-        return writeEntry("Categories", DesktopFile.joinValues(values));
+        return setUnescapedValue("Categories", DesktopFile.joinValues(values));
     }
 
     /**
@@ -494,7 +494,7 @@ final class DesktopEntry : IniLikeGroup
      * Returns: The range of multiple values associated with "Keywords" key.
      */
     @safe auto keywords() const nothrow pure {
-        return DesktopFile.splitValues(readEntry("Keywords"));
+        return DesktopFile.splitValues(unescapedValue("Keywords"));
     }
 
     /**
@@ -502,14 +502,14 @@ final class DesktopEntry : IniLikeGroup
      * Returns: The range of multiple values associated with "Keywords" key in given locale.
      */
     @safe auto localizedKeywords(string locale) const nothrow pure {
-        return DesktopFile.splitValues(readEntry("Keywords", locale));
+        return DesktopFile.splitValues(unescapedValue("Keywords", locale));
     }
 
     /**
      * Sets the list of values for the "Keywords" list.
      */
     string keywords(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
-        return writeEntry("Keywords", DesktopFile.joinValues(values));
+        return setUnescapedValue("Keywords", DesktopFile.joinValues(values));
     }
 
     /**
@@ -517,14 +517,14 @@ final class DesktopEntry : IniLikeGroup
      * Returns: The range of multiple values associated with "MimeType" key.
      */
     @safe auto mimeTypes() nothrow const pure {
-        return DesktopFile.splitValues(readEntry("MimeType"));
+        return DesktopFile.splitValues(unescapedValue("MimeType"));
     }
 
     /**
      * Sets the list of values for the "MimeType" list.
      */
     string mimeTypes(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
-        return writeEntry("MimeType", DesktopFile.joinValues(values));
+        return setUnescapedValue("MimeType", DesktopFile.joinValues(values));
     }
 
     /**
@@ -534,14 +534,14 @@ final class DesktopEntry : IniLikeGroup
      * See_Also: $(D byAction), $(D action)
      */
     @safe auto actions() nothrow const pure {
-        return DesktopFile.splitValues(readEntry("Actions"));
+        return DesktopFile.splitValues(unescapedValue("Actions"));
     }
 
     /**
      * Sets the list of values for "Actions" list.
      */
     string actions(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
-        return writeEntry("Actions", DesktopFile.joinValues(values));
+        return setUnescapedValue("Actions", DesktopFile.joinValues(values));
     }
 
     /**
@@ -550,12 +550,12 @@ final class DesktopEntry : IniLikeGroup
      * See_Also: $(D notShowIn), $(D showIn)
      */
     @safe auto onlyShowIn() nothrow const pure {
-        return DesktopFile.splitValues(readEntry("OnlyShowIn"));
+        return DesktopFile.splitValues(unescapedValue("OnlyShowIn"));
     }
 
     ///setter
     string onlyShowIn(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
-        return writeEntry("OnlyShowIn", DesktopFile.joinValues(values));
+        return setUnescapedValue("OnlyShowIn", DesktopFile.joinValues(values));
     }
 
     /**
@@ -564,12 +564,12 @@ final class DesktopEntry : IniLikeGroup
      * See_Also: $(D onlyShowIn), $(D showIn)
      */
     @safe auto notShowIn() nothrow const pure {
-        return DesktopFile.splitValues(readEntry("NotShowIn"));
+        return DesktopFile.splitValues(unescapedValue("NotShowIn"));
     }
 
     ///setter
     string notShowIn(Range)(Range values) if (isInputRange!Range && isSomeString!(ElementType!Range)) {
-        return writeEntry("NotShowIn", DesktopFile.joinValues(values));
+        return setUnescapedValue("NotShowIn", DesktopFile.joinValues(values));
     }
 
     /**
@@ -756,7 +756,7 @@ $=Invalid`;
         assertNotThrown(new DesktopFile(iniLikeStringReader(contents), DesktopReadOptions(IniLikeGroup.InvalidKeyPolicy.skip)));
 
         df = new DesktopFile(iniLikeStringReader(contents), DesktopReadOptions(IniLikeGroup.InvalidKeyPolicy.save));
-        assert(df.value("$") == "Invalid");
+        assert(df.desktopEntry.escapedValue("$") == "Invalid");
 
         contents =
 `[Desktop Entry]
@@ -858,7 +858,7 @@ public:
         super();
         _desktopEntry = new DesktopEntry();
         insertGroup(_desktopEntry);
-        _desktopEntry["Version"] = "1.0";
+        _desktopEntry.setEscapedValue("Version", "1.0");
     }
 
     ///
@@ -866,7 +866,7 @@ public:
     {
         auto df = new DesktopFile();
         assert(df.desktopEntry());
-        assert(df.value("Version") == "1.0");
+        assert(df.desktopEntry().escapedValue("Version") == "1.0");
         assert(df.categories().empty);
         assert(df.type() == DesktopFile.Type.Unknown);
     }
@@ -1349,7 +1349,7 @@ Name=Notspecified Action`;
     assert(df.contains("Icon"));
     df.removeEntry("Icon");
     assert(!df.contains("Icon"));
-    df["Icon"] = "files";
+    df.setEscapedValue("Icon", "files");
     assert(df.contains("Icon"));
 
     string contents =
@@ -1373,10 +1373,10 @@ Key=Value`;
     assert(thrown.lineNumber == 0);
 
     df = new DesktopFile();
-    df.desktopEntry().writeEntry("$Invalid", "Valid value", IniLikeGroup.InvalidKeyPolicy.save);
-    assert(df.desktopEntry().value("$Invalid") == "Valid value");
-    df.desktopEntry().writeEntry("Another$Invalid", "Valid value", IniLikeGroup.InvalidKeyPolicy.skip);
-    assert(df.desktopEntry().value("Another$Invalid") is null);
+    df.desktopEntry().setUnescapedValue("$Invalid", "Valid value", IniLikeGroup.InvalidKeyPolicy.save);
+    assert(df.desktopEntry().escapedValue("$Invalid") == "Valid value");
+    df.desktopEntry().setUnescapedValue("Another$Invalid", "Valid value", IniLikeGroup.InvalidKeyPolicy.skip);
+    assert(df.desktopEntry().escapedValue("Another$Invalid") is null);
     df.terminal = true;
     df.type = DesktopFile.Type.Application;
     df.categories = ["Development", "Compilers", "One;Two", "Three\\;Four", "New\nLine"];

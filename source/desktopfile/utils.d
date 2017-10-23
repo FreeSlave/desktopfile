@@ -737,7 +737,7 @@ string[] getTerminalCommand() nothrow @trusted
     }
 }
 
-unittest
+version(desktopfileFileTest) unittest
 {
     import isfreedesktop;
     static if (isFreedesktop) {
@@ -792,8 +792,7 @@ package void xdgOpen(string url)
 }
 
 /**
- * Options to pass to shootDesktopFile.
- * See_Also: $(D shootDesktopFile)
+ * Options to pass to $(D shootDesktopFile).
  */
 struct ShootOptions
 {
@@ -802,8 +801,8 @@ struct ShootOptions
      */
     enum
     {
-        Exec = 1, /// shootDesktopFile can start applications.
-        Link = 2, /// shootDesktopFile can open links (urls or file names).
+        Exec = 1, /// $(D shootDesktopFile) can start applications.
+        Link = 2, /// $(D shootDesktopFile) can open links (urls or file names).
         FollowLink = 4, /// If desktop file is link and url points to another desktop file shootDesktopFile will be called on this url with the same options.
         All = Exec|Link|FollowLink /// All flags described above.
     }
@@ -847,37 +846,52 @@ struct ShootOptions
     bool allowMultipleInstances = true;
 }
 
-package void readNeededKeys(Group)(Group g, string locale,
+package bool readDesktopEntryValues(IniLikeReader)(IniLikeReader reader, string locale, string fileName,
                             out string iconName, out string name,
                             out string execValue, out string url,
                             out string workingDirectory, out bool terminal)
 {
+    import inilike.read;
     string bestLocale;
-    foreach(e; g.byEntry) {
-        auto t = parseKeyValue(e);
+    bool hasDesktopEntry;
+    auto onMyLeadingComment = delegate void(string line) {
 
-        string key = t[0];
-        string value = t[1];
-
-        if (key.length) {
-            switch(key) {
-                case "Exec": execValue = value.unescapeValue(); break;
-                case "URL": url = value.unescapeValue(); break;
-                case "Icon": iconName = value.unescapeValue(); break;
-                case "Path": workingDirectory = value.unescapeValue(); break;
-                case "Terminal": terminal = isTrue(value); break;
-                default: {
-                    auto kl = separateFromLocale(key);
-                    if (kl[0] == "Name") {
-                        auto lv = chooseLocalizedValue(locale, kl[1], value, bestLocale, name);
-                        bestLocale = lv[0];
-                        name = lv[1].unescapeValue();
-                    }
-                }
-                break;
-            }
+    };
+    auto onMyGroup = delegate ActionOnGroup(string groupName) {
+        if (groupName == "Desktop Entry") {
+            hasDesktopEntry = true;
+            return ActionOnGroup.stopAfter;
+        } else {
+            return ActionOnGroup.skip;
         }
-    }
+    };
+    auto onMyKeyValue = delegate void(string key, string value, string groupName) {
+        if (groupName != "Desktop Entry") {
+            return;
+        }
+        switch(key) {
+            case "Exec": execValue = value.unescapeValue(); break;
+            case "URL": url = value.unescapeValue(); break;
+            case "Icon": iconName = value.unescapeValue(); break;
+            case "Path": workingDirectory = value.unescapeValue(); break;
+            case "Terminal": terminal = isTrue(value); break;
+            default: {
+                auto kl = separateFromLocale(key);
+                if (kl[0] == "Name") {
+                    auto lv = chooseLocalizedValue(locale, kl[1], value, bestLocale, name);
+                    bestLocale = lv[0];
+                    name = lv[1].unescapeValue();
+                }
+            }
+            break;
+        }
+    };
+    auto onMyCommentInGroup = delegate void(string line, string groupName) {
+
+    };
+
+    readIniLike(reader, onMyLeadingComment, onMyGroup, onMyKeyValue, onMyCommentInGroup, fileName);
+    return hasDesktopEntry;
 }
 
 unittest
@@ -887,7 +901,7 @@ unittest
 
     string iconName, name, execValue, url, workingDirectory;
     bool terminal;
-    readNeededKeys(reader.byGroup().front, "ru_RU", iconName, name , execValue, url, workingDirectory, terminal);
+    readDesktopEntryValues(reader, "ru_RU", null, iconName, name , execValue, url, workingDirectory, terminal);
     assert(iconName == "folder");
     assert(execValue == "whoami");
     assert(url == "http://example.org");
@@ -899,14 +913,14 @@ unittest
 /**
  * Read the desktop file and run application or open link depending on the type of the given desktop file.
  * Params:
- *  reader = IniLikeReader constructed from range of strings using iniLikeRangeReader
- *  fileName = file name of desktop file where data read from. Can be used in field code expanding, should be set to the file name from which contents IniLikeReader was constructed.
+ *  reader = $(D inilike.range.IniLikeReader) returned by $(D inilike.range.iniLikeRangeReader) or similar function.
+ *  fileName = file name of desktop file where data read from. Can be used in field code expanding, should be set to the file name from which contents $(D inilike.range.IniLikeReader) was constructed.
  *  options = options that set behavior of the function.
  * Use this function to execute desktop file fast, without creating of DesktopFile instance.
  * Throws:
- *  ProcessException on failure to start the process.
+ *  $(B ProcessException) on failure to start the process.
  *  $(D DesktopExecException) if exec string is invalid.
- *  Exception on other errors.
+ *  $(B Exception) on other errors.
  * See_Also: $(D ShootOptions)
  */
 void shootDesktopFile(IniLikeReader)(IniLikeReader reader, string fileName = null, ShootOptions options = ShootOptions.init)
@@ -916,52 +930,46 @@ void shootDesktopFile(IniLikeReader)(IniLikeReader reader, string fileName = nul
     string iconName, name, execValue, url, workingDirectory;
     bool terminal;
 
-    foreach(g; reader.byGroup) {
-        if (g.groupName == "Desktop Entry") {
-            readNeededKeys(g, options.locale, iconName, name, execValue, url, workingDirectory, terminal);
+    if (readDesktopEntryValues(reader, options.locale, fileName, iconName, name, execValue, url, workingDirectory, terminal)) {
+        import std.functional : toDelegate;
 
-            import std.functional : toDelegate;
+        if (execValue.length && (options.flags & ShootOptions.Exec)) {
+            auto unquotedArgs = unquoteExec(execValue);
 
-            if (execValue.length && (options.flags & ShootOptions.Exec)) {
-                auto unquotedArgs = unquoteExec(execValue);
+            SpawnParams params;
+            params.urls = options.urls;
+            params.iconName = iconName;
+            params.displayName = name;
+            params.fileName = fileName;
+            params.workingDirectory = workingDirectory;
 
-                SpawnParams params;
-                params.urls = options.urls;
-                params.iconName = iconName;
-                params.displayName = name;
-                params.fileName = fileName;
-                params.workingDirectory = workingDirectory;
-
-                if (terminal) {
-                    if (options.terminalDetector == null) {
-                        options.terminalDetector = toDelegate(&getTerminalCommand);
-                    }
-                    params.terminalCommand = options.terminalDetector();
+            if (terminal) {
+                if (options.terminalDetector == null) {
+                    options.terminalDetector = toDelegate(&getTerminalCommand);
                 }
-                spawnApplication(unquotedArgs, params);
-            } else if (url.length && (options.flags & ShootOptions.FollowLink) && url.extension == ".desktop" && url.exists) {
-                options.flags = options.flags & (~ShootOptions.FollowLink); //avoid recursion
-                shootDesktopFile(url, options);
-            } else if (url.length && (options.flags & ShootOptions.Link)) {
-                if (options.opener == null) {
-                    options.opener = toDelegate(&xdgOpen);
-                }
-                options.opener(url);
-            } else {
-                if (execValue.length) {
-                    throw new Exception("Desktop file is an application, but flags don't include ShootOptions.Exec");
-                }
-                if (url.length) {
-                    throw new Exception("Desktop file is a link, but flags don't include ShootOptions.Link");
-                }
-                throw new Exception("Desktop file is neither application nor link");
+                params.terminalCommand = options.terminalDetector();
             }
-
-            return;
+            spawnApplication(unquotedArgs, params);
+        } else if (url.length && (options.flags & ShootOptions.FollowLink) && url.extension == ".desktop" && url.exists) {
+            options.flags = options.flags & (~ShootOptions.FollowLink); //avoid recursion
+            shootDesktopFile(url, options);
+        } else if (url.length && (options.flags & ShootOptions.Link)) {
+            if (options.opener == null) {
+                options.opener = toDelegate(&xdgOpen);
+            }
+            options.opener(url);
+        } else {
+            if (execValue.length) {
+                throw new Exception("Desktop file is an application, but flags don't include ShootOptions.Exec");
+            }
+            if (url.length) {
+                throw new Exception("Desktop file is a link, but flags don't include ShootOptions.Link");
+            }
+            throw new Exception("Desktop file is neither application nor link");
         }
+    } else {
+        throw new Exception("File does not have Desktop Entry group");
     }
-
-    throw new Exception("File does not have Desktop Entry group");
 }
 
 ///
@@ -1001,7 +1009,7 @@ unittest
     options.flags = ShootOptions.Link;
     assertThrown(shootDesktopFile(iniLikeStringReader(contents), null, options));
 
-    static if (isFreedesktop) {
+    version(desktopfileFileTest) static if (isFreedesktop) {
         try {
             contents = "[Desktop Entry]\nExec=whoami\nTerminal=true";
             options.flags = ShootOptions.Exec;
