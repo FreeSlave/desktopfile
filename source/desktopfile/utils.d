@@ -152,6 +152,19 @@ private @trusted void execProcess(in string[] args, string workingDirectory = nu
     }
 }
 
+private @safe bool needQuoting(char c) nothrow pure
+{
+    switch(c) {
+        case ' ':   case '\t':  case '\n':  case '\r':  case '"':
+        case '\\':  case '\'':  case '>':   case '<':   case '~':
+        case '|':   case '&':   case ';':   case '$':   case '*':
+        case '?':   case '#':   case '(':   case ')':   case '`':
+            return true;
+        default:
+            return false;
+    }
+}
+
 private @safe bool needQuoting(string arg) nothrow pure
 {
     if (arg.length == 0) {
@@ -160,14 +173,8 @@ private @safe bool needQuoting(string arg) nothrow pure
 
     for (size_t i=0; i<arg.length; ++i)
     {
-        switch(arg[i]) {
-            case ' ':   case '\t':  case '\n':  case '\r':  case '"':
-            case '\\':  case '\'':  case '>':   case '<':   case '~':
-            case '|':   case '&':   case ';':   case '$':   case '*':
-            case '?':   case '#':   case '(':   case ')':   case '`':
-                return true;
-            default:
-                break;
+        if (needQuoting(arg[i])) {
+            return true;
         }
     }
     return false;
@@ -218,47 +225,44 @@ private @trusted string escapeQuotedArgument(string value) pure {
 
     static string parseQuotedPart(ref size_t i, char delimeter, string value)
     {
-        size_t start = ++i;
-        bool inQuotes = true;
+        const size_t start = ++i;
 
-        while(i < value.length && inQuotes) {
-            if (value[i] == '\\' && value.length > i+1 && value[i+1] == '\\') {
-                i+=2;
-                continue;
+        while(i < value.length) {
+            if (value[i] == '\\' && value.length > i+1) {
+                const char next = value[i+1];
+                if (next == '\\' || next  == delimeter) {
+                    i+=2;
+                    continue;
+                }
             }
 
-            inQuotes = !(value[i] == delimeter && (value[i-1] != '\\' || (i>=2 && value[i-1] == '\\' && value[i-2] == '\\') ));
-            if (inQuotes) {
-                i++;
+            if (value[i] == delimeter) {
+                return value[start..i].unescapeQuotedArgument();
             }
+            ++i;
         }
-        if (inQuotes) {
-            throw new DesktopExecException("Missing pair quote");
-        }
-        return value[start..i].unescapeQuotedArgument();
+        throw new DesktopExecException("Missing pair quote");
     }
 
     char[] append;
-    bool wasInQuotes;
     while(i < value.length) {
-        if (value[i] == ' ' || value[i] == '\t') {
-            if (!wasInQuotes && append.length >= 1 && append[$-1] == '\\') {
-                append[$-1] = value[i];
-            } else {
-                if (append !is null) {
-                    result ~= append.assumeUnique;
-                    append = null;
-                }
+        if (value[i] == '\\' && i+1 < value.length && needQuoting(value[i+1])) {
+            // this is actually does not adhere to the spec, but we need it to support some wine-generated .desktop files
+            append ~= value[i+1];
+            ++i;
+        } else if (value[i] == ' ' || value[i] == '\t') {
+            if (append !is null) {
+                result ~= append.assumeUnique;
+                append = null;
             }
-            wasInQuotes = false;
         } else if (value[i] == '"' || value[i] == '\'') {
+            // some DEs can produce files with quoting by single quotes when there's a space in path
+            // it's not actually part of the spec, but we support it
             append ~= parseQuotedPart(i, value[i], value);
-            wasInQuotes = true;
         } else {
             append ~= value[i];
-            wasInQuotes = false;
         }
-        i++;
+        ++i;
     }
 
     if (append !is null) {
@@ -292,11 +296,13 @@ unittest
 
     assert(equal(unquoteExec(`'quoted cmd' arg`), [`quoted cmd`, `arg`]));
 
+    assert(equal(unquoteExec(`test\ \ testing`), [`test  testing`]));
+    assert(equal(unquoteExec(`test\  testing`), [`test `, `testing`]));
     assert(equal(unquoteExec(`test\ "one""two"\ more\ \ test `), [`test onetwo more  test`]));
     assert(equal(unquoteExec(`"one"two"three"`), [`onetwothree`]));
 
     assert(equal(unquoteExec(`env WINEPREFIX="/home/freeslave/.wine" wine C:\\windows\\command\\start.exe /Unix /home/freeslave/.wine/dosdevices/c:/windows/profiles/freeslave/Start\ Menu/Programs/True\ Remembrance/True\ Remembrance.lnk`), [
-        "env", "WINEPREFIX=/home/freeslave/.wine", "wine", `C:\\windows\\command\\start.exe`, "/Unix", "/home/freeslave/.wine/dosdevices/c:/windows/profiles/freeslave/Start Menu/Programs/True Remembrance/True Remembrance.lnk"
+        "env", "WINEPREFIX=/home/freeslave/.wine", "wine", `C:\windows\command\start.exe`, "/Unix", "/home/freeslave/.wine/dosdevices/c:/windows/profiles/freeslave/Start Menu/Programs/True Remembrance/True Remembrance.lnk"
     ]));
 
     assertThrown!DesktopExecException(unquoteExec(`cmd "quoted arg`));
