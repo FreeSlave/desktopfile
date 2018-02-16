@@ -304,6 +304,7 @@ unittest
     assert(equal(unquoteExec(`env WINEPREFIX="/home/freeslave/.wine" wine C:\\windows\\command\\start.exe /Unix /home/freeslave/.wine/dosdevices/c:/windows/profiles/freeslave/Start\ Menu/Programs/True\ Remembrance/True\ Remembrance.lnk`), [
         "env", "WINEPREFIX=/home/freeslave/.wine", "wine", `C:\windows\command\start.exe`, "/Unix", "/home/freeslave/.wine/dosdevices/c:/windows/profiles/freeslave/Start Menu/Programs/True Remembrance/True Remembrance.lnk"
     ]));
+    assert(equal(unquoteExec(`Sister\'s\ book\(TM\)`), [`Sister's book(TM)`]));
 
     assertThrown!DesktopExecException(unquoteExec(`cmd "quoted arg`));
     assertThrown!DesktopExecException(unquoteExec(`"`));
