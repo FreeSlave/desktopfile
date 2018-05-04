@@ -796,18 +796,18 @@ package void xdgOpen(string url)
 }
 
 /**
- * Options to pass to $(D shootDesktopFile).
+ * Options to pass to $(D fireDesktopFile).
  */
-struct ShootOptions
+struct FireOptions
 {
     /**
-     * Flags that changes behavior of shootDesktopFile.
+     * Flags that changes behavior of fireDesktopFile.
      */
     enum
     {
-        Exec = 1, /// $(D shootDesktopFile) can start applications.
-        Link = 2, /// $(D shootDesktopFile) can open links (urls or file names).
-        FollowLink = 4, /// If desktop file is link and url points to another desktop file shootDesktopFile will be called on this url with the same options.
+        Exec = 1, /// $(D fireDesktopFile) can start applications.
+        Link = 2, /// $(D fireDesktopFile) can open links (urls or file names).
+        FollowLink = 4, /// If desktop file is link and url points to another desktop file fireDesktopFile will be called on this url with the same options.
         All = Exec|Link|FollowLink /// All flags described above.
     }
 
@@ -832,14 +832,14 @@ struct ShootOptions
     /**
      * Delegate that will be used to open url if desktop file is link.
      * To set static function use std.functional.toDelegate.
-     * If it's null shootDesktopFile will use xdg-open.
+     * If it's null fireDesktopFile will use xdg-open.
      */
     void delegate(string) opener = null;
 
     /**
      * Delegate that will be used to get terminal command if desktop file is application and needs to ran in terminal.
      * To set static function use std.functional.toDelegate.
-     * If it's null, shootDesktopFile will use getTerminalCommand.
+     * If it's null, fireDesktopFile will use getTerminalCommand.
      * See_Also: $(D getTerminalCommand)
      */
     const(string)[] delegate() terminalDetector = null;
@@ -849,6 +849,8 @@ struct ShootOptions
      */
     bool allowMultipleInstances = true;
 }
+
+deprecated("Use FireOptions") alias FireOptions ShootOptions;
 
 package bool readDesktopEntryValues(IniLikeReader)(IniLikeReader reader, string locale, string fileName,
                             out string iconName, out string name,
@@ -925,11 +927,11 @@ unittest
  *  $(B ProcessException) on failure to start the process.
  *  $(D DesktopExecException) if exec string is invalid.
  *  $(B Exception) on other errors.
- * See_Also: $(D ShootOptions)
+ * See_Also: $(D FireOptions)
  */
-void shootDesktopFile(IniLikeReader)(IniLikeReader reader, string fileName = null, ShootOptions options = ShootOptions.init)
+void fireDesktopFile(IniLikeReader)(IniLikeReader reader, string fileName = null, FireOptions options = FireOptions.init)
 {
-    enforce(options.flags & (ShootOptions.Exec|ShootOptions.Link), "At least one of the options Exec or Link must be provided");
+    enforce(options.flags & (FireOptions.Exec|FireOptions.Link), "At least one of the options Exec or Link must be provided");
 
     string iconName, name, execValue, url, workingDirectory;
     bool terminal;
@@ -937,7 +939,7 @@ void shootDesktopFile(IniLikeReader)(IniLikeReader reader, string fileName = nul
     if (readDesktopEntryValues(reader, options.locale, fileName, iconName, name, execValue, url, workingDirectory, terminal)) {
         import std.functional : toDelegate;
 
-        if (execValue.length && (options.flags & ShootOptions.Exec)) {
+        if (execValue.length && (options.flags & FireOptions.Exec)) {
             auto unquotedArgs = unquoteExec(execValue);
 
             SpawnParams params;
@@ -954,20 +956,20 @@ void shootDesktopFile(IniLikeReader)(IniLikeReader reader, string fileName = nul
                 params.terminalCommand = options.terminalDetector();
             }
             spawnApplication(unquotedArgs, params);
-        } else if (url.length && (options.flags & ShootOptions.FollowLink) && url.extension == ".desktop" && url.exists) {
-            options.flags = options.flags & (~ShootOptions.FollowLink); //avoid recursion
-            shootDesktopFile(url, options);
-        } else if (url.length && (options.flags & ShootOptions.Link)) {
+        } else if (url.length && (options.flags & FireOptions.FollowLink) && url.extension == ".desktop" && url.exists) {
+            options.flags = options.flags & (~FireOptions.FollowLink); //avoid recursion
+            fireDesktopFile(url, options);
+        } else if (url.length && (options.flags & FireOptions.Link)) {
             if (options.opener == null) {
                 options.opener = toDelegate(&xdgOpen);
             }
             options.opener(url);
         } else {
             if (execValue.length) {
-                throw new Exception("Desktop file is an application, but flags don't include ShootOptions.Exec");
+                throw new Exception("Desktop file is an application, but flags don't include FireOptions.Exec");
             }
             if (url.length) {
-                throw new Exception("Desktop file is a link, but flags don't include ShootOptions.Link");
+                throw new Exception("Desktop file is a link, but flags don't include FireOptions.Link");
             }
             throw new Exception("Desktop file is neither application nor link");
         }
@@ -980,46 +982,46 @@ void shootDesktopFile(IniLikeReader)(IniLikeReader reader, string fileName = nul
 unittest
 {
     string contents;
-    ShootOptions options;
+    FireOptions options;
 
     contents = "[Desktop Entry]\nURL=testurl";
-    options.flags = ShootOptions.FollowLink;
-    assertThrown(shootDesktopFile(iniLikeStringReader(contents), null, options));
+    options.flags = FireOptions.FollowLink;
+    assertThrown(fireDesktopFile(iniLikeStringReader(contents), null, options));
 
     contents = "[Group]\nKey=Value";
-    options = ShootOptions.init;
-    assertThrown(shootDesktopFile(iniLikeStringReader(contents), null, options));
+    options = FireOptions.init;
+    assertThrown(fireDesktopFile(iniLikeStringReader(contents), null, options));
 
     contents = "[Desktop Entry]\nURL=testurl";
-    options = ShootOptions.init;
+    options = FireOptions.init;
     bool wasCalled;
     options.opener = delegate void (string url) {
         assert(url == "testurl");
         wasCalled = true;
     };
 
-    shootDesktopFile(iniLikeStringReader(contents), null, options);
+    fireDesktopFile(iniLikeStringReader(contents), null, options);
     assert(wasCalled);
 
     contents = "[Desktop Entry]";
-    options = ShootOptions.init;
-    assertThrown(shootDesktopFile(iniLikeStringReader(contents), null, options));
+    options = FireOptions.init;
+    assertThrown(fireDesktopFile(iniLikeStringReader(contents), null, options));
 
     contents = "[Desktop Entry]\nURL=testurl";
-    options.flags = ShootOptions.Exec;
-    assertThrown(shootDesktopFile(iniLikeStringReader(contents), null, options));
+    options.flags = FireOptions.Exec;
+    assertThrown(fireDesktopFile(iniLikeStringReader(contents), null, options));
 
     contents = "[Desktop Entry]\nExec=whoami";
-    options.flags = ShootOptions.Link;
-    assertThrown(shootDesktopFile(iniLikeStringReader(contents), null, options));
+    options.flags = FireOptions.Link;
+    assertThrown(fireDesktopFile(iniLikeStringReader(contents), null, options));
 
     version(desktopfileFileTest) static if (isFreedesktop) {
         try {
             contents = "[Desktop Entry]\nExec=whoami\nTerminal=true";
-            options.flags = ShootOptions.Exec;
+            options.flags = FireOptions.Exec;
             wasCalled = false;
             options.terminalDetector = delegate string[] () {wasCalled = true; return null;};
-            shootDesktopFile(iniLikeStringReader(contents), null, options);
+            fireDesktopFile(iniLikeStringReader(contents), null, options);
             assert(wasCalled);
 
             string tempPath = buildPath(tempDir(), "desktopfile-unittest-tempdir");
@@ -1035,27 +1037,27 @@ unittest
             f.flush();
 
             contents = "[Desktop Entry]\nURL=" ~ tempDesktopFile;
-            options.flags = ShootOptions.Link | ShootOptions.FollowLink;
+            options.flags = FireOptions.Link | FireOptions.FollowLink;
             options.opener = delegate void (string url) {
                 assert(url == "testurl");
                 wasCalled = true;
             };
 
-            shootDesktopFile(iniLikeStringReader(contents), null, options);
+            fireDesktopFile(iniLikeStringReader(contents), null, options);
             assert(wasCalled);
         } catch(Exception e) {
 
         }
     }
-
-
 }
 
 /// ditto, but automatically create IniLikeReader from the file.
-@trusted void shootDesktopFile(string fileName, ShootOptions options = ShootOptions.init)
+@trusted void fireDesktopFile(string fileName, FireOptions options = FireOptions.init)
 {
-    shootDesktopFile(iniLikeFileReader(fileName), fileName, options);
+    fireDesktopFile(iniLikeFileReader(fileName), fileName, options);
 }
+
+deprecated("Use fireDesktopFile") alias fireDesktopFile shootDesktopFile;
 
 /**
  * See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html, Desktop File ID)

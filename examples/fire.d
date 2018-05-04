@@ -56,20 +56,20 @@ int main(string[] args)
         }
     }
 
-    ShootOptions options;
+    FireOptions options;
 
     options.urls = args[2..$];
 
     if (onlyExec) {
-        options.flags = options.flags & ~ShootOptions.Link;
+        options.flags = options.flags & ~FireOptions.Link;
     }
 
     if (notFollow) {
-        options.flags = options.flags & ~ ShootOptions.FollowLink;
+        options.flags = options.flags & ~FireOptions.FollowLink;
     }
 
     try {
-        shootDesktopFile(inFile, options);
+        fireDesktopFile(inFile, options);
     }
     catch(Exception e) {
         stderr.writeln(e.msg);
