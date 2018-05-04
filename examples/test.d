@@ -1,3 +1,9 @@
+/+dub.sdl:
+name "test"
+dependency "desktopfile" path="../"
+dependency "standardpaths" version="~>0.8.0"
++/
+
 import std.stdio;
 import std.algorithm;
 import std.array;

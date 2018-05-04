@@ -1,3 +1,8 @@
+/+dub.sdl:
+name "util"
+dependency "desktopfile" path="../"
++/
+
 import std.stdio;
 import std.getopt;
 import std.process;

@@ -1,3 +1,8 @@
+/+dub.sdl:
+name "shoot"
+dependency "desktopfile" path="../"
++/
+
 import std.stdio;
 import std.getopt;
 

@@ -12,6 +12,5 @@
     "targetName" : "desktopfile",
     "targetPath" : "lib",
     "targetType" : "library",
-    "versions" : ["desktopfileFileTest"],
-    "subPackages" : ["./examples/test", "./examples/util", "./examples/shoot"]
+    "versions" : ["desktopfileFileTest"]
 }
