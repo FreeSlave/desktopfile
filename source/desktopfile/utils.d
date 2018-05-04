@@ -32,7 +32,6 @@ package {
     static if( __VERSION__ < 2066 ) enum nogc = 1;
 
     import findexecutable;
-    import detached;
     import isfreedesktop;
 }
 
@@ -120,7 +119,7 @@ struct SpawnParams
 
 private @trusted void execProcess(in string[] args, string workingDirectory = null)
 {
-    spawnProcessDetached(args, getNullStdin(), getNullStdout(), getNullStderr(), null, Config.none, workingDirectory);
+    spawnProcess(args, getNullStdin(), getNullStdout(), getNullStderr(), null, Config.detached, workingDirectory);
 }
 
 /**
@@ -321,7 +320,7 @@ private @trusted string urlToFilePath(string url) nothrow pure
 }
 
 /**
- * Expand Exec arguments (usually returned by $(D unquoteExec)) replacing field codes with given values, making the array suitable for passing to spawnProcess or spawnProcessDetached.
+ * Expand Exec arguments (usually returned by $(D unquoteExec)) replacing field codes with given values, making the array suitable for passing to spawnProcess.
  * Deprecated field codes are ignored.
  * Note:
  *  Returned array may be empty and must be checked before passing to spawning the process.
