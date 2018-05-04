@@ -29,8 +29,6 @@ package {
     import std.traits;
     import std.typecons;
 
-    static if( __VERSION__ < 2066 ) enum nogc = 1;
-
     import findexecutable;
     import isfreedesktop;
 }
@@ -1081,11 +1079,7 @@ string desktopId(Range)(string fileName, Range appsPaths) if (isInputRange!Range
             }
 
             if (pathSplit.empty) {
-                static if( __VERSION__ < 2066 ) {
-                    return to!string(fileSplit.map!(s => to!string(s)).join("-"));
-                } else {
-                    return to!string(fileSplit.join("-"));
-                }
+                return to!string(fileSplit.join("-"));
             }
         }
     } catch(Exception e) {
