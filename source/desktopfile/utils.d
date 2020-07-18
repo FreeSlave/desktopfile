@@ -89,11 +89,11 @@ class DesktopExecException : Exception
 }
 
 /**
- * Parameters for spawnApplication.
+ * Parameters for $(D spawnApplication).
  */
 struct SpawnParams
 {
-    /// Urls of file paths to open
+    /// Urls or file paths to open
     const(string)[] urls;
 
     /// Icon to use in place of %i field code.
@@ -212,7 +212,7 @@ private @trusted string escapeQuotedArgument(string value) pure {
  * Note:
  *  Although Desktop Entry Specification says that arguments must be quoted by double quote, for compatibility reasons this implementation also recognizes single quotes.
  * See_Also:
- *  $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s06.html, specification)
+ *  $(LINK2 https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s07.html, specification)
  */
 @trusted auto unquoteExec(string unescapedValue) pure
 {
@@ -850,8 +850,6 @@ struct FireOptions
     bool allowMultipleInstances = true;
 }
 
-deprecated("Use FireOptions") alias FireOptions ShootOptions;
-
 package bool readDesktopEntryValues(IniLikeReader)(IniLikeReader reader, string locale, string fileName,
                             out string iconName, out string name,
                             out string execValue, out string url,
@@ -927,7 +925,7 @@ unittest
  *  $(B ProcessException) on failure to start the process.
  *  $(D DesktopExecException) if exec string is invalid.
  *  $(B Exception) on other errors.
- * See_Also: $(D FireOptions)
+ * See_Also: $(D FireOptions), $(D spawnApplication), $(D getTerminalCommand)
  */
 void fireDesktopFile(IniLikeReader)(IniLikeReader reader, string fileName = null, FireOptions options = FireOptions.init)
 {
@@ -1057,10 +1055,8 @@ unittest
     fireDesktopFile(iniLikeFileReader(fileName), fileName, options);
 }
 
-deprecated("Use fireDesktopFile") alias fireDesktopFile shootDesktopFile;
-
 /**
- * See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html, Desktop File ID)
+ * See $(LINK2 https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s02.html#desktop-file-id, Desktop File ID)
  * Params:
  *  fileName = Desktop file.
  *  appsPaths = Range of base application paths.
@@ -1117,7 +1113,7 @@ unittest
 static if (isFreedesktop)
 {
     /**
-     * See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html, Desktop File ID)
+     * See $(LINK2 https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s02.html#desktop-file-id, Desktop File ID)
      * Returns: Desktop file ID or empty string if file does not have an ID.
      * Params:
      *  fileName = Desktop file.
@@ -1191,7 +1187,7 @@ static if (isFreedesktop)
  *
  * This is not actually part of Desktop File Specification but many desktop envrionments have this concept.
  * The trusted .desktop file is a file the current user has executable access on or the owner of which is root.
- * This function should be applicable only to desktop files of $(D DesktopEntry.Type.Application) type.
+ * This function should be applicable only to desktop files of $(D desktopfile.file.DesktopEntry.Type.Application) type.
  * Note: Always returns true on non-posix systems.
  */
 @trusted bool isTrusted(string appFileName) nothrow

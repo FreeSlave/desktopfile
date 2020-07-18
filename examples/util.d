@@ -27,7 +27,7 @@ void main(string[] args)
     string action;
     string[] appPaths;
     getopt(args,
-           "action", "Action to run", &action,
+           "action", "Desktop Action to run (only with 'exec' command)", &action,
            "appPath", "Path of applications directory", &appPaths
           );
 
@@ -95,9 +95,12 @@ void main(string[] args)
         if (action.length) {
             auto desktopAction = df.action(action);
             if (desktopAction is null) {
-                stderr.writefln("No such action %s", action);
+                stderr.writefln("No such action (%s)", action);
             } else {
-                desktopAction.start();
+                string[] urls = args[3..$];
+                string[] actionArgs = desktopAction.expandExecValue(urls, locale);
+                writefln("Exec: %(%s %)", actionArgs);
+                desktopAction.start(urls, locale);
             }
         } else {
             string[] urls = args[3..$];

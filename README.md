@@ -123,6 +123,7 @@ This should start command line application in terminal emulator (will be detecte
 Additional application actions are supported too:
 
     dub examples/util.d exec /usr/share/applications/steam.desktop --action=Settings
+    dub examples/util.d exec /usr/share/applications/qpdfview.desktop --action NonUniqueInstance /path/to/pdf/file
 
 Running of multiple application instances if it does not support handling multiple urls:
 
@@ -132,7 +133,7 @@ Open a link with preferred application:
 
     dub examples/util.d open /usr/share/desktop-base/debian-homepage.desktop
 
-Looks up the .desktop file type and executes it if it's an application or opens a link if it's a link.
+Look up the .desktop file type and executes it if it's an application or opens a link if it's a link.
 
     dub examples/util.d start /path/to/file.desktop
 
@@ -144,7 +145,7 @@ Read basic information about desktop file:
 
     dub examples/util.d read /usr/share/applications/kde4/kate.desktop
 
-When passing base name of desktop file instead of path it's treated like desktop file id and desktop file is searched in system applications paths.
+When passing base name of desktop file instead of path it's treated as a desktop file id and desktop file is searched in system applications paths.
 
     dub examples/util.d exec python2.7.desktop
     dub examples/util.d exec kde4-kate.desktop
@@ -188,7 +189,7 @@ Uses the alternative way of starting desktop file. Instead of constructing Deskt
     dub examples/fire.d python2.7.desktop
     dub examples/fire.d geany.desktop dub.json
 
-Running of multiple application instances if it does not support handling multiple urls:
+Running multiple application instances if it does not support handling multiple urls:
 
     dub examples/fire.d leafpad.desktop dub.json README.md
 

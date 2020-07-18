@@ -76,20 +76,43 @@ public:
     }
 
     /**
-     * Start this action.
+     * Expand "Exec" value into the array of command line arguments to use to start the action.
+     * It applies unquoting and unescaping.
+     * See_Also: $(D execValue), $(D desktopfile.utils.expandExecArgs), $(D start)
+     */
+    @safe string[] expandExecValue(in string[] urls = null, string locale = null) const
+    {
+        return expandExecArgs(unquoteExec(execValue()), urls, localizedIconName(locale), localizedDisplayName(locale));
+    }
+
+    /**
+     * Start this action with provided urls.
      * Throws:
      *  $(B ProcessException) on failure to start the process.
      *  $(D desktopfile.utils.DesktopExecException) if exec string is invalid.
-     * See_Also: $(D execValue)
+     * See_Also: $(D execValue), $(D desktopfile.utils.spawnApplication)
      */
-    @safe void start(string locale = null) const {
+    @safe void start(in string[] urls, string locale = null) const
+    {
         auto unquotedArgs = unquoteExec(execValue());
 
         SpawnParams params;
+        params.urls = urls;
         params.iconName = localizedIconName(locale);
         params.displayName = localizedDisplayName(locale);
 
         return spawnApplication(unquotedArgs, params);
+    }
+
+    /// ditto, but using a single url
+    @safe void start(string url, string locale) const
+    {
+        return start([url], locale);
+    }
+
+    /// ditto, but without any urls.
+    @safe void start(string locale = null) const {
+        return start(string[].init, locale);
     }
 }
 
@@ -722,6 +745,7 @@ public:
 Key=Value
 Actions=Action1;
 [Desktop Action Action1]
+Name=Action1 Name
 Key=Value`;
 
         alias DesktopFile.DesktopReadOptions DesktopReadOptions;
@@ -852,13 +876,13 @@ public:
     }
 
     /**
-     * Constructs DesktopFile with "Desktop Entry" group and Version set to 1.0
+     * Constructs DesktopFile with "Desktop Entry" group and Version set to 1.1
      */
     @safe this() {
         super();
         _desktopEntry = new DesktopEntry();
         insertGroup(_desktopEntry);
-        _desktopEntry.setEscapedValue("Version", "1.0");
+        _desktopEntry.setEscapedValue("Version", "1.1");
     }
 
     ///
@@ -866,7 +890,7 @@ public:
     {
         auto df = new DesktopFile();
         assert(df.desktopEntry());
-        assert(df.desktopEntry().escapedValue("Version") == "1.0");
+        assert(df.desktopEntry().escapedValue("Version") == "1.1");
         assert(df.categories().empty);
         assert(df.type() == DesktopFile.Type.Unknown);
     }
@@ -919,7 +943,7 @@ public:
 
     static if (isFreedesktop) {
         /**
-        * See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html, Desktop File ID)
+        * See $(LINK2 https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s02.html#desktop-file-id, Desktop File ID)
         * Returns: Desktop file ID or empty string if file does not have an ID.
         * Note: This function retrieves applications paths each time it's called and therefore can impact performance. To avoid this issue use overload with argument.
         * See_Also: $(D desktopfile.paths.applicationsPaths),  $(D desktopfile.utils.desktopId)
@@ -941,7 +965,7 @@ public:
     }
 
     /**
-     * See $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html, Desktop File ID)
+     * See $(LINK2 https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s02.html#desktop-file-id, Desktop File ID)
      * Params:
      *  appPaths = range of base application paths to check if this file belongs to one of them.
      * Returns: Desktop file ID or empty string if file does not have an ID.
@@ -1077,7 +1101,7 @@ Type=Directory`;
     }
 
     /**
-     * Get $(LINK2 http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s10.html, additional application action) by name.
+     * Get $(LINK2 https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s11.html, additional application action) by name.
      * Returns: $(D DesktopAction) with given action name or null if not found or found section does not have a name.
      * See_Also: $(D actions), $(D byAction)
      */
@@ -1144,14 +1168,14 @@ Icon[ru]=folder_ru`;
      * If the program should be run in terminal it tries to find system defined terminal emulator to run in.
      * Params:
      *  urls = urls application will start with.
-     *  locale = locale that may be needed to be placed in urls if Exec value has %c code.
-     *  terminalCommand = preferable terminal emulator command. If not set then terminal is determined via getTerminalCommand.
+     *  locale = locale that may be needed to be placed in params if Exec value has %c code.
+     *  terminalCommand = preferable terminal emulator command. If not set then terminal is determined via $(D desktopfile.utils.getTerminalCommand).
      * Note:
      *  This function does not check if the type of desktop file is Application. It relies only on "Exec" value.
      * Throws:
-     *  ProcessException on failure to start the process.
+     *  $(B ProcessException) on failure to start the process.
      *  $(D desktopfile.utils.DesktopExecException) if exec string is invalid.
-     * See_Also: $(D desktopfile.utils.getTerminalCommand), $(D start), $(D expandExecValue)
+     * See_Also: $(D desktopfile.utils.spawnApplication), $(D desktopfile.utils.getTerminalCommand), $(D start), $(D expandExecValue)
      */
     @trusted void startApplication(in string[] urls = null, string locale = null, lazy const(string)[] terminalCommand = getTerminalCommand) const
     {
@@ -1201,8 +1225,8 @@ Icon[ru]=folder_ru`;
      * Note:
      *  This function does not check if the type of desktop file is Link. It relies only on "URL" value.
      * Throws:
-     *  ProcessException on failure to start the process.
-     *  Exception if desktop file does not define URL or it's empty.
+     *  $(B ProcessException) on failure to start the process.
+     *  $(B Exception) if desktop file does not define URL or it's empty.
      * See_Also: $(D start)
      */
     @trusted void startLink() const {
@@ -1221,8 +1245,10 @@ Icon[ru]=folder_ru`;
     /**
      * Starts application or open link depending on desktop entry type.
      * Throws:
-     *  ProcessException on failure to start the process.
-     *  Exception if type is $(D DesktopEntry.Type.Unknown) or $(D DesktopEntry.Type.Directory).
+     *  $(B ProcessException) on failure to start the process.
+     *  $(D desktopfile.utils.DesktopExecException) if type is $(D DesktopEntry.Type.Application) and the exec string is invalid.
+     *  $(B Exception) if type is $(D DesktopEntry.Type.Unknown) or $(D DesktopEntry.Type.Directory),
+     *   or if type is $(D DesktopEntry.Type.Link), but no url provided.
      * See_Also: $(D startApplication), $(D startLink)
      */
     @trusted void start() const
@@ -1338,6 +1364,10 @@ Name=Notspecified Action`;
     assert(equal(df.byAction().map!(desktopAction =>
     tuple(desktopAction.displayName(), desktopAction.localizedDisplayName("ru"), desktopAction.iconName(), desktopAction.execValue())),
                  [tuple("Open directory", "Открыть папку", "open", "doublecmd %u"), tuple("Settings", "Настройки", "edit", "doublecmd settings")]));
+
+    DesktopAction desktopAction = df.action("OpenDirectory");
+    assert(desktopAction !is null);
+    assert(desktopAction.expandExecValue(["path/to/file"]) == ["doublecmd", "path/to/file"]);
 
     assert(df.action("NotPresented") is null);
     assert(df.action("Notspecified") is null);
