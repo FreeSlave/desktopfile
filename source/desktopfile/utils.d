@@ -684,108 +684,92 @@ unittest
     assertThrown(ExecBuilder("./relative/path"));
 }
 
+static if (isFreedesktop)
+{
+    package string[] getDefaultTerminalCommand() nothrow
+    {
+        import std.utf : byCodeUnit;
+        string xdgCurrentDesktop;
+        collectException(environment.get("XDG_CURRENT_DESKTOP"), xdgCurrentDesktop);
+        foreach(desktop; xdgCurrentDesktop.byCodeUnit.splitter(':'))
+        {
+            switch(desktop.source) {
+                case "GNOME":
+                case "X-Cinnamon":
+                case "Cinnamon":
+                    return ["gnome-terminal", "-x"];
+                case "LXDE":
+                    return ["lxterminal", "-e"];
+                case "XFCE":
+                    return ["xfce4-terminal", "-x"];
+                case "MATE":
+                    return ["mate-terminal", "-x"];
+                case "KDE":
+                    return ["konsole", "-e"];
+                default:
+                    break;
+            }
+        }
+        return null;
+    }
+
+    unittest
+    {
+        import desktopfile.paths : EnvGuard;
+        EnvGuard currentDesktopGuard = EnvGuard("XDG_CURRENT_DESKTOP", "KDE");
+        assert(getDefaultTerminalCommand()[0] == "konsole");
+
+        environment["XDG_CURRENT_DESKTOP"] = "unity:GNOME";
+        assert(getDefaultTerminalCommand()[0] == "gnome-terminal");
+
+        environment["XDG_CURRENT_DESKTOP"] = null;
+        assert(getDefaultTerminalCommand().empty);
+
+        environment["XDG_CURRENT_DESKTOP"] = "Generic";
+        assert(getDefaultTerminalCommand().empty);
+    }
+}
+
 /**
  * Detect command which will run program in terminal emulator.
- *
- * On Freedesktop it looks for x-terminal-emulator first. If found ["/path/to/x-terminal-emulator", "-e"] is returned.
- * Otherwise it looks for xdg-terminal. If found ["/path/to/xdg-terminal"] is returned.
- * Otherwise it tries to detect your desktop environment and find default terminal emulator for it.
+ * It tries to detect your desktop environment and find default terminal emulator for it.
  * If all guesses failed, it uses ["xterm", "-e"] as fallback.
  * Note: This function always returns empty array on non-freedesktop systems.
  */
 string[] getTerminalCommand() nothrow @trusted
 {
     static if (isFreedesktop) {
-        static string getDefaultTerminal() nothrow
-        {
-            string xdgCurrentDesktop;
-            collectException(environment.get("XDG_CURRENT_DESKTOP"), xdgCurrentDesktop);
-            switch(xdgCurrentDesktop) {
-                case "GNOME":
-                case "X-Cinnamon":
-                    return "gnome-terminal";
-                case "LXDE":
-                    return "lxterminal";
-                case "XFCE":
-                    return "xfce4-terminal";
-                case "MATE":
-                    return "mate-terminal";
-                case "KDE":
-                    return "konsole";
-                default:
-                    return null;
-            }
-        }
-
         string[] paths;
         collectException(binPaths().array, paths);
 
-        string term = findExecutable("x-terminal-emulator", paths);
-        if (!term.empty) {
+        string[] termCommand = getDefaultTerminalCommand();
+        if (!termCommand.empty) {
+            termCommand[0] = findExecutable(termCommand[0], paths);
+            if (termCommand[0] != string.init)
+                return termCommand;
+        }
+
+        string term = findExecutable("rxvt", paths);
+        if (!term.empty)
             return [term, "-e"];
-        }
-        term = findExecutable("xdg-terminal", paths);
-        if (!term.empty) {
-            return [term];
-        }
-        term = getDefaultTerminal();
-        if (!term.empty) {
-            term = findExecutable(term, paths);
-            if (!term.empty) {
-                return [term, "-e"];
-            }
-        }
+
         return ["xterm", "-e"];
     } else {
         return null;
     }
 }
 
-version(desktopfileFileTest) unittest
+///
+unittest
 {
-    import isfreedesktop;
-    static if (isFreedesktop) {
-        import desktopfile.paths;
-
-        try {
-            static void changeMod(string fileName, uint mode)
-            {
-                import core.sys.posix.sys.stat;
-                enforce(chmod(fileName.toStringz, cast(mode_t)mode) == 0);
-            }
-
-            string tempPath = buildPath(tempDir(), "desktopfile-unittest-tempdir");
-
-            if (!tempPath.exists) {
-                mkdir(tempPath);
-            }
-            scope(exit) rmdir(tempPath);
-
-            auto pathGuard = EnvGuard("PATH", tempPath);
-
-            string tempXTerminalEmulatorFile = buildPath(tempPath, "x-terminal-emulator");
-            string tempXdgTerminalFile = buildPath(tempPath, "xdg-terminal");
-
-            File(tempXdgTerminalFile, "w");
-            scope(exit) remove(tempXdgTerminalFile);
-            changeMod(tempXdgTerminalFile, octal!755);
-            enforce(getTerminalCommand() == [buildPath(tempPath, "xdg-terminal")]);
-
-            changeMod(tempXdgTerminalFile, octal!644);
-            enforce(getTerminalCommand() == ["xterm", "-e"]);
-
-            File(tempXTerminalEmulatorFile, "w");
-            scope(exit) remove(tempXTerminalEmulatorFile);
-            changeMod(tempXTerminalEmulatorFile, octal!755);
-            enforce(getTerminalCommand() == [buildPath(tempPath, "x-terminal-emulator"), "-e"]);
-
-            environment["PATH"] = ":";
-            enforce(getTerminalCommand() == ["xterm", "-e"]);
-
-        } catch(Exception e) {
-
-        }
-    } else {
+    if (isFreedesktop)
+    {
+        import desktopfile.paths : EnvGuard;
+        EnvGuard pathGuard = EnvGuard("PATH", ":");
+        assert(getTerminalCommand() == ["xterm", "-e"]);
+    }
+    else
+    {
         assert(getTerminalCommand().empty);
     }
 }
