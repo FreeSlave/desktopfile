@@ -1128,7 +1128,7 @@ Type=Directory`;
      * Returns: instance of "Desktop Entry" group.
      * Note: Usually you don't need to call this function since you can rely on alias this.
      */
-    @nogc @safe inout(DesktopEntry) desktopEntry() nothrow inout {
+    @nogc @safe inout(DesktopEntry) desktopEntry() nothrow inout pure {
         return _desktopEntry;
     }
 
@@ -1136,6 +1136,14 @@ Type=Directory`;
      * This alias allows to call functions related to "Desktop Entry" group without need to call desktopEntry explicitly.
      */
     alias desktopEntry this;
+
+    unittest
+    {
+        // Making sure rebindable const is possible
+        import std.typecons : rebindable;
+        const d = new DesktopFile();
+        auto r = d.rebindable;
+    }
 
     /**
      * Expand "Exec" value into the array of command line arguments to use to start the program.
