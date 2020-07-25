@@ -21,18 +21,18 @@ The library is crossplatform for the most part, though there's little sense to u
 
 **desktopfile** provides basic features like reading and executing desktop files, and more:
 
-* [Exec](http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s06.html) value unquoting and unescaping. Expanding field codes.
+* [Exec](https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s07.html) value unquoting and unescaping. Expanding field codes.
 * Starting several instances of application if it supports only %f or %u and not %F or %U.
-* Can rewrite desktop files preserving all comments and the original order of groups [as required by spec](https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s02.html).
-* Retrieving [Desktop file ID](http://standards.freedesktop.org/desktop-entry-spec/latest/ape.html).
-* Support for [Additional application actions](http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s10.html).
+* Can rewrite desktop files preserving all comments and the original order of groups [as required by spec](https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s03.html).
+* Retrieving [Desktop file ID](https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s02.html#desktop-file-id).
+* Support for [Additional application actions](https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s11.html).
 * Determining default terminal command to run applications with Terminal=true. Note that default terminal detector may not work properly on particular system since there's no standard way to find default terminal emulator that would work on every distribution and desktop environment. If you strive for better terminal emulator detection you may look at [xdg-terminal.sh](https://src.chromium.org/svn/trunk/deps/third_party/xdg-utils/scripts/xdg-terminal).
 
 ### Missing features
 
 Features that currently should be handled by user, but may be implemented in the future versions of library.
 
-* [D-Bus Activation](http://standards.freedesktop.org/desktop-entry-spec/latest/ar01s07.html).
+* [D-Bus Activation](https://specifications.freedesktop.org/desktop-entry-spec/latest/ar01s08.html).
 * Startup Notification Protocol.
 * Copying files to local file system when %f or %F field code is used.
 * Support for Ayatana Desktop Shortcuts used in Unity. This is not part of Desktop Entry and actually violates the specification.
