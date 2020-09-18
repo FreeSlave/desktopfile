@@ -115,7 +115,7 @@ struct SpawnParams
     bool allowMultipleInstances = true;
 }
 
-private @trusted void execProcess(in string[] args, string workingDirectory = null)
+private @trusted void execProcess(scope const(string)[] args, string workingDirectory = null)
 {
     spawnProcess(args, getNullStdin(), getNullStdout(), getNullStderr(), null, Config.detached, workingDirectory);
 }
@@ -162,7 +162,7 @@ private @safe bool needQuoting(char c) nothrow pure
     }
 }
 
-private @safe bool needQuoting(string arg) nothrow pure
+private @safe bool needQuoting(scope string arg) nothrow pure
 {
     if (arg.length == 0) {
         return true;
@@ -334,7 +334,7 @@ private @trusted string urlToFilePath(string url) nothrow pure
  *  $(D DesktopExecException) if command line contains unknown field code.
  * See_Also: $(D unquoteExec)
  */
-@trusted string[] expandExecArgs(in string[] unquotedArgs, in string[] urls = null, string iconName = null, string displayName = null, string fileName = null) pure
+@trusted string[] expandExecArgs(scope const(string)[] unquotedArgs, scope const(string)[] urls = null, string iconName = null, string displayName = null, string fileName = null) pure
 {
     string[] toReturn;
     foreach(token; unquotedArgs) {
@@ -479,7 +479,7 @@ enum ParamSupport
  *  execArgs = Array of unescaped and unquoted arguments.
  * See_Also: $(D unquoteExec), $(D needMultipleInstances)
  */
-@nogc @safe ParamSupport paramSupport(in string[] execArgs) pure nothrow
+@nogc @safe ParamSupport paramSupport(scope const(string)[] execArgs) pure nothrow
 {
     auto support = ParamSupport.none;
     foreach(token; execArgs) {
@@ -528,7 +528,7 @@ unittest
  * Returns: true if execArgs have only %f or %u and not %F or %U. Otherwise false is returned.
  * See_Also: $(D unquoteExec), $(D paramSupport)
  */
-@nogc @safe bool needMultipleInstances(in string[] execArgs) pure nothrow
+@nogc @safe bool needMultipleInstances(scope const(string)[] execArgs) pure nothrow
 {
     auto support = paramSupport(execArgs);
     const bool noNeed = support == ParamSupport.none || (support & (ParamSupport.urls|ParamSupport.files)) != 0;
@@ -774,7 +774,7 @@ unittest
     }
 }
 
-package void xdgOpen(string url)
+package void xdgOpen(scope string url)
 {
     execProcess(["xdg-open", url]);
 }
@@ -834,7 +834,7 @@ struct FireOptions
     bool allowMultipleInstances = true;
 }
 
-package bool readDesktopEntryValues(IniLikeReader)(IniLikeReader reader, string locale, string fileName,
+package bool readDesktopEntryValues(IniLikeReader)(IniLikeReader reader, scope string locale, string fileName,
                             out string iconName, out string name,
                             out string execValue, out string url,
                             out string workingDirectory, out bool terminal)
@@ -1170,7 +1170,7 @@ static if (isFreedesktop)
  * This function should be applicable only to desktop files of $(D desktopfile.file.DesktopEntry.Type.Application) type.
  * Note: Always returns true on non-posix systems.
  */
-@trusted bool isTrusted(string appFileName) nothrow
+@trusted bool isTrusted(scope string appFileName) nothrow
 {
     version(Posix) {
         import core.sys.posix.sys.stat;

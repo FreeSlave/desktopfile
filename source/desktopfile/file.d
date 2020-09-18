@@ -80,7 +80,7 @@ public:
      * It applies unquoting and unescaping.
      * See_Also: $(D execValue), $(D desktopfile.utils.expandExecArgs), $(D start)
      */
-    @safe string[] expandExecValue(in string[] urls = null, string locale = null) const
+    @safe string[] expandExecValue(scope const(string)[] urls = null, string locale = null) const
     {
         return expandExecArgs(unquoteExec(execValue()), urls, localizedIconName(locale), localizedDisplayName(locale));
     }
@@ -92,7 +92,7 @@ public:
      *  $(D desktopfile.utils.DesktopExecException) if exec string is invalid.
      * See_Also: $(D execValue), $(D desktopfile.utils.spawnApplication)
      */
-    @safe void start(in string[] urls, string locale = null) const
+    @safe void start(scope const(string)[] urls, string locale = null) const
     {
         auto unquotedArgs = unquoteExec(execValue());
 
@@ -1150,7 +1150,7 @@ Type=Directory`;
      * It applies unquoting and unescaping.
      * See_Also: $(D execValue), $(D desktopfile.utils.expandExecArgs), $(D startApplication)
      */
-    @safe string[] expandExecValue(in string[] urls = null, string locale = null) const
+    @safe string[] expandExecValue(scope const(string)[] urls = null, string locale = null) const
     {
         return expandExecArgs(unquoteExec(execValue()), urls, localizedIconName(locale), localizedDisplayName(locale), fileName());
     }
@@ -1185,7 +1185,7 @@ Icon[ru]=folder_ru`;
      *  $(D desktopfile.utils.DesktopExecException) if exec string is invalid.
      * See_Also: $(D desktopfile.utils.spawnApplication), $(D desktopfile.utils.getTerminalCommand), $(D start), $(D expandExecValue)
      */
-    @trusted void startApplication(in string[] urls = null, string locale = null, lazy const(string)[] terminalCommand = getTerminalCommand) const
+    @trusted void startApplication(scope const(string)[] urls = null, string locale = null, lazy const(string)[] terminalCommand = getTerminalCommand) const
     {
         auto unquotedArgs = unquoteExec(execValue());
 
