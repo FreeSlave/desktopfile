@@ -842,9 +842,6 @@ package bool readDesktopEntryValues(IniLikeReader)(IniLikeReader reader, string 
     import inilike.read;
     string bestLocale;
     bool hasDesktopEntry;
-    auto onMyLeadingComment = delegate void(string line) {
-
-    };
     auto onMyGroup = delegate ActionOnGroup(string groupName) {
         if (groupName == "Desktop Entry") {
             hasDesktopEntry = true;
@@ -866,7 +863,7 @@ package bool readDesktopEntryValues(IniLikeReader)(IniLikeReader reader, string 
             default: {
                 auto kl = separateFromLocale(key);
                 if (kl[0] == "Name") {
-                    auto lv = chooseLocalizedValue(locale, kl[1], value, bestLocale, name);
+                    auto lv = selectLocalizedValue(locale, kl[1], value, bestLocale, name);
                     bestLocale = lv[0];
                     name = lv[1].unescapeValue();
                 }
@@ -874,11 +871,8 @@ package bool readDesktopEntryValues(IniLikeReader)(IniLikeReader reader, string 
             break;
         }
     };
-    auto onMyCommentInGroup = delegate void(string line, string groupName) {
 
-    };
-
-    readIniLike(reader, onMyLeadingComment, onMyGroup, onMyKeyValue, onMyCommentInGroup, fileName);
+    readIniLike(reader, null, onMyGroup, onMyKeyValue, null, fileName);
     return hasDesktopEntry;
 }
 
@@ -896,6 +890,8 @@ unittest
     assert(workingDirectory == "/usr/bin");
     assert(terminal);
     assert(name == "Пример");
+    readDesktopEntryValues(reader, string.init, null, iconName, name , execValue, url, workingDirectory, terminal);
+    assert(name == "Example");
 }
 
 /**

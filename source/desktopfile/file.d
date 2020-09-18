@@ -804,7 +804,7 @@ Name=Two`;
 
         df = new DesktopFile(iniLikeStringReader(contents), DesktopReadOptions(DuplicateGroupPolicy.preserve));
         assert(df.displayName() == "One");
-        assert(df.byGroup().map!(g => g["Name"]).equal(["One", "Two"]));
+        assert(df.byGroup().map!(g => g.escapedValue("Name")).equal(["One", "Two"]));
     }
 
 protected:

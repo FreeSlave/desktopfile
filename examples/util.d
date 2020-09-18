@@ -15,7 +15,7 @@ import isfreedesktop;
 @safe string currentLocale() nothrow
 {
     try {
-        return environment.get("LC_CTYPE", environment.get("LC_ALL", environment.get("LANG")));
+        return environment.get("LC_ALL", environment.get("LC_MESSAGES", environment.get("LANG")));
     }
     catch(Exception e) {
         return null;
