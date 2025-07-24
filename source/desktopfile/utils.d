@@ -240,7 +240,7 @@ private @trusted string escapeQuotedArgument(string value) pure {
         throw new DesktopExecException("Missing pair quote");
     }
 
-    char[] append;
+    string append;
     while(i < value.length) {
         if (value[i] == '\\' && i+1 < value.length && needQuoting(value[i+1])) {
             // this is actually does not adhere to the spec, but we need it to support some wine-generated .desktop files
@@ -255,6 +255,7 @@ private @trusted string escapeQuotedArgument(string value) pure {
             // some DEs can produce files with quoting by single quotes when there's a space in path
             // it's not actually part of the spec, but we support it
             append ~= parseQuotedPart(i, value[i], value);
+            if (append is null) append = ""; // force empty quoted strings to be output
         } else {
             append ~= value[i];
         }
