@@ -319,6 +319,14 @@ private @trusted string urlToFilePath(string url) nothrow pure
     }
 }
 
+unittest {
+    assert(urlToFilePath("foo/bar") == "foo/bar");
+    assert(urlToFilePath("/foo/bar") == "/foo/bar");
+    assert(urlToFilePath("file:///foo/bar") == "/foo/bar");
+    assert(urlToFilePath("file:///foo%20bar/baz") == "/foo bar/baz");
+    assert(urlToFilePath("file:///f%oo") == "/f%oo"); // handle bad encoding gracefully
+}
+
 /**
  * Expand Exec arguments (usually returned by $(D unquoteExec)) replacing field codes with given values, making the array suitable for passing to spawnProcess.
  * Deprecated field codes are ignored.
