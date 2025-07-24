@@ -308,9 +308,12 @@ unittest
 
 private @trusted string urlToFilePath(string url) nothrow pure
 {
+    static import std.uri;
+
     enum protocol = "file://";
     if (url.length > protocol.length && url[0..protocol.length] == protocol) {
-        return url[protocol.length..$];
+        try return std.uri.decode(url[protocol.length..$]);
+        catch (Exception e) return url[protocol.length..$];
     } else {
         return url;
     }
