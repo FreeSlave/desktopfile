@@ -129,7 +129,7 @@ private @trusted void execProcess(scope const(string)[] args, string workingDire
  *  $(D DesktopExecException) if unquotedArgs is empty.
  * See_Also: $(D SpawnParams)
  */
-@trusted void spawnApplication(const(string)[] unquotedArgs, const SpawnParams params)
+@trusted void spawnApplication(scope const(string)[] unquotedArgs, const scope SpawnParams params)
 {
     if (!unquotedArgs.length) {
         throw new DesktopExecException("No arguments. Missing or empty Exec value");
